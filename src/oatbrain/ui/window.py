@@ -70,7 +70,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # Status Bar
         self.status_bar = StatusBar(self._event_bus)
-        self.toolbar_view.add_bottom_bar(self.status_bar)
+        self.toolbar_view.add_bottom_bar(self.status_bar.widget)
 
         self.main_window.present()
 

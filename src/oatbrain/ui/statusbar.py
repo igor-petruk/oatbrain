@@ -2,17 +2,16 @@ from gi.repository import Gtk, GLib
 from oatbrain.core.events.state import StateUpdated
 from oatbrain.core.bus import EventBus
 
-class StatusBar(Gtk.Box):  # type: ignore[misc]
+class StatusBar:
     """Status bar widget that reflects AppState."""
-    __gtype_name__ = "OatbrainStatusBar"
 
     def __init__(self, event_bus: EventBus) -> None:
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
-        self.set_margin_start(12)
-        self.set_margin_end(12)
-        self.set_margin_top(6)
-        self.set_margin_bottom(6)
-        self.set_spacing(12)
+        self.widget = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.widget.set_margin_start(12)
+        self.widget.set_margin_end(12)
+        self.widget.set_margin_top(6)
+        self.widget.set_margin_bottom(6)
+        self.widget.set_spacing(12)
 
         self._path_label = Gtk.Label(label="No file open")
         self._path_label.set_hexpand(True)
@@ -22,9 +21,9 @@ class StatusBar(Gtk.Box):  # type: ignore[misc]
         
         self._word_count_label = Gtk.Label(label="0 words")
 
-        self.append(self._path_label)
-        self.append(self._status_label)
-        self.append(self._word_count_label)
+        self.widget.append(self._path_label)
+        self.widget.append(self._status_label)
+        self.widget.append(self._word_count_label)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
 

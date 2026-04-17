@@ -36,7 +36,10 @@ class HeaderBar:
         # Right: theme switcher
         self._theme_btn = Gtk.Button(icon_name="display-brightness-symbolic")
         self._theme_btn.set_tooltip_text("Switch Theme")
-        self.widget.pack_end(self._theme_btn)
+        
+        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        right_box.append(self._theme_btn)
+        self.widget.pack_end(right_box)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
 
@@ -47,7 +50,7 @@ class HeaderBar:
         state = event.state
         if state.editor.open_file:
             filename = str(state.editor.open_file.path.name)
-            self._title_label.set_text(filename)
+            self._title_label.set_text(f"oatbrain — {filename}")
         else:
             self._title_label.set_text("oatbrain")
         return bool(GLib.SOURCE_REMOVE)

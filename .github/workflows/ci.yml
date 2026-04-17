@@ -29,9 +29,13 @@ jobs:
             python3-pytest \
             python3-mypy \
             python3-ruff \
-            make
+            make \
+            python3-venv
       - name: Run lint
-        run: make lint
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install tach
+          make lint
 
   test-unit:
     needs: lint

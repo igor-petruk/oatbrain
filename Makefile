@@ -9,6 +9,7 @@ clean:
 lint:
 	python3 -m ruff check .
 	python3 -m mypy --strict src/oatbrain
+	.venv/bin/tach check
 
 test:
 	python3 -m pytest tests/unit

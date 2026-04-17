@@ -14,4 +14,4 @@ def test_headerbar_instantiation():
 def test_statusbar_instantiation():
     event_bus = EventBus()
     status = StatusBar(event_bus)
-    assert isinstance(status, Gtk.Box)
+    assert isinstance(status.widget, Gtk.Box)
