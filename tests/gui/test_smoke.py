@@ -1,10 +1,9 @@
-import gi
 import logging
+import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib  # noqa: E402
 from oatbrain.app.bootstrap import build_app  # noqa: E402
-import pytest
 
 logger = logging.getLogger(__name__)
 
