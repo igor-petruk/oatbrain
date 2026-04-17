@@ -98,9 +98,9 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Filesystem watcher: reload externally-changed files automatically unless the
   buffer is dirty; warn otherwise.
 - Autosave: 5 s idle + on blur + on pane-leave.
-- Header bar: hamburger · tree-toggle · terminal-toggle · new-note (left) ·
-  filename · unsaved-dot · read-only-lock (centre) · theme switcher · window
-  controls (right).
+- Header bar: hamburger · tree-toggle · new-note (left) ·
+  filename · unsaved-dot · read-only-lock (centre) · terminal-toggle · theme
+  switcher · window controls (right).
 - Fuzzy filename finder (`Ctrl+P`). Command palette (`Ctrl+Shift+P`) as the same
   widget in a different prefix mode.
 - Three built-in themes: Solarized Light, Monokai Dark, high-contrast dark.
@@ -200,8 +200,10 @@ python3-pytest-cov
 python3-hypothesis
 python3-mypy
 python3-ruff               (or any lint package available)
-python3-tach               (architecture linter; if unavailable in apt, vendor
-                            via a single-file copy — see §23.4)
+tach                       (architecture linter; MUST be run from a virtual
+                            environment as it is not packaged for Debian. This
+                            is the ONLY permitted exception for `pip` usage,
+                            restricted to development/test only.)
 python3-syrupy             (snapshot tests)
 python3-pyfakefs           (fake FS for unit tests)
 xvfb                       (headless display for widget tests + smoke test)
@@ -215,8 +217,9 @@ python3-dogtail            (GUI automation via AT-SPI, optional)
 - Built with `dh_python3` + `pybuild` (`debian/rules` boilerplate).
 - All runtime dependencies declared as `python3-*` / `gir1.2-*` in
   `debian/control`.
-- **No** `pip install` at runtime. **No** venv. **No** vendored wheels (except
-  the single-file `tach` fallback noted above).
+- **No** `pip install` at runtime. **No** venv at runtime. **No** vendored
+  wheels. (Exception: `tach` is permitted via `pip` in dev/CI environments
+  only to enforce architecture boundaries).
 - `.desktop` file installed under `/usr/share/applications/oatbrain.desktop`.
 - Icon SVG installed under `/usr/share/icons/hicolor/scalable/apps/`.
 - Binary entry point under `/usr/bin/oatbrain` (from `pyproject.toml`
