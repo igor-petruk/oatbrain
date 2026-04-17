@@ -9,7 +9,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    container: debian:testing
+    container: debian:unstable
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -36,7 +36,7 @@ jobs:
   test-unit:
     needs: lint
     runs-on: ubuntu-latest
-    container: debian:testing
+    container: debian:unstable
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -61,7 +61,7 @@ jobs:
   test-gui:
     needs: lint
     runs-on: ubuntu-latest
-    container: debian:testing
+    container: debian:unstable
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
