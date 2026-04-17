@@ -1,5 +1,5 @@
 from pathlib import Path
-import yaml
+import yaml  # type: ignore[import-untyped]
 from oatbrain.core.state.app_state import AppState, EditorState
 from oatbrain.core.ports.filestore import VaultPath
 

@@ -26,8 +26,8 @@ jobs:
             python3-yaml \
             python3-watchdog \
             python3-pytest \
-            python3-mypy
-          pip install ruff tach types-PyYAML
+            python3-mypy \
+            python3-ruff
       - name: Run lint
         run: make lint
 
