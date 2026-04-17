@@ -98,9 +98,9 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Filesystem watcher: reload externally-changed files automatically unless the
   buffer is dirty; warn otherwise.
 - Autosave: 5 s idle + on blur + on pane-leave.
-- Header bar: hamburger · tree-toggle · terminal-toggle · new-note (left) ·
-  filename · unsaved-dot · read-only-lock (centre) · theme switcher · window
-  controls (right).
+- Header bar: hamburger · tree-toggle · new-note (left) ·
+  filename · unsaved-dot · read-only-lock (centre) · terminal-toggle · theme
+  switcher · window controls (right).
 - Fuzzy filename finder (`Ctrl+P`). Command palette (`Ctrl+Shift+P`) as the same
   widget in a different prefix mode.
 - Three built-in themes: Solarized Light, Monokai Dark, high-contrast dark.
