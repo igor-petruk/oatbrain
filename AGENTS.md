@@ -52,5 +52,14 @@ Every task MUST follow this lifecycle:
     2. Update relevant GitHub issues or create new ones using the `gh` tool.
     3. Update [PLAN.md](PLAN.md) to ensure it remains in sync with the GitHub project board and issue state.
 
+## 7. Specialized Skills & Command Triggers
+
+The following skills are available in the workspace to streamline the PR-driven workflow. Agents MUST activate these skills when triggered by the user.
+
+| Skill | Activation Trigger | Purpose |
+| :--- | :--- | :--- |
+| `oatbrain-pr-step` | "Proceed to next step" | Implements next `PLAN.md` item, creates branch/PR, validates CI. |
+| `oatbrain-pr-reviewer` | "Check PR feedback", "Address PR comments" | Summarizes/addresses review comments on GitHub. |
+
 ---
 *Note: This document is a living contract. Update it as the project's architectural patterns evolve.*
