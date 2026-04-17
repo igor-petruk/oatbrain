@@ -30,8 +30,6 @@ jobs:
           pip install ruff tach
       - name: Run lint
         run: make lint
-      - name: Run unit tests
-        run: make test
 
   test-unit:
     needs: lint
