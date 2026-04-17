@@ -14,10 +14,8 @@ class YamlStateStore:
             "vault_root": str(state.vault_root),
             "editor": {
                 "open_file": str(state.editor.open_file) if state.editor.open_file else None,
-                "is_dirty": state.editor.is_dirty,
                 "read_mode": state.editor.read_mode,
             },
-            "status_message": state.status_message,
         }
         with open(self._path, "w") as f:
             yaml.safe_dump(data, f)
@@ -34,12 +32,10 @@ class YamlStateStore:
         
         editor = EditorState(
             open_file=VaultPath.from_str(open_file_str) if open_file_str else None,
-            is_dirty=editor_data.get("is_dirty", False),
             read_mode=editor_data.get("read_mode", False),
         )
         
         return AppState(
             vault_root=Path(data["vault_root"]),
             editor=editor,
-            status_message=data.get("status_message", "Ready"),
         )

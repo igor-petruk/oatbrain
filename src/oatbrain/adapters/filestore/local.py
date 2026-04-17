@@ -8,6 +8,8 @@ class LocalFileStore(FileStore):
     """FileStore adapter for local filesystem access."""
 
     def __init__(self, root: Path):
+        # Resolve to absolute path to prevent symlink bypass and ensure 
+        # consistent comparisons in _to_local sandboxing.
         self._root = root.resolve()
 
     def _to_local(self, p: VaultPath) -> Path:

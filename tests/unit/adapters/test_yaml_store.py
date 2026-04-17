@@ -20,7 +20,14 @@ def test_yaml_store_roundtrip(tmp_path: Path):
     store.save(original_state)
     loaded_state = store.load()
     
-    assert loaded_state == original_state
+    # Transient fields should be reset
+    assert not loaded_state.editor.is_dirty
+    assert loaded_state.status_message == "Ready"
+    
+    # Persistent fields should match
+    assert loaded_state.vault_root == original_state.vault_root
+    assert loaded_state.editor.open_file == original_state.editor.open_file
+    assert loaded_state.editor.read_mode == original_state.editor.read_mode
 
 def test_yaml_store_load_missing_file(tmp_path: Path):
     store = YamlStateStore(tmp_path / "missing.yaml")

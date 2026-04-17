@@ -6,6 +6,6 @@ from oatbrain.ui.window import AdwAppShell  # noqa: E402
 
 def build_app(argv: list[str]) -> Adw.Application:
     app = AdwAppShell(
-        application_id="app.oatbar.Oatbrain", flags=Gio.ApplicationFlags.FLAGS_NONE
+        application_id="app.oatbrain.App", flags=Gio.ApplicationFlags.FLAGS_NONE
     )
     return app
