@@ -26,9 +26,8 @@ jobs:
             python3-yaml \
             python3-watchdog \
             python3-pytest \
-            python3-mypy \
-            python3-ruff
-          pip install tach # tach might not be in apt
+            python3-mypy
+          pip install ruff tach
       - name: Run lint
         run: make lint
       - name: Run unit tests
