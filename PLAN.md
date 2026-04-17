@@ -61,21 +61,21 @@ Goal: Implement the "Brain" of oatbrain without any UI.
 ## Phase 3: Basic UI & Layout
 Goal: Build the main window layout with placeholder panes.
 
-### Step 3.1: Main Window Layout
+### Step 3.1: Main Window Layout [DONE]
 - **Task**: Implement the three-pane layout (Tree, Editor, Terminal).
 - **Action**:
     - Update `ui/window.py` with `AdwHeaderBar` and a multi-pane container (likely `Gtk.Paned`).
     - Use placeholders for Tree and Terminal.
 - **Verification**: Window shows three distinct areas with correct default proportions (SPEC §6.2).
 
-### Step 3.2: Header Bar & Status Bar
+### Step 3.2: Header Bar ### Step 3.2: Header Bar & Status Bar Status Bar [DONE]
 - **Task**: Implement the chrome elements.
 - **Action**:
     - Implement `ui/headerbar.py` and `ui/statusbar.py`.
     - Wire them to `AppState` via the `EventBus`.
 - **Verification**: Header bar shows icons; status bar shows dummy path/word count.
 
-### Step 3.3: GUI Smoke Test
+### Step 3.3: GUI Smoke Test [DONE]
 - **Task**: Verify application layout and widget hierarchy.
 - **Action**:
     - Implement `tests/gui/test_smoke.py`.
