@@ -2,6 +2,8 @@
 
 This plan follows the Research -> Strategy -> Execution lifecycle. Each step is designed to be verifiable. We do not proceed to the next step until the current one is implemented and verified.
 
+**Note**: This plan is kept in sync with GitHub Projects and Issues, which serve as the primary tracking tools for the project.
+
 ## Phase 1: Foundation & Project Structure
 Goal: Set up the repository structure, build system, and basic "Hello World" GTK application.
 

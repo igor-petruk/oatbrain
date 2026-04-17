@@ -46,10 +46,11 @@ Every task MUST follow this lifecycle:
 
 ## 6. Documentation & Tracking Synchronization
 
+- **Source of Truth**: GitHub Projects and Issues are the primary tools for tracking progress and task status.
 - **Sync Mandate**: When a meaningful change to requirements or architecture is requested by the user, you MUST:
     1. Update [SPEC.md](SPEC.md) to reflect the new truth.
     2. Update relevant GitHub issues or create new ones using the `gh` tool.
-    3. Update [PLAN.md](PLAN.md) if the sequence of implementation changes.
+    3. Update [PLAN.md](PLAN.md) to ensure it remains in sync with the GitHub project board and issue state.
 
 ---
 *Note: This document is a living contract. Update it as the project's architectural patterns evolve.*
