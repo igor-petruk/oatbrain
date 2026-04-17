@@ -1,0 +1,35 @@
+[project]
+name = "oatbrain"
+version = "0.1.0"
+description = "A single-window, local-first desktop app for a personal Markdown vault."
+authors = [{name = "Igor Petruk"}]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "markdown-it-py",
+    "mdit-py-plugins",
+    "pyyaml",
+    "watchdog"
+]
+
+[project.scripts]
+oatbrain = "oatbrain.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.mypy]
+strict = true
+
+[[tool.mypy.overrides]]
+module = "gi.*"
+ignore_missing_imports = true

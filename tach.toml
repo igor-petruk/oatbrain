@@ -1,0 +1,15 @@
+[[modules]]
+path = "src/oatbrain/core"
+depends_on = []
+
+[[modules]]
+path = "src/oatbrain/adapters"
+depends_on = ["src/oatbrain/core"]
+
+[[modules]]
+path = "src/oatbrain/ui"
+depends_on = ["src/oatbrain/core", "src/oatbrain/adapters"]
+
+[[modules]]
+path = "src/oatbrain/app"
+depends_on = ["src/oatbrain/core", "src/oatbrain/adapters", "src/oatbrain/ui"]
