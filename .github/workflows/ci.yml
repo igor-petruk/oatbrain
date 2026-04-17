@@ -54,9 +54,10 @@ jobs:
             python3-yaml \
             python3-watchdog \
             python3-pytest \
+            xvfb \
             make
       - name: Run unit tests
-        run: make test
+        run: xvfb-run make test
 
   test-gui:
     needs: lint
