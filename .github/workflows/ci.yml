@@ -8,13 +8,14 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    container: debian:testing
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             python3-gi \
             gir1.2-gtk-4.0 \
             gir1.2-adw-1 \
@@ -27,42 +28,21 @@ jobs:
             python3-watchdog \
             python3-pytest \
             python3-mypy \
-            python3-ruff
+            python3-ruff \
+            make
       - name: Run lint
         run: make lint
 
   test-unit:
     needs: lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    container: debian:testing
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-gi \
-            gir1.2-gtk-4.0 \
-            gir1.2-adw-1 \
-            gir1.2-vte-3.91 \
-            gir1.2-webkit-6.0 \
-            gir1.2-gtksource-5 \
-            python3-markdown-it \
-            python3-mdit-py-plugins \
-            python3-yaml \
-            python3-watchdog \
-            python3-pytest
-      - name: Run unit tests
-        run: make test
-
-  test-gui:
-    needs: lint
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             python3-gi \
             gir1.2-gtk-4.0 \
             gir1.2-adw-1 \
@@ -74,6 +54,32 @@ jobs:
             python3-yaml \
             python3-watchdog \
             python3-pytest \
-            xvfb
+            make
+      - name: Run unit tests
+        run: make test
+
+  test-gui:
+    needs: lint
+    runs-on: ubuntu-latest
+    container: debian:testing
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            python3-gi \
+            gir1.2-gtk-4.0 \
+            gir1.2-adw-1 \
+            gir1.2-vte-3.91 \
+            gir1.2-webkit-6.0 \
+            gir1.2-gtksource-5 \
+            python3-markdown-it \
+            python3-mdit-py-plugins \
+            python3-yaml \
+            python3-watchdog \
+            python3-pytest \
+            xvfb \
+            make
       - name: Run GUI tests (dummy for now)
-        run: xvfb-run make test # GUI tests will go here later
+        run: xvfb-run make test
