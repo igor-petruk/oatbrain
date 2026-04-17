@@ -14,7 +14,7 @@ def build_app(argv: list[str]) -> Adw.Application:
     # Basic initialization
     # TODO: In a real app, this MUST be resolved from config or CLI args.
     # WARNING: Do not leave this hardcoded to home().
-    initial_state = AppState(vault_root=Path.home()) 
+    initial_state = AppState(vault_root=Path.cwd()) 
     
     event_bus = EventBus()
     command_router = CommandRouter()
