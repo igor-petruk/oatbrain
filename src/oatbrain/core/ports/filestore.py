@@ -1,9 +1,18 @@
 from typing import Protocol, Iterable
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 @dataclass(frozen=True)
 class VaultPath:
-    value: str
+    """Vault-relative, forward-slash normalised."""
+    path: PurePosixPath
+
+    @classmethod
+    def from_str(cls, path_str: str) -> "VaultPath":
+        return cls(PurePosixPath(path_str))
+
+    def __str__(self) -> str:
+        return str(self.path)
 
 @dataclass(frozen=True)
 class FileEntry:

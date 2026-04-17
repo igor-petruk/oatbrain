@@ -1,3 +1,5 @@
+export PYTHONPATH := $(CURDIR)/src:$(PYTHONPATH)
+
 .PHONY: clean lint test
 
 clean:
@@ -5,9 +7,9 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 
 lint:
-	ruff check .
-	mypy --strict src/oatbrain
-	tach check
+	python3 -m ruff check .
+	python3 -m mypy --strict src/oatbrain
+	python3 -m tach check
 
 test:
-	pytest tests/unit
+	python3 -m pytest tests/unit

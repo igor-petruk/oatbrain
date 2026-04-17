@@ -1,6 +1,6 @@
 # oatbrain
 
-A single-window, local-first desktop app for a personal Markdown vault.
+A single-window, local-first desktop app for a personal Markdown vault. It allows you to build an AI-assisted "second brain" to organize large amounts of information efficiently.
 
 ## Vision
 
@@ -24,6 +24,13 @@ sudo apt-get install -y \
     gir1.2-vte-3.91 \
     gir1.2-webkit-6.0 \
     gir1.2-gtksource-5 \
+    python3-markdown-it \
+    python3-mdit-py-plugins \
+    python3-yaml \
+    python3-watchdog \
+    python3-pytest \
+    python3-mypy \
+    python3-ruff \
     xvfb
 ```
 
@@ -31,22 +38,15 @@ sudo apt-get install -y \
 
 ### Setup
 
-```bash
-python3 -m venv .venv --system-site-packages
-source .venv/bin/activate
-pip install -e .
-```
+No virtual environment or `pip` is required if system dependencies are installed.
 
 ### Running the application
 
-You can run oatbrain by passing an optional path to a vault directory. If no path is provided, it will attempt to reopen the last vault or show a vault picker.
+You can run oatbrain directly using Python. Pass an optional path to a vault directory.
 
 ```bash
 # Run using the module
-python3 -m oatbrain [/path/to/your/vault]
-
-# Or use the installed script entry point
-oatbrain [/path/to/your/vault]
+PYTHONPATH=src python3 -m oatbrain [/path/to/your/vault]
 ```
 
 ### Linting and Testing

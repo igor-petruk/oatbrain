@@ -10,7 +10,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.connect('activate', self.on_activate)
 
     def on_activate(self, app: Adw.Application) -> None:
-        win = Adw.ApplicationWindow(application=app)
-        win.set_title("Hello World")
-        win.set_default_size(800, 600)
-        win.present()
+        self.main_window = Adw.ApplicationWindow(application=app)
+        self.main_window.set_title("Hello World")
+        self.main_window.set_default_size(800, 600)
+        self.main_window.present()
