@@ -39,8 +39,14 @@ pip install -e .
 
 ### Running the application
 
+You can run oatbrain by passing an optional path to a vault directory. If no path is provided, it will attempt to reopen the last vault or show a vault picker.
+
 ```bash
-python3 -m oatbrain
+# Run using the module
+python3 -m oatbrain [/path/to/your/vault]
+
+# Or use the installed script entry point
+oatbrain [/path/to/your/vault]
 ```
 
 ### Linting and Testing
