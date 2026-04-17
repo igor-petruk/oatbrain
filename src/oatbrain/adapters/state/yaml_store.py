@@ -13,7 +13,9 @@ class YamlStateStore:
         data = {
             "vault_root": str(state.vault_root),
             "editor": {
-                "open_file": str(state.editor.open_file) if state.editor.open_file else None,
+                "open_file": (
+                    str(state.editor.open_file) if state.editor.open_file else None
+                ),
                 "read_mode": state.editor.read_mode,
             },
         }
