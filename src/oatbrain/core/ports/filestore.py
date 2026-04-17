@@ -14,6 +14,10 @@ class VaultPath:
     def __str__(self) -> str:
         return str(self.path)
 
+    @property
+    def parent(self) -> "VaultPath":
+        return VaultPath(self.path.parent)
+
 @dataclass(frozen=True)
 class FileEntry:
     path: VaultPath
