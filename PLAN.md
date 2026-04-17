@@ -75,6 +75,13 @@ Goal: Build the main window layout with placeholder panes.
     - Wire them to `AppState` via the `EventBus`.
 - **Verification**: Header bar shows icons; status bar shows dummy path/word count.
 
+### Step 3.3: GUI Smoke Test
+- **Task**: Verify application layout and widget hierarchy.
+- **Action**:
+    - Implement `tests/gui/test_smoke.py`.
+    - Use `xvfb-run` to verify that the app launches and contains the expected nested panes.
+- **Verification**: `make test-gui` passes.
+
 ---
 
 ## Phase 4: File Tree & Navigation

@@ -13,3 +13,6 @@ lint:
 
 test:
 	python3 -m pytest tests/unit
+
+test-gui:
+	xvfb-run python3 -m pytest tests/gui
