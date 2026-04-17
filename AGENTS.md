@@ -44,5 +44,12 @@ Every task MUST follow this lifecycle:
 - **Libadwaita**: Use standard Adw widgets. Follow system accent and light/dark preferences.
 - **Theme Tokens**: All styling MUST use CSS custom properties defined by the theme engine.
 
+## 6. Documentation & Tracking Synchronization
+
+- **Sync Mandate**: When a meaningful change to requirements or architecture is requested by the user, you MUST:
+    1. Update [SPEC.md](SPEC.md) to reflect the new truth.
+    2. Update relevant GitHub issues or create new ones using the `gh` tool.
+    3. Update [PLAN.md](PLAN.md) if the sequence of implementation changes.
+
 ---
 *Note: This document is a living contract. Update it as the project's architectural patterns evolve.*
