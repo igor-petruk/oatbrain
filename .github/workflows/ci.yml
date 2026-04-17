@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-gi \
+            gir1.2-gtk-4.0 \
+            gir1.2-adw-1 \
+            gir1.2-vte-3.91 \
+            gir1.2-webkit-6.0 \
+            gir1.2-gtksource-5
+          pip install ruff mypy tach
+          pip install -e .
+      - name: Run ruff
+        run: ruff check .
+      - name: Run mypy
+        run: mypy --strict src/oatbrain
+      - name: Run tach
+        run: tach check
+
+  test-unit:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-gi \
+            gir1.2-gtk-4.0 \
+            gir1.2-adw-1 \
+            gir1.2-vte-3.91 \
+            gir1.2-webkit-6.0 \
+            gir1.2-gtksource-5
+          pip install pytest
+          pip install -e .
+      - name: Run unit tests
+        run: pytest tests/unit
+
+  test-gui:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-gi \
+            gir1.2-gtk-4.0 \
+            gir1.2-adw-1 \
+            gir1.2-vte-3.91 \
+            gir1.2-webkit-6.0 \
+            gir1.2-gtksource-5 \
+            xvfb
+          pip install pytest
+          pip install -e .
+      - name: Run GUI tests (dummy for now)
+        run: xvfb-run pytest tests/unit # GUI tests will go here later
