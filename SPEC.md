@@ -815,18 +815,17 @@ run `tmux`).
 
 ### 16.3 Environment
 
-The app MUST inject these variables into the terminal's environment on spawn:
+The app MUST inject `OATBRAIN_VAULT` into the terminal's environment at spawn:
 
-| Variable                | Meaning |
-|-------------------------|---------|
-| `OATBRAIN_VAULT`        | absolute path to the vault root |
-| `OATBRAIN_CURRENT_FILE` | absolute path to the file currently open in the editor, updated on change |
-| `OATBRAIN_SELECTION`    | current editor selection text (or empty); updated on change |
+| Variable         | Meaning                         |
+|------------------|---------------------------------|
+| `OATBRAIN_VAULT` | absolute path to the vault root |
 
-Updates to `OATBRAIN_CURRENT_FILE` and `OATBRAIN_SELECTION` happen via a sidecar
-IPC channel: a short file at `$XDG_RUNTIME_DIR/oatbrain.<pid>.env` that the
-shell can re-read on demand, and a Unix-socket push for immediate delivery.
-Simpler shells can ignore the socket and poll the file.
+> **Future**: `OATBRAIN_CURRENT_FILE` (path of the open file, updated on
+> change) and `OATBRAIN_SELECTION` (current editor selection) will be added
+> once a live-update IPC mechanism is in place. The planned approach is a
+> sidecar file at `$XDG_RUNTIME_DIR/oatbrain.<pid>.env` plus a Unix-socket
+> push; simpler shells can ignore the socket and poll the file.
 
 ### 16.4 Clipboard
 

@@ -188,9 +188,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._command_router,
             renderer=self._renderer,
         )
-        self.terminal_placeholder = Terminal(
-            self._state.vault_root, self._event_bus
-        )
+        self.terminal_placeholder = Terminal(self._state.vault_root)
 
         # 3. Assemble hierarchy (Bottom-Up)
         self.right_paned.set_start_child(self.editor.widget)
