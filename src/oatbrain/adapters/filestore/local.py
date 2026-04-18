@@ -5,11 +5,12 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable
 from oatbrain.core.ports.filestore import FileStore, VaultPath, FileEntry
 
+
 class LocalFileStore(FileStore):
     """FileStore adapter for local filesystem access."""
 
     def __init__(self, root: Path):
-        # Resolve to absolute path to prevent symlink bypass and ensure 
+        # Resolve to absolute path to prevent symlink bypass and ensure
         # consistent comparisons in _to_local sandboxing.
         self._root = root.resolve()
 
@@ -18,7 +19,7 @@ class LocalFileStore(FileStore):
         # Ensure the path doesn't escape the root
         resolved = (self._root / Path(str(p))).resolve()
         if not str(resolved).startswith(str(self._root)):
-             raise PermissionError(f"Path '{p}' is outside vault root '{self._root}'")
+            raise PermissionError(f"Path '{p}' is outside vault root '{self._root}'")
         return resolved
 
     def _from_local(self, local_path: Path) -> VaultPath:
@@ -33,7 +34,7 @@ class LocalFileStore(FileStore):
             is_dir=local_path.is_dir(),
             is_readonly=not os.access(local_path, os.W_OK),
             size=stat.st_size,
-            mtime=stat.st_mtime
+            mtime=stat.st_mtime,
         )
 
     def exists(self, p: VaultPath) -> bool:

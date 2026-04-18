@@ -42,8 +42,7 @@ def make_editor(
     command_router.register(SetDirty, dispatched.append)
     command_router.register(ToggleMode, dispatched.append)
     editor = Editor(
-        filestore, event_bus, command_router,
-        renderer=renderer, vim_enabled=vim_enabled
+        filestore, event_bus, command_router, renderer=renderer, vim_enabled=vim_enabled
     )
     return editor, command_router, dispatched
 
@@ -51,6 +50,7 @@ def make_editor(
 # ---------------------------------------------------------------------------
 # Preview widget wiring
 # ---------------------------------------------------------------------------
+
 
 def test_editor_without_renderer_has_no_preview() -> None:
     editor, _, _ = make_editor(renderer=None)
@@ -75,6 +75,7 @@ def test_editor_stack_has_no_preview_page_without_renderer() -> None:
 # ---------------------------------------------------------------------------
 # Toggle button visibility
 # ---------------------------------------------------------------------------
+
 
 def test_toggle_box_hidden_initially() -> None:
     editor, _, _ = make_editor(renderer=make_renderer())
@@ -110,6 +111,7 @@ def test_toggle_box_hidden_for_non_markdown_file() -> None:
 # Scroll fraction
 # ---------------------------------------------------------------------------
 
+
 def test_scroll_fraction_initializes_to_zero() -> None:
     editor, _, _ = make_editor()
     assert editor._scroll_fraction == 0.0
@@ -123,12 +125,14 @@ def test_apply_fraction_to_source_stores_fraction() -> None:
 
 def test_apply_fraction_to_source_via_standalone_adjustment() -> None:
     from gi.repository import Gtk as _Gtk
+
     editor, _, _ = make_editor()
 
     # Use a standalone adjustment to verify the math, since ScrolledWindow
     # clamps values without a realized window.
-    adj = _Gtk.Adjustment(value=0, lower=0, upper=1000, step_increment=1,
-                          page_increment=10, page_size=200)
+    adj = _Gtk.Adjustment(
+        value=0, lower=0, upper=1000, step_increment=1, page_increment=10, page_size=200
+    )
     upper = adj.get_upper() - adj.get_page_size()  # 800
     adj.set_value(0.5 * upper)
     assert abs(adj.get_value() - 400.0) < 1.0
@@ -162,9 +166,11 @@ def test_apply_fraction_noop_when_no_scrollable_range() -> None:
 # ToggleMode command (state layer)
 # ---------------------------------------------------------------------------
 
+
 def test_toggle_mode_command_is_frozen_dataclass() -> None:
     cmd = ToggleMode()
     import dataclasses
+
     assert dataclasses.is_dataclass(cmd)
 
 

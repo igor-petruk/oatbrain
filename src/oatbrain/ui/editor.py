@@ -54,9 +54,9 @@ class Editor:
         self.view.add_css_class("oatbrain-editor")
 
         if vim_enabled:
-            self._vim_context: Optional[GtkSource.VimIMContext] = (
-                GtkSource.VimIMContext.new()
-            )
+            self._vim_context: Optional[
+                GtkSource.VimIMContext
+            ] = GtkSource.VimIMContext.new()
             self._vim_key_ctrl = Gtk.EventControllerKey.new()
             self._vim_key_ctrl.set_im_context(self._vim_context)
             self._vim_key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -81,15 +81,13 @@ class Editor:
         # --- Preview view ---
         if renderer is not None:
             from oatbrain.ui.preview import Preview  # local import avoids circular dep
+
             self._preview: Optional["Preview"] = Preview(renderer)
         else:
             self._preview = None
 
         # --- Empty-pane placeholder (§7.4) ---
-        self.placeholder = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=12
-        )
+        self.placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.placeholder.set_valign(Gtk.Align.CENTER)
         self.placeholder.set_halign(Gtk.Align.CENTER)
         hint_label = Gtk.Label()
@@ -225,9 +223,7 @@ class Editor:
             return
         if read:
             if self._preview is not None:
-                self._preview.render(
-                    self._current_content, theme_css=self._theme_css
-                )
+                self._preview.render(self._current_content, theme_css=self._theme_css)
                 self._stack.set_visible_child_name("preview")
         else:
             self._stack.set_visible_child_name("source")
@@ -369,9 +365,7 @@ class Editor:
                 # Leaving source → capture fraction synchronously from vadjustment.
                 adj = self._source_scroll.get_vadjustment()
                 upper = adj.get_upper() - adj.get_page_size()
-                self._scroll_fraction = (
-                    adj.get_value() / upper if upper > 0 else 0.0
-                )
+                self._scroll_fraction = adj.get_value() / upper if upper > 0 else 0.0
 
             self._read_mode = new_read_mode
             self._btn_read.handler_block_by_func(self._on_read_toggled)
@@ -388,9 +382,7 @@ class Editor:
         elif new_read_mode:
             if self._preview is not None:
                 self._preview.render(
-                    self._current_content,
-                    self._scroll_fraction,
-                    self._theme_css
+                    self._current_content, self._scroll_fraction, self._theme_css
                 )
 
                 self._stack.set_visible_child_name("preview")

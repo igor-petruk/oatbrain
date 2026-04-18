@@ -21,7 +21,7 @@ class Preview:
         self._webview.connect("decide-policy", self._on_decide_policy)
 
         self.widget = self._webview
-    
+
     def _on_decide_policy(
         self,
         webview: WebKit.WebView,
@@ -35,11 +35,13 @@ class Preview:
             navigation_action = decision.get_navigation_action()
             request = navigation_action.get_request()
             uri = request.get_uri() if request else "N/A"
-            
-            # If the navigation was initiated by a user gesture, open in external browser
+
+            # If the navigation was initiated by a user gesture,
+            # open in external browser
             if navigation_action.is_user_gesture() and uri and uri.startswith("http"):
                 print(f"DEBUG: Intercepting external link: {uri}")
                 import subprocess
+
                 subprocess.Popen(["xdg-open", uri])
                 decision.ignore()
                 return True
@@ -61,9 +63,7 @@ class Preview:
             "})()"
         )
 
-        def _on_result(
-            _wv: WebKit.WebView, result: Gio.AsyncResult, _ud: None
-        ) -> None:
+        def _on_result(_wv: WebKit.WebView, result: Gio.AsyncResult, _ud: None) -> None:
             try:
                 js_val = self._webview.evaluate_javascript_finish(result)
                 fraction = js_val.to_double() if js_val is not None else 0.0
@@ -78,9 +78,7 @@ class Preview:
     def clear(self) -> None:
         self._webview.load_html("", "file:///")
 
-    def _on_load_changed(
-        self, _wv: WebKit.WebView, event: WebKit.LoadEvent
-    ) -> None:
+    def _on_load_changed(self, _wv: WebKit.WebView, event: WebKit.LoadEvent) -> None:
         if event == WebKit.LoadEvent.FINISHED and self._pending_fraction is not None:
             frac = self._pending_fraction
             self._pending_fraction = None
@@ -95,9 +93,7 @@ class Preview:
             f"if(h>0)window.scrollTo(0,{frac}*h);"
             f"}})()"
         )
-        self._webview.evaluate_javascript(
-            script, -1, None, None, None, None, None
-        )
+        self._webview.evaluate_javascript(script, -1, None, None, None, None, None)
         return bool(GLib.SOURCE_REMOVE)
 
     @staticmethod

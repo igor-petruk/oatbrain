@@ -18,6 +18,7 @@ def make_renderer(html: str = "<p>body</p>") -> Renderer:
 # Instantiation
 # ---------------------------------------------------------------------------
 
+
 def test_preview_widget_is_webview() -> None:
     p = Preview(make_renderer())
     assert isinstance(p.widget, WebKit.WebView)
@@ -37,6 +38,7 @@ def test_pending_fraction_starts_none() -> None:
 # ---------------------------------------------------------------------------
 # _wrap_html (pure function)
 # ---------------------------------------------------------------------------
+
 
 def test_wrap_html_contains_body_content() -> None:
     html = Preview._wrap_html("<h1>Hello</h1>")
@@ -64,6 +66,7 @@ def test_wrap_html_is_complete_document() -> None:
 # ---------------------------------------------------------------------------
 # render()
 # ---------------------------------------------------------------------------
+
 
 def test_render_calls_renderer_with_markdown() -> None:
     renderer = make_renderer()
@@ -94,6 +97,7 @@ def test_render_clears_fraction_zero_does_not_scroll() -> None:
 # ---------------------------------------------------------------------------
 # clear()
 # ---------------------------------------------------------------------------
+
 
 def test_clear_resets_view() -> None:
     p = Preview(make_renderer())

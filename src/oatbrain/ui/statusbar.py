@@ -2,6 +2,7 @@ from gi.repository import Gtk, GLib
 from oatbrain.core.events.state import StateUpdated
 from oatbrain.core.bus import EventBus
 
+
 class StatusBar:
     """Status bar widget that reflects AppState."""
 
@@ -16,13 +17,13 @@ class StatusBar:
         self._path_label = Gtk.Label(label="No file open")
         self._path_label.set_hexpand(True)
         self._path_label.set_halign(Gtk.Align.START)
-        
+
         self._unsaved_dot = Gtk.Label(label="●")
         self._unsaved_dot.set_visible(False)
-        
+
         self._readonly_lock = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
         self._readonly_lock.set_visible(False)
-        
+
         self._word_count_label = Gtk.Label(label="0 words")
 
         self._theme_label = Gtk.Label(label="Solarized Light")

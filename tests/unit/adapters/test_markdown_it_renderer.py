@@ -29,12 +29,15 @@ def test_frontmatter_is_rendered() -> None:
     md = "---\ntitle: Test\ntags: [a, b]\n---\n\nBody."
     html = make_renderer().render(md)
     assert '<div class="frontmatter"' in html
-    assert '<h1 style="margin-top:0; font-size: 1.5em; font-family: var(--font-sans, sans-serif);">Test</h1>' in html
+    assert (
+        '<h1 style="margin-top:0; font-size: 1.5em; '
+        'font-family: var(--font-sans, sans-serif);">Test</h1>' in html
+    )
     assert "🏷️" in html
     assert '<span class="tag"' in html
     assert "Body." in html
     assert "Tags" in html
-    assert "Tags:" not in html # Verify no colon
+    assert "Tags:" not in html  # Verify no colon
 
 
 def test_all_configured_extensions_are_active() -> None:
@@ -42,10 +45,10 @@ def test_all_configured_extensions_are_active() -> None:
     # Tests the wiring in __init__, not the extension internals.
     md = (
         "| A | B |\n|---|---|\n| 1 | 2 |\n\n"  # tables
-        "~~s~~\n\n"                              # strikethrough
-        "- [ ] todo\n\n"                         # tasklists
-        "H~2~O\n\n"                              # subscript
-        "foot[^1]\n\n[^1]: note"                 # footnotes
+        "~~s~~\n\n"  # strikethrough
+        "- [ ] todo\n\n"  # tasklists
+        "H~2~O\n\n"  # subscript
+        "foot[^1]\n\n[^1]: note"  # footnotes
     )
     html = make_renderer().render(md)
     assert "<table>" in html

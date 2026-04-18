@@ -57,9 +57,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._theme_css_provider = Gtk.CssProvider()
 
         self._command_router.register(OpenFile, self._handle_open_file)
-        self._command_router.register(
-            UpdateWordCount, self._handle_update_word_count
-        )
+        self._command_router.register(UpdateWordCount, self._handle_update_word_count)
         self._command_router.register(SetDirty, self._handle_set_dirty)
         self._command_router.register(ToggleMode, self._handle_toggle_mode)
         self._command_router.register(ToggleZen, self._handle_toggle_zen)
@@ -107,18 +105,14 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             Gtk.StyleContext.add_provider_for_display(
                 display,
                 AdwAppShell._css_provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
 
     def _handle_open_file(self, command: OpenFile) -> None:
         """Updates state when a file is opened."""
-        new_editor = replace(
-            self._state.editor, open_file=command.path, word_count=0
-        )
+        new_editor = replace(self._state.editor, open_file=command.path, word_count=0)
         self._state = replace(
-            self._state,
-            editor=new_editor,
-            status_message=f"Opened {command.path}"
+            self._state, editor=new_editor, status_message=f"Opened {command.path}"
         )
         self._event_bus.publish(StateUpdated(self._state))
         self._save_state()
@@ -274,9 +268,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # 5. Wire non-critical signals
         self.header_bar.tree_toggle.connect("toggled", self._on_tree_toggled)
-        self.header_bar.terminal_toggle.connect(
-            "toggled", self._on_terminal_toggled
-        )
+        self.header_bar.terminal_toggle.connect("toggled", self._on_terminal_toggled)
         self.header_bar.zen_toggle.connect("toggled", self._on_zen_toggled)
         # Window blur → autosave (§10.3)
         self.main_window.connect("notify::is-active", self._on_window_active_changed)
@@ -304,17 +296,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _connect_late_signals(self) -> bool:
         """Connects signals that trigger state saving."""
         if not hasattr(self, "main_window") or not self.main_window.get_realized():
-             return bool(GLib.SOURCE_CONTINUE)
+            return bool(GLib.SOURCE_CONTINUE)
 
-        self.main_paned.connect(
-            "notify::position", lambda *_: self._save_state()
-        )
-        self.right_paned.connect(
-            "notify::position", lambda *_: self._save_state()
-        )
-        self.main_window.connect(
-            "notify::default-width", lambda *_: self._save_state()
-        )
+        self.main_paned.connect("notify::position", lambda *_: self._save_state())
+        self.right_paned.connect("notify::position", lambda *_: self._save_state())
+        self.main_window.connect("notify::default-width", lambda *_: self._save_state())
         self.main_window.connect(
             "notify::default-height", lambda *_: self._save_state()
         )
@@ -435,85 +421,112 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_window.add_controller(controller)
 
         # Ctrl+P: Palette (§17.2, §18.2)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>p"),
-            action=Gtk.CallbackAction.new(self._shortcut_open_palette)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>p"),
+                action=Gtk.CallbackAction.new(self._shortcut_open_palette),
+            )
+        )
 
         # Ctrl+B: Toggle Tree
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>b"),
-            action=Gtk.CallbackAction.new(self._shortcut_toggle_tree)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>b"),
+                action=Gtk.CallbackAction.new(self._shortcut_toggle_tree),
+            )
+        )
 
         # Ctrl+`: Toggle Terminal
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>grave"),
-            action=Gtk.CallbackAction.new(self._shortcut_toggle_terminal)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>grave"),
+                action=Gtk.CallbackAction.new(self._shortcut_toggle_terminal),
+            )
+        )
 
         # Ctrl+1: Focus Tree
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>1"),
-            action=Gtk.CallbackAction.new(
-                lambda *_: self.tree_pane.grab_focus() or True
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>1"),
+                action=Gtk.CallbackAction.new(
+                    lambda *_: self.tree_pane.grab_focus() or True
+                ),
             )
-        ))
+        )
 
         # Ctrl+2: Focus Editor
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>2"),
-            action=Gtk.CallbackAction.new(
-                lambda *_: self.editor.view.grab_focus() or True
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>2"),
+                action=Gtk.CallbackAction.new(
+                    lambda *_: self.editor.view.grab_focus() or True
+                ),
             )
-        ))
+        )
 
         # Ctrl+3: Focus Terminal
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>3"),
-            action=Gtk.CallbackAction.new(
-                lambda *_: self.terminal_placeholder.widget.grab_focus() or True
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>3"),
+                action=Gtk.CallbackAction.new(
+                    lambda *_: self.terminal_placeholder.widget.grab_focus() or True
+                ),
             )
-        ))
+        )
 
         # Ctrl+Tab: Cycle focus (§18.2)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>Tab"),
-            action=Gtk.CallbackAction.new(self._shortcut_cycle_focus)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>Tab"),
+                action=Gtk.CallbackAction.new(self._shortcut_cycle_focus),
+            )
+        )
 
         # Ctrl+S: Explicit save (§10.3, §10.4)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>s"),
-            action=Gtk.CallbackAction.new(self._shortcut_save)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>s"),
+                action=Gtk.CallbackAction.new(self._shortcut_save),
+            )
+        )
 
         # Ctrl+E: Toggle edit/read mode (§10.2, §18.2)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control>e"),
-            action=Gtk.CallbackAction.new(self._shortcut_toggle_mode)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>e"),
+                action=Gtk.CallbackAction.new(self._shortcut_toggle_mode),
+            )
+        )
 
         # Ctrl+Shift+Z: Toggle Zen mode (§7.5)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>z"),
-            action=Gtk.CallbackAction.new(self._shortcut_toggle_zen)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>z"),
+                action=Gtk.CallbackAction.new(self._shortcut_toggle_zen),
+            )
+        )
 
         # Ctrl+Shift+Y: Send current file path to terminal stdin (§16.9)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>y"),
-            action=Gtk.CallbackAction.new(self._shortcut_send_file_to_terminal)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>y"),
+                action=Gtk.CallbackAction.new(self._shortcut_send_file_to_terminal),
+            )
+        )
 
         # Ctrl+Shift+U: Send editor selection to terminal stdin (§16.9)
-        controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>u"),
-            action=Gtk.CallbackAction.new(self._shortcut_send_selection_to_terminal)
-        ))
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>u"),
+                action=Gtk.CallbackAction.new(
+                    self._shortcut_send_selection_to_terminal
+                ),
+            )
+        )
 
     def _shortcut_open_palette(self, *_: Any) -> bool:
         from oatbrain.ui.palette import Palette
+
         palette = Palette(self._state)
         palette.present(self.main_window)
         return True
