@@ -3,10 +3,18 @@ from ..core.ports.state import AppState
 
 class Palette(Adw.Window):
     def __init__(self, state: AppState, parent_window: Gtk.Window):
-        super().__init__(transient_for=parent_window, modal=True)
-        self.set_title("Palette")
+        super().__init__(
+            transient_for=parent_window,
+            modal=True,
+            destroy_with_parent=True,
+            title="Palette"
+        )
         self.set_default_size(600, 400)
-        self.set_destroy_with_parent(True)
+        
+        # Explicitly center on parent (GtkWindow method)
+        self.set_transient_for(parent_window)
+        self.set_modal(True)
+        # In Gtk4, set_decorated=True is default, but let's ensure it's not a utility window
         
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.set_content(self.box)
