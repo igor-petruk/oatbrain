@@ -49,7 +49,7 @@ class Editor:
             "Ctrl+N — new note"
             "</span>"
         )
-        hint_label.set_justify(Gtk.Justify.CENTER)
+        hint_label.set_justify(Gtk.Justification.CENTER)
         self.placeholder.append(hint_label)
 
         self.overlay = Gtk.Overlay()

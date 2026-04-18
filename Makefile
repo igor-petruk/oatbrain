@@ -12,7 +12,7 @@ lint:
 	.venv/bin/tach check
 
 test:
-	python3 -m pytest tests/unit
+	xvfb-run python3 -m pytest tests/unit
 
 test-gui:
 	xvfb-run python3 -m pytest tests/gui
