@@ -48,6 +48,9 @@ class Editor:
         self.view.set_show_line_numbers(True)
         self.view.set_monospace(True)
         self.view.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.view.set_left_margin(12)
+        self.view.set_right_margin(12)
+        self.view.set_top_margin(8)
         self.view.add_css_class("oatbrain-editor")
 
         if vim_enabled:

@@ -118,7 +118,7 @@ Goal: The built-in terminal.
 ## Phase 8: Themes & Polish
 Goal: Visual identity and final touches.
 
-### Step 8.1: Theme Engine
+### Step 8.1: Theme Engine [DONE]
 - **Task**: Implement TOML themes and CSS generation (§20).
 - **Action**:
     - Implement `core/theme/` token resolution.

@@ -231,6 +231,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.header_bar.terminal_toggle.connect(
             "toggled", self._on_terminal_toggled
         )
+        self.main_paned.connect(
+            "notify::position", lambda *_: self._sync_header_widths()
+        )
+        self.right_paned.connect(
+            "notify::position", lambda *_: self._sync_header_widths()
+        )
         # Window blur → autosave (§10.3)
         self.main_window.connect("notify::is-active", self._on_window_active_changed)
         self._setup_actions()
@@ -250,6 +256,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # Emit initial state
         self._event_bus.publish(StateUpdated(self._state))
 
+    def _sync_header_widths(self) -> None:
+        """Resize left/right header sections to match pane widths."""
+        tree_width = self.main_paned.get_position()
+        total_right = self.right_paned.get_width()
+        paned_pos = self.right_paned.get_position()
+        terminal_width = total_right - paned_pos if total_right > 0 else self._state.terminal_width
+        if tree_width > 0 or terminal_width > 0:
+            self.header_bar.sync_pane_widths(tree_width, terminal_width)
+
     def _connect_late_signals(self) -> bool:
         """Connects signals that trigger state saving."""
         if not hasattr(self, "main_window") or not self.main_window.get_realized():
@@ -267,6 +282,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_window.connect(
             "notify::default-height", lambda *_: self._save_state()
         )
+        # Initial header width sync after layout is realized
+        self._sync_header_widths()
         return bool(GLib.SOURCE_REMOVE)
 
     def _update_right_paned_position(self) -> None:

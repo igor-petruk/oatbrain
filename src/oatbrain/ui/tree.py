@@ -61,11 +61,13 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Icon
         icon_renderer = Gtk.CellRendererPixbuf()
+        icon_renderer.set_property("xpad", 6)
         column.pack_start(icon_renderer, False)
         column.add_attribute(icon_renderer, "icon-name", COL_ICON)
 
         # Name
         text_renderer = Gtk.CellRendererText()
+        text_renderer.set_property("xpad", 4)
         column.pack_start(text_renderer, True)
         column.add_attribute(text_renderer, "text", COL_NAME)
 

@@ -38,6 +38,12 @@ class Terminal:
         self._vte.set_vexpand(True)
         self._vte.set_scrollback_lines(10000)
 
+        _vte_padding = Gtk.CssProvider()
+        _vte_padding.load_from_string("vte-terminal { padding: 6px 10px; }")
+        self._vte.get_style_context().add_provider(
+            _vte_padding, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
         # §16.5 Font: first available from the editor's preferred font list (§19)
         self._vte.set_font(_resolve_terminal_font())
 
