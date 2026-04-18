@@ -187,8 +187,11 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         text = item.get_string()
         prefix = self._current_prefix
 
-        if prefix == "":
-            self._command_router.dispatch(OpenFile(VaultPath.from_str(text)))
+        if prefix == "" or prefix == "%" or prefix == "#":
+            # Files, Text, Tags results are often file paths or contain file paths.
+            # For tags/text we need to extract the path.
+            path_str = text.split(":")[0] if ":" in text else text
+            self._command_router.dispatch(OpenFile(VaultPath.from_str(path_str)))
         elif prefix == ">":
             # Execute app command
             for cmd_type, name in self._command_router.list_commands():
@@ -203,24 +206,35 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         self.close()
 
     def _execute_shell(self, command: str) -> None:
-        # Punting to Terminal widget.
-        # For MVP, we'll just print it.
-        print(f"DEBUG: Pasting to terminal: {command}")
+        # For now, we'll just print it.
+        print(f"DEBUG: Executing shell command: {command}")
 
     def _paste_to_terminal(self, text: str) -> None:
-        # For MVP, we'll just print it.
+        # For now, we'll just print it.
         print(f"DEBUG: Pasting to terminal: {text}")
 
     def _update_list(self) -> None:
         text = self.search_entry.get_text()
         prefix = ""
-        if text.startswith(("#", "%", ">", "/", "!")):
+        if text.startswith(("#", "%", ">", "/", "!", "?")):
             prefix = text[0]
             query = text[1:]
         else:
             query = text
 
-        if prefix != self._current_prefix or not self._items:
+        # For files mode, we want to update items if query was empty and now isn't
+        # to switch from MRU to all files.
+        needs_fetch = prefix != self._current_prefix or not self._items
+
+        if prefix == "" and not query:
+            # Always show MRU when empty
+            self._items = self._fetch_data(prefix)
+            needs_fetch = False
+        elif prefix == "" and query and not self._current_prefix:
+            # Switching from MRU to all files
+            needs_fetch = True
+
+        if needs_fetch:
             self._current_prefix = prefix
             self._items = self._fetch_data(prefix)
 
@@ -259,10 +273,52 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             # Shell commands (history deferred, using mocks for now)
             return ["ls -la", "git status", "make build"]
         elif prefix == "#":
-            # Tags (deferred)
-            return ["#todo", "#work", "#personal"]
+            # Tags using ripgrep
+            try:
+                import subprocess
+
+                result = subprocess.run(
+                    ["rg", "--no-heading", "--column", "-o", r"#[a-zA-Z0-9_-]+", "."],
+                    cwd=str(self._state.vault_root),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                # Format: path:line:col:#tag
+                return result.stdout.splitlines()
+            except Exception as e:
+                print(f"Warning: ripgrep for tags failed: {e}")
+                return []
         elif prefix == "%":
-            # Full text (deferred)
-            return ["(Full text search not yet implemented)"]
+            # Full text search using ripgrep
+            try:
+                import subprocess
+
+                # We don't want to fetch ALL text at once, but for FZF filter
+                # we might need to. Better to use fzf's own ripgrep integration
+                # if possible, but for simplicity we'll just get all lines with
+                # content.
+                result = subprocess.run(
+                    ["rg", "--no-heading", "--line-number", "."],
+                    cwd=str(self._state.vault_root),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                return result.stdout.splitlines()
+            except Exception as e:
+                print(f"Warning: ripgrep for full text failed: {e}")
+                return []
+        elif prefix == "?":
+            # Help cheatsheet
+            return [
+                " (none)  Search files",
+                " #       Search tags",
+                " %       Full text search",
+                " >       App commands",
+                " /       AI commands",
+                " !       Shell commands",
+                " ?       Help cheatsheet",
+            ]
 
         return []

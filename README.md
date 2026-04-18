@@ -30,6 +30,7 @@ sudo apt-get install -y \
     python3-watchdog \
     fzf \
     python3-pyfzf \
+    ripgrep \
     python3-pytest \
     python3-mypy \
     python3-ruff \
