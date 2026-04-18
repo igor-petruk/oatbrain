@@ -36,7 +36,8 @@ def test_tree_instantiation() -> None:
 def test_editor_instantiation() -> None:
     filestore = MagicMock(spec=FileStore)
     event_bus = EventBus()
-    editor = Editor(filestore, event_bus)
+    command_router = CommandRouter()
+    editor = Editor(filestore, event_bus, command_router)
     assert isinstance(editor.widget, Gtk.Overlay)
     assert isinstance(editor.view, GtkSource.View)
 

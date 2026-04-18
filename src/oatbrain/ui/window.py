@@ -10,6 +10,7 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.commands import OpenFile  # noqa: E402
+from oatbrain.core.commands.editor import UpdateWordCount  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
@@ -35,17 +36,28 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._filestore = filestore
 
         self._command_router.register(OpenFile, self._handle_open_file)
+        self._command_router.register(
+            UpdateWordCount, self._handle_update_word_count
+        )
 
         self.connect("activate", self.on_activate)
 
     def _handle_open_file(self, command: OpenFile) -> None:
         """Updates state when a file is opened."""
-        new_editor = replace(self._state.editor, open_file=command.path)
+        new_editor = replace(
+            self._state.editor, open_file=command.path, word_count=0
+        )
         self._state = replace(
             self._state,
             editor=new_editor,
             status_message=f"Opened {command.path}"
         )
+        self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_update_word_count(self, command: UpdateWordCount) -> None:
+        """Updates word count in state."""
+        new_editor = replace(self._state.editor, word_count=command.count)
+        self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
 
     def on_activate(self, app: Adw.Application) -> None:
@@ -71,9 +83,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._filestore, self._event_bus, self._command_router
         )
 
-        self.editor = Editor(self._filestore, self._event_bus)
+        self.editor = Editor(
+            self._filestore, self._event_bus, self._command_router
+        )
 
         self.terminal_placeholder = Gtk.Frame(label="Terminal")
+        self.terminal_placeholder.set_focusable(True)
         self.terminal_placeholder.set_child(
             Gtk.Label(label="[Terminal Placeholder]")
         )

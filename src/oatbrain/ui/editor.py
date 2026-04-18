@@ -5,16 +5,24 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
 from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
 
-from oatbrain.core.bus import EventBus  # noqa: E402
+from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
+from oatbrain.core.commands.editor import UpdateWordCount  # noqa: E402
 
 
 class Editor:
     """Markdown editor wrapping GtkSourceView."""
 
-    def __init__(self, filestore: FileStore, event_bus: EventBus) -> None:
+    def __init__(
+        self,
+        filestore: FileStore,
+        event_bus: EventBus,
+        command_router: CommandRouter
+    ) -> None:
         self._filestore = filestore
+        self._event_bus = event_bus
+        self._command_router = command_router
         self._current_path: Optional[VaultPath] = None
 
         self.buffer = GtkSource.Buffer()
@@ -58,7 +66,17 @@ class Editor:
 
         self.widget = self.overlay
 
+        self.buffer.connect("changed", self._on_buffer_changed)
+
         event_bus.subscribe(StateUpdated, self._on_state_updated)
+
+    def _on_buffer_changed(self, buffer: GtkSource.Buffer) -> None:
+        """Calculate word count on change."""
+        start = buffer.get_start_iter()
+        end = buffer.get_end_iter()
+        text = buffer.get_text(start, end, True)
+        words = len(text.split())
+        self._command_router.dispatch(UpdateWordCount(count=words))
 
     def _setup_styling(self) -> None:
         """Apply typography defaults from SPEC §19."""

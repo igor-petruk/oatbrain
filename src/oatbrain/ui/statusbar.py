@@ -58,7 +58,7 @@ class StatusBar:
             self._unsaved_dot.set_visible(False)
             self._readonly_lock.set_visible(False)
 
-        # Theme and status message (using theme label for theme)
-        # In a real impl, theme would come from AppState
+        # Update Status Message
+        self._word_count_label.set_text(f"{state.editor.word_count} words")
         
         return bool(GLib.SOURCE_REMOVE)
