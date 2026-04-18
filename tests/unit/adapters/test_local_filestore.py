@@ -1,8 +1,9 @@
+import os
 import pytest
 from pathlib import Path
 from oatbrain.adapters.filestore.local import LocalFileStore, VaultPath
 
-def test_local_filestore_lifecycle(tmp_path: Path):
+def test_local_filestore_lifecycle(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     store = LocalFileStore(vault_root)
@@ -44,7 +45,31 @@ def test_local_filestore_lifecycle(tmp_path: Path):
     store.delete(p2)
     assert not store.exists(p2)
 
-def test_sandboxing(tmp_path: Path):
+def test_symlink_name_preservation(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    store = LocalFileStore(vault_root)
+    
+    # Create target
+    target = vault_root / "target.md"
+    target.write_text("content")
+    
+    # Create symlink
+    link = vault_root / "link.md"
+    os.symlink("target.md", link)
+    
+    # List dir
+    entries = store.list_dir(VaultPath.from_str("."))
+    names = {e.path.path.name for e in entries}
+    
+    assert "link.md" in names
+    assert "target.md" in names
+    
+    # Check specific entry for link.md
+    link_entry = next(e for e in entries if e.path.path.name == "link.md")
+    assert str(link_entry.path) == "link.md"
+
+def test_sandboxing(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     store = LocalFileStore(vault_root)
