@@ -67,27 +67,30 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _save_state(self) -> None:
         """Collects current UI state and persists it via StateStore."""
-        if not hasattr(self, "main_window"):
+        if not hasattr(self, "main_window") or not self.main_window.get_realized():
             return
 
         # Get current dimensions
         width = self.main_window.get_width()
         height = self.main_window.get_height()
-        
+
         # Get pane visibility
         tree_visible = self.tree_pane.get_visible()
         terminal_visible = self.terminal_placeholder.get_visible()
-        
-        # Get pane positions (only update if visible, otherwise use last known)
+
+        # Get pane positions (only update if visible and reasonable)
         tree_width = self._state.tree_width
         if tree_visible:
-            tree_width = self.main_paned.get_position()
-        
+            pos = self.main_paned.get_position()
+            if pos > 0:
+                tree_width = pos
+
         terminal_width = self._state.terminal_width
         if terminal_visible:
             total_right = self.right_paned.get_width()
-            editor_width = self.right_paned.get_position()
-            terminal_width = total_right - editor_width
+            pos = self.right_paned.get_position()
+            if total_right > 0 and pos > 0:
+                terminal_width = total_right - pos
 
         self._state = replace(
             self._state,
@@ -142,7 +145,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # Setup visibility and toggles from state
         self.tree_pane.set_visible(self._state.tree_visible)
         self.header_bar.tree_toggle.set_active(self._state.tree_visible)
-        
+
         self.terminal_placeholder.set_visible(self._state.terminal_visible)
         self.header_bar.terminal_toggle.set_active(self._state.terminal_visible)
 
@@ -157,11 +160,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # Setup right_paned (Editor vs Terminal)
         self.right_paned.set_start_child(self.editor.widget)
         self.right_paned.set_end_child(self.terminal_placeholder)
-        self.right_paned.set_position(
-            self._state.window_width 
-            - self._state.tree_width 
-            - self._state.terminal_width
-        )
+
+        # Initial position for right_paned
+        self._update_right_paned_position()
+
         # Editor resizes, Terminal width is fixed (§6.2)
         self.right_paned.set_resize_start_child(True)
         self.right_paned.set_resize_end_child(False)
@@ -178,6 +180,22 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             "toggled", self._on_terminal_toggled
         )
 
+        # Wire position changes for proactive saving
+        self.main_paned.connect(
+            "notify::position", lambda *_: self._save_state()
+        )
+        self.right_paned.connect(
+            "notify::position", lambda *_: self._save_state()
+        )
+
+        # Wire window size changes
+        self.main_window.connect(
+            "notify::default-width", lambda *_: self._save_state()
+        )
+        self.main_window.connect(
+            "notify::default-height", lambda *_: self._save_state()
+        )
+
         # Actions for Menu (§8.5)
         self._setup_actions()
 
@@ -188,6 +206,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # Emit initial state
         self._event_bus.publish(StateUpdated(self._state))
+
+    def _update_right_paned_position(self) -> None:
+        """Calculates and sets the right paned position."""
+        # Use state width as a proxy before realization.
+        total_width = self._state.window_width
+        tree_width = self._state.tree_width
+        terminal_width = self._state.terminal_width
+
+        editor_target_width = total_width - tree_width - terminal_width
+        if editor_target_width > 0:
+            self.right_paned.set_position(editor_target_width)
 
     def _setup_actions(self) -> None:
         """Sets up GActions for the menu items."""
@@ -224,10 +253,14 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         print("Action: Delete File")
 
     def _on_tree_toggled(self, btn: Gtk.ToggleButton) -> None:
-        self.tree_pane.set_visible(btn.get_active())
+        visible = btn.get_active()
+        self.tree_pane.set_visible(visible)
+        self._save_state()
 
     def _on_terminal_toggled(self, btn: Gtk.ToggleButton) -> None:
-        self.terminal_placeholder.set_visible(btn.get_active())
+        visible = btn.get_active()
+        self.terminal_placeholder.set_visible(visible)
+        self._save_state()
 
     def _setup_shortcuts(self) -> None:
         controller = Gtk.ShortcutController.new()
@@ -268,7 +301,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 lambda *_: self.terminal_placeholder.grab_focus() or True
             )
         ))
-        
+
         # Ctrl+Tab: Cycle focus (§18.2)
         controller.add_shortcut(Gtk.Shortcut.new(
             trigger=Gtk.ShortcutTrigger.parse_string("<Control>Tab"),
@@ -293,9 +326,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self.editor.view,
             self.terminal_placeholder
         ]
-        
+
         current = self.main_window.get_focus()
-        
+
         start_idx = 0
         if current:
             for i in range(len(targets)):
@@ -303,12 +336,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 if current == t or current.is_ancestor(t):
                     start_idx = (i + 1) % len(targets)
                     break
-        
+
         for j in range(len(targets)):
             idx = (start_idx + j) % len(targets)
             target = targets[idx]
             if target.get_visible():
                 target.grab_focus()
                 return True
-            
+
         return True
