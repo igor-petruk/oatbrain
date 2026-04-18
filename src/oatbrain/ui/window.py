@@ -23,6 +23,7 @@ from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
+from oatbrain.ui.terminal import Terminal  # noqa: E402
 
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
@@ -131,7 +132,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # Get pane visibility
         tree_visible = self.tree_pane.get_visible()
-        terminal_visible = self.terminal_placeholder.get_visible()
+        terminal_visible = self.terminal_placeholder.widget.get_visible()
 
         # Get pane positions (only update if visible and reasonable)
         tree_width = self._state.tree_width
@@ -187,15 +188,13 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._command_router,
             renderer=self._renderer,
         )
-        self.terminal_placeholder = Gtk.Frame(label="Terminal")
-        self.terminal_placeholder.set_focusable(True)
-        self.terminal_placeholder.set_child(
-            Gtk.Label(label="[Terminal Placeholder]")
+        self.terminal_placeholder = Terminal(
+            self._state.vault_root, self._event_bus
         )
 
         # 3. Assemble hierarchy (Bottom-Up)
         self.right_paned.set_start_child(self.editor.widget)
-        self.right_paned.set_end_child(self.terminal_placeholder)
+        self.right_paned.set_end_child(self.terminal_placeholder.widget)
         self.right_paned.set_resize_start_child(True)
         self.right_paned.set_resize_end_child(False)
 
@@ -213,7 +212,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # 4. Initial layout from state
         self.tree_pane.set_visible(self._state.tree_visible)
         self.header_bar.tree_toggle.set_active(self._state.tree_visible)
-        self.terminal_placeholder.set_visible(self._state.terminal_visible)
+        self.terminal_placeholder.widget.set_visible(self._state.terminal_visible)
         self.header_bar.terminal_toggle.set_active(self._state.terminal_visible)
         self.main_paned.set_position(self._state.tree_width)
         self._update_right_paned_position()
@@ -314,7 +313,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _on_terminal_toggled(self, btn: Gtk.ToggleButton) -> None:
         visible = btn.get_active()
-        self.terminal_placeholder.set_visible(visible)
+        self.terminal_placeholder.widget.set_visible(visible)
         self._save_state()
 
     def _setup_shortcuts(self) -> None:
@@ -353,7 +352,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         controller.add_shortcut(Gtk.Shortcut.new(
             trigger=Gtk.ShortcutTrigger.parse_string("<Control>3"),
             action=Gtk.CallbackAction.new(
-                lambda *_: self.terminal_placeholder.grab_focus() or True
+                lambda *_: self.terminal_placeholder.widget.grab_focus() or True
             )
         ))
 
@@ -399,7 +398,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         targets: List[Gtk.Widget] = [
             self.tree_pane,
             self.editor.view,
-            self.terminal_placeholder
+            self.terminal_placeholder.widget,
         ]
 
         current = self.main_window.get_focus()
