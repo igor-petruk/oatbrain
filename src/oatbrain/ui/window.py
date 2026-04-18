@@ -374,12 +374,40 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             action=Gtk.CallbackAction.new(self._shortcut_toggle_mode)
         ))
 
+        # Ctrl+Shift+Y: Send current file path to terminal stdin (§16.9)
+        controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>y"),
+            action=Gtk.CallbackAction.new(self._shortcut_send_file_to_terminal)
+        ))
+
+        # Ctrl+Shift+U: Send editor selection to terminal stdin (§16.9)
+        controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>u"),
+            action=Gtk.CallbackAction.new(self._shortcut_send_selection_to_terminal)
+        ))
+
     def _shortcut_save(self, *_: Any) -> bool:
         self.editor._save()
         return True
 
     def _shortcut_toggle_mode(self, *_: Any) -> bool:
         self._command_router.dispatch(ToggleMode())
+        return True
+
+    def _shortcut_send_file_to_terminal(self, *_: Any) -> bool:
+        path = self._state.editor.open_file
+        if path:
+            full = str(self._state.vault_root / str(path))
+            self.terminal_placeholder.send_text(full)
+        return True
+
+    def _shortcut_send_selection_to_terminal(self, *_: Any) -> bool:
+        buf = self.editor.buffer
+        if buf.get_has_selection():
+            start, end = buf.get_selection_bounds()
+            text = buf.get_text(start, end, True)
+            heredoc = f"<<'__OATBRAIN__'\n{text}\n__OATBRAIN__\n"
+            self.terminal_placeholder.send_text(heredoc)
         return True
 
     def _shortcut_toggle_tree(self, *_: Any) -> bool:
