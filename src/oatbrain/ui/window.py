@@ -1,10 +1,11 @@
-from typing import Any, List
+from typing import Any, List, Optional
 from dataclasses import replace
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk, Gio  # noqa: E402
+from gi.repository import Adw, Gtk, Gdk, Gio  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
@@ -21,6 +22,8 @@ from oatbrain.ui.editor import Editor  # noqa: E402
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
     """Main application shell using Libadwaita."""
+
+    _css_provider: Optional[Gtk.CssProvider] = None
 
     def __init__(
         self,
@@ -43,8 +46,37 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             UpdateWordCount, self._handle_update_word_count
         )
 
+        self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
         self.connect("shutdown", self._on_shutdown)
+
+    def _on_startup(self, app: Adw.Application) -> None:
+        """Called once when the application starts."""
+        self._setup_global_styles()
+
+    def _setup_global_styles(self) -> None:
+        """Loads mandatory CSS styles for the application."""
+        if AdwAppShell._css_provider is not None:
+            return
+
+        fonts = "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace"
+        css = f"""
+            .oatbrain-editor {{
+                font-family: {fonts};
+                font-size: 13pt;
+            }}
+        """
+        AdwAppShell._css_provider = Gtk.CssProvider()
+        css_bytes = css.encode("utf-8")
+        AdwAppShell._css_provider.load_from_data(css_bytes, len(css_bytes))
+
+        display = Gdk.Display.get_default()
+        if display:
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                AdwAppShell._css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
 
     def _handle_open_file(self, command: OpenFile) -> None:
         """Updates state when a file is opened."""

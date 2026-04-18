@@ -2,9 +2,8 @@ import gi
 from typing import Optional
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gdk", "4.0")
 gi.require_version("GtkSource", "5")
-from gi.repository import Gtk, Gdk, GtkSource, GLib  # noqa: E402
+from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
@@ -33,9 +32,7 @@ class Editor:
         self.view.set_show_line_numbers(True)
         self.view.set_monospace(True)
         self.view.set_wrap_mode(Gtk.WrapMode.WORD)
-
-        # Typography (§19) - Set via CSS in GTK 4
-        self._setup_styling()
+        self.view.add_css_class("oatbrain-editor")
 
         self.scrolled = Gtk.ScrolledWindow()
         self.scrolled.set_child(self.view)
@@ -78,25 +75,6 @@ class Editor:
         text = buffer.get_text(start, end, True)
         words = len(text.split())
         self._command_router.dispatch(UpdateWordCount(count=words))
-
-    def _setup_styling(self) -> None:
-        """Apply typography defaults from SPEC §19."""
-        fonts = "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace"
-        css = f"""
-            textview {{
-                font-family: {fonts};
-                font-size: 13pt;
-            }}
-        """
-        provider = Gtk.CssProvider()
-        css_bytes = css.encode("utf-8")
-        provider.load_from_data(css_bytes, len(css_bytes))
-
-        display = Gdk.Display.get_default()
-        if display:
-            Gtk.StyleContext.add_provider_for_display(
-                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            )
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)
