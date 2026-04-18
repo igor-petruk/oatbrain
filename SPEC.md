@@ -457,10 +457,9 @@ No custom overflow menu beyond that.
 No secondary actions on right-click. Right-clicking a header button is a
 no-op.
 
-### 8.5 Settings button
+### 8.5 App Menu (Hamburger)
 
-No settings dialog in MVP. The hamburger menu provides an "Open config file"
-entry that opens `config.toml` in the editor.
+The hamburger menu provides an "Open config file" entry that opens `config.toml` in the editor, and a theme switcher toggle (Light/Dark). There is no separate settings dialog in MVP.
 
 ---
 
@@ -991,16 +990,7 @@ Focus targets above are `tree`, `editor/preview` (same slot, whichever mode),
 `terminal`. There is no fourth focusable zone in steady state; the palette
 takes focus only while open and returns it on close.
 
-### 18.3 Chord support
-
-- Chord syntax: two key combinations with ≤1.5 s between them.
-  Example: `Ctrl+K V`.
-- Resolution lives in `core/keymap/`. Raw keystrokes come in from the UI
-  adapter; the resolver returns a matched `Command` or "no match, dispatch as
-  literal".
-- Which-key popup is deferred.
-
-### 18.4 Conflict resolution
+### 18.3 Conflict resolution
 
 App bindings always take priority over terminal / shell bindings when the
 focus is inside the relevant pane AND the binding is registered at the app
@@ -1782,7 +1772,6 @@ contract tests run against `LocalFileStore` (using `tmp_path`) and against
 `hypothesis` is used for:
 - Markdown → HTML round-trip invariants.
 - Wikilink parser on random inputs.
-- Keybinding chord parser.
 
 ### 30.6 Snapshot tests
 
@@ -1910,7 +1899,6 @@ numbers; do not invent others.
 | Tree pane default width | 15% of window | §6.2 |
 | Terminal pane default width | 30% of window | §6.2 |
 | Autosave idle debounce | 5 s | §10.3 |
-| Chord timeout | 1.5 s | §18.3 |
 | Smoke-test alive window | 2 s | §30.8 |
 | Smoke-test shutdown budget | 10 s | §30.8 |
 | Transclusion depth limit | 6 | §14 |
@@ -1996,4 +1984,10 @@ Rules:
 | Adapter | A concrete implementation of a port. §23. |
 | Composition root | `app/bootstrap.py`. Wires ports to adapters. §23.6. |
 | MRU | "Most recently used" file list. §17.4, §27.2. |
-| Chord | Two-step keybinding (e.g. `Ctrl+K V`). §18.3. |
+Protocol` in `core/ports/` that core depends on. §23. |
+| Adapter | A concrete implementation of a port. §23. |
+| Composition root | `app/bootstrap.py`. Wires ports to adapters. §23.6. |
+| MRU | "Most recently used" file list. §17.4, §27.2. |
+ §18.3. |
+trl+K V`). §18.3. |
+ §18.3. |

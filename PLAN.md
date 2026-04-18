@@ -49,7 +49,7 @@ Goal: Edit files with syntax highlighting and Vim mode.
     - Enable Markdown highlighting.
 - **Verification**: Opening a `.md` file shows highlighted source code.
 
-### Step 5.2: SPEC Compliance & Polish (intermediate)
+### Step 5.2: SPEC Compliance & Polish (intermediate) [DONE]
 - **Task**: Bring existing UI into 100% compliance with SPEC §6, §8, §9.
 - **Action**:
     - **Layout (§6.2)**: Set exact splitter proportions (15% Tree, 30% Terminal remainder).
@@ -58,6 +58,13 @@ Goal: Edit files with syntax highlighting and Vim mode.
     - **Tree (§9.1)**: Add folder/file icons; add unsaved dot indicator.
     - **Shortcuts (§18.2)**: Implement `Ctrl+B` (Toggle Tree), `` Ctrl+` `` (Toggle Terminal), `Ctrl+1/2/3` (Focus switching).
 - **Verification**: Visual audit against SPEC screenshots/descriptions; Keyboard shortcuts working.
+
+### Step 5.2.1: Final SPEC Alignment (intermediate)
+- **Task**: Address remaining deviations from MVP spec (Persistent state format, Tree interactions).
+- **Action**:
+    - Migrate `YamlStateStore` to `TomlStateStore` using TOML format for state per §27.
+    - Implement Tree interactions (single click select+open, right-click menu, permanent delete on Del).
+- **Verification**: TOML is written instead of YAML; Single click opens file in tree; Delete prompts for permanent deletion.
 
 ### Step 5.3: Vim Mode & Autosave
 - **Task**: Add Vim IM context and save logic (§10.3, §10.4).
