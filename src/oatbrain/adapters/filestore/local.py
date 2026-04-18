@@ -45,7 +45,10 @@ class LocalFileStore(FileStore):
         return self._to_local(p).read_text(encoding="utf-8")
 
     def write_text(self, p: VaultPath, content: str) -> None:
-        self._to_local(p).write_text(content, encoding="utf-8")
+        target = self._to_local(p)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        tmp.rename(target)
 
     def list_dir(self, p: VaultPath) -> list[FileEntry]:
         local_dir = self._to_local(p)

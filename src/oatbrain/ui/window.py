@@ -11,7 +11,11 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.commands import OpenFile  # noqa: E402
-from oatbrain.core.commands.editor import UpdateWordCount  # noqa: E402
+from oatbrain.core.commands.editor import (  # noqa: E402
+    UpdateWordCount,
+    SetDirty,
+    UpdateVimMode,
+)
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
@@ -45,6 +49,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             UpdateWordCount, self._handle_update_word_count
         )
+        self._command_router.register(SetDirty, self._handle_set_dirty)
+        self._command_router.register(UpdateVimMode, self._handle_update_vim_mode)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -95,8 +101,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._save_state()
 
     def _handle_update_word_count(self, command: UpdateWordCount) -> None:
-        """Updates word count in state."""
         new_editor = replace(self._state.editor, word_count=command.count)
+        self._state = replace(self._state, editor=new_editor)
+        self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_set_dirty(self, command: SetDirty) -> None:
+        new_editor = replace(self._state.editor, is_dirty=command.dirty)
+        self._state = replace(self._state, editor=new_editor)
+        self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_update_vim_mode(self, command: UpdateVimMode) -> None:
+        new_editor = replace(self._state.editor, vim_mode=command.mode)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
 
@@ -200,6 +215,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.header_bar.terminal_toggle.connect(
             "toggled", self._on_terminal_toggled
         )
+        # Window blur → autosave (§10.3)
+        self.main_window.connect("notify::is-active", self._on_window_active_changed)
         self._setup_actions()
         self._setup_shortcuts()
 
@@ -276,6 +293,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _on_delete_file(self, *args: Any) -> None:
         print("Action: Delete File")
 
+    def _on_window_active_changed(
+        self, window: Adw.ApplicationWindow, _pspec: object
+    ) -> None:
+        if not window.is_active():
+            self.editor._save()
+
     def _on_tree_toggled(self, btn: Gtk.ToggleButton) -> None:
         visible = btn.get_active()
         self.tree_pane.set_visible(visible)
@@ -331,6 +354,16 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             trigger=Gtk.ShortcutTrigger.parse_string("<Control>Tab"),
             action=Gtk.CallbackAction.new(self._shortcut_cycle_focus)
         ))
+
+        # Ctrl+S: Explicit save (§10.3, §10.4)
+        controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control>s"),
+            action=Gtk.CallbackAction.new(self._shortcut_save)
+        ))
+
+    def _shortcut_save(self, *_: Any) -> bool:
+        self.editor._save()
+        return True
 
     def _shortcut_toggle_tree(self, *_: Any) -> bool:
         self.header_bar.tree_toggle.set_active(
