@@ -39,6 +39,7 @@ Every task MUST follow this lifecycle:
 - **Credential Protection**: Never log, print, or commit API keys or secrets. Check `.env` and `.gitignore`.
 - **Context Efficiency**: Combine tool calls where possible. Read only what is necessary.
 - **Explain Before Acting**: Provide a concise one-sentence explanation of intent before executing tools.
+- **Preserve Shell Script Permissions**: Never write to `run.sh` or any `.sh` file using the Write tool — it strips the executable bit. If a shell script must be modified, use the Edit tool only. If a git operation or checkout causes the executable bit to be lost, immediately restore it with `chmod +x`.
 
 ## 5. UI & Styling ([SPEC §20](SPEC.md#20-themes--styling))
 
