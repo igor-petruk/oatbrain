@@ -8,8 +8,10 @@ from gi.repository import Adw, Gtk  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
+from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
+from oatbrain.ui.tree import FileTree  # noqa: E402
 
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
@@ -20,12 +22,14 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         event_bus: EventBus,
         command_router: CommandRouter,
         initial_state: AppState,
+        filestore: FileStore,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._event_bus = event_bus
         self._command_router = command_router
         self._state = initial_state
+        self._filestore = filestore
         self.connect("activate", self.on_activate)
 
     def on_activate(self, app: Adw.Application) -> None:
@@ -47,8 +51,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.right_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
 
         # Placeholders for panes
-        self.tree_placeholder = Gtk.Frame(label="File Tree")
-        self.tree_placeholder.set_child(Gtk.Label(label="[Tree Placeholder]"))
+        self.tree_pane = FileTree(self._filestore, self._event_bus)
 
         self.editor_placeholder = Gtk.Frame(label="Editor / Preview")
         self.editor_placeholder.set_child(Gtk.Label(label="[Editor Placeholder]"))
@@ -57,7 +60,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.terminal_placeholder.set_child(Gtk.Label(label="[Terminal Placeholder]"))
 
         # Setup main_paned (Tree vs Rest)
-        self.main_paned.set_start_child(self.tree_placeholder)
+        self.main_paned.set_start_child(self.tree_pane)
         self.main_paned.set_end_child(self.right_paned)
         self.main_paned.set_position(180)  # ~15% of 1200
 
