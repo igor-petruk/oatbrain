@@ -3,7 +3,8 @@ from typing import Optional
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
-from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
+gi.require_version("Pango", "1.0")
+from gi.repository import Gtk, GtkSource, GLib, Pango  # noqa: E402
 
 from oatbrain.core.bus import EventBus  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
@@ -25,12 +26,37 @@ class Editor:
         self.view.set_monospace(True)
         self.view.set_wrap_mode(Gtk.WrapMode.WORD)
 
+        # Typography (§19)
+        font_str = "JetBrains Mono, Fira Code, DejaVu Sans Mono, monospace 13"
+        font_desc = Pango.FontDescription.from_string(font_str)
+        self.view.set_font_description(font_desc)
+
         self.scrolled = Gtk.ScrolledWindow()
         self.scrolled.set_child(self.view)
         self.scrolled.set_hexpand(True)
         self.scrolled.set_vexpand(True)
 
-        self.widget = self.scrolled
+        # Empty-pane placeholder (§7.4)
+        self.placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self.placeholder.set_valign(Gtk.Align.CENTER)
+        self.placeholder.set_halign(Gtk.Align.CENTER)
+
+        hint_label = Gtk.Label()
+        hint_label.set_markup(
+            "<span size='large' weight='bold'>oatbrain</span>\n\n"
+            "<span size='medium' color='#888'>"
+            "Ctrl+P — find file\n"
+            "Ctrl+N — new note"
+            "</span>"
+        )
+        hint_label.set_justify(Gtk.Justify.CENTER)
+        self.placeholder.append(hint_label)
+
+        self.overlay = Gtk.Overlay()
+        self.overlay.set_child(self.scrolled)
+        self.overlay.add_overlay(self.placeholder)
+
+        self.widget = self.overlay
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
 
@@ -44,6 +70,9 @@ class Editor:
 
     def _update_ui(self, event: StateUpdated) -> bool:
         new_path = event.state.editor.open_file
+        self.placeholder.set_visible(new_path is None)
+        self.scrolled.set_visible(new_path is not None)
+
         if new_path != self._current_path:
             self._current_path = new_path
             if new_path:

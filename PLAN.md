@@ -4,120 +4,68 @@ This plan follows the Research -> Strategy -> Execution lifecycle. Each step is 
 
 **Note**: This plan is kept in sync with GitHub Projects and Issues, which serve as the primary tracking tools for the project.
 
-## Phase 1: Foundation & Project Structure
+## Phase 1: Foundation & Project Structure [DONE]
 Goal: Set up the repository structure, build system, and basic "Hello World" GTK application.
 
-### Step 1.1: Project Skeleton
-- **Task**: Create the directory structure as specified in SPEC §4.
-- **Action**: 
-    - Initialize `pyproject.toml` with dependencies from SPEC §2.2.
-    - Create `src/oatbrain/` with `__init__.py` and `__main__.py`.
-    - Create `Makefile` with basic targets (`clean`, `lint`).
-- **Verification**: `ls -R` matches SPEC §4; `python3 -m oatbrain` runs (even if it does nothing yet).
-
-### Step 1.2: Composition Root & CLI Entry
-- **Task**: Implement the basic CLI entry point and bootstrap logic.
-- **Action**:
-    - Implement `src/oatbrain/__main__.py` to handle `argv`.
-    - Implement a minimal `src/oatbrain/app/bootstrap.py`.
-    - Implement a "Hello World" `AdwApplication` in `src/oatbrain/ui/window.py`.
-- **Verification**: `python3 -m oatbrain` opens an empty Libadwaita window.
-
-### Step 1.3: Core Architecture & Linting
-- **Task**: Set up `tach` and basic ports.
-- **Action**:
-    - Add `tach.toml` for architecture enforcement (SPEC §23.4).
-    - Create `src/oatbrain/core/ports/` with initial `FileStore` and `Env` protocols.
-    - Implement `tests/unit/test_imports.py` to verify core isolation.
-- **Verification**: `tach check` passes; `pytest tests/unit/test_imports.py` passes.
+### Step 1.1: Project Skeleton [DONE]
+### Step 1.2: Composition Root & CLI Entry [DONE]
+### Step 1.3: Core Architecture & Linting [DONE]
 
 ---
 
-## Phase 2: Core Domain - File & State Management
+## Phase 2: Core Domain - File & State Management [DONE]
 Goal: Implement the "Brain" of oatbrain without any UI.
 
-### Step 2.1: FileStore & Vault Resolution
-- **Task**: Implement `LocalFileStore` and vault discovery logic.
-- **Action**:
-    - Implement `adapters/filestore/local.py`.
-    - Implement vault resolution logic in `core/` (SPEC §5.1).
-- **Verification**: Unit tests for `LocalFileStore` using `pyfakefs`.
-
-### Step 2.2: AppState & Command Bus
-- **Task**: Implement the single source of truth and command routing.
-- **Action**:
-    - Define `AppState` dataclass in `core/state/`.
-    - Implement a simple `EventBus` and `CommandRouter` in `core/`.
-- **Verification**: Unit tests: dispatching a command updates `AppState` and emits an event.
-
-### Step 2.3: Persistent State (state.toml)
-- **Task**: Load and save session state.
-- **Action**:
-    - Implement `adapters/state/toml_store.py` (SPEC §27).
-- **Verification**: Round-trip test: `AppState` -> `state.toml` -> `AppState` matches.
+### Step 2.1: FileStore & Vault Resolution [DONE]
+### Step 2.2: AppState & Command Bus [DONE]
+### Step 2.3: Persistent State (state.toml) [DONE]
 
 ---
 
-## Phase 3: Basic UI & Layout
+## Phase 3: Basic UI & Layout [DONE]
 Goal: Build the main window layout with placeholder panes.
 
 ### Step 3.1: Main Window Layout [DONE]
-- **Task**: Implement the three-pane layout (Tree, Editor, Terminal).
-- **Action**:
-    - Update `ui/window.py` with `AdwHeaderBar` and a multi-pane container (likely `Gtk.Paned`).
-    - Use placeholders for Tree and Terminal.
-- **Verification**: Window shows three distinct areas with correct default proportions (SPEC §6.2).
-
-### Step 3.2: Header Bar ### Step 3.2: Header Bar & Status Bar Status Bar [DONE]
-- **Task**: Implement the chrome elements.
-- **Action**:
-    - Implement `ui/headerbar.py` and `ui/statusbar.py`.
-    - Wire them to `AppState` via the `EventBus`.
-- **Verification**: Header bar shows icons; status bar shows dummy path/word count.
-
+### Step 3.2: Header Bar & Status Bar [DONE]
 ### Step 3.3: GUI Smoke Test [DONE]
-- **Task**: Verify application layout and widget hierarchy.
-- **Action**:
-    - Implement `tests/gui/test_smoke.py`.
-    - Use `xvfb-run` to verify that the app launches and contains the expected nested panes.
-- **Verification**: `make test-gui` passes.
 
 ---
 
-## Phase 4: File Tree & Navigation
+## Phase 4: File Tree & Navigation [DONE]
 Goal: Explore the vault.
 
 ### Step 4.1: File Tree Component [DONE]
-- **Task**: Implement the hierarchical tree view.
-- **Action**: 
-    - Implement `ui/tree.py` using GTK 4 `Gtk.TreeView`.
-    - Populated from `FileStore`.
-- **Verification**: Tree displays files and folders of a test directory.
 ### Step 4.2: File Selection & Opening [DONE]
-- **Task**: Selecting a file updates the app state.
-- **Action**:
-    - Click/Enter in Tree dispatches `OpenFile` command.
-    - Update `AppState.editor.open_file`.
-- **Verification**: Selecting a file in the tree updates the path in the status bar.
 
 ---
 
 ## Phase 5: Markdown Editor (Source Mode)
 Goal: Edit files with syntax highlighting and Vim mode.
 
-### Step 5.1: GtkSourceView Integration
+### Step 5.1: GtkSourceView Integration [DONE]
 - **Task**: Embed the editor widget.
-- **Action**:
+- **Action**: 
     - Implement `ui/editor.py` wrapping `GtkSourceView`.
     - Enable Markdown highlighting.
 - **Verification**: Opening a `.md` file shows highlighted source code.
 
-### Step 5.2: Vim Mode & Autosave
-- **Task**: Add Vim IM context and save logic.
+### Step 5.2: SPEC Compliance & Polish (intermediate)
+- **Task**: Bring existing UI into 100% compliance with SPEC §6, §8, §9.
 - **Action**:
-    - Enable `GtkSourceVimIMContext`.
-    - Implement the 5s idle autosave (SPEC §10.3).
-- **Verification**: Vim keys work; waiting 5s after typing saves the file to disk.
+    - **Layout (§6.2)**: Set exact splitter proportions (15% Tree, 30% Terminal remainder).
+    - **Header Bar (§8)**: Add hamburger menu; add actual toggle logic for Tree/Terminal; ensure icon-only buttons with tooltips.
+    - **Status Bar (§6.3)**: Implement Unsaved dot, Read-only lock icon, and Theme name; wire Word count (placeholder logic is ok for now, but widget must exist).
+    - **Tree (§9.1)**: Add folder/file icons; add unsaved dot indicator.
+    - **Shortcuts (§18.2)**: Implement `Ctrl+B` (Toggle Tree), `` Ctrl+` `` (Toggle Terminal), `Ctrl+1/2/3` (Focus switching).
+- **Verification**: Visual audit against SPEC screenshots/descriptions; Keyboard shortcuts working.
+
+### Step 5.3: Vim Mode & Autosave
+- **Task**: Add Vim IM context and save logic (§10.3, §10.4).
+- **Action**:
+    - Enable `GtkSourceVimIMContext` in `ui/editor.py`.
+    - Implement the 5s idle autosave logic in a background thread or GLib timeout.
+    - Status Bar: Show active Vim mode label (`NORMAL`, `INSERT`, etc.).
+- **Verification**: Vim keys work; status bar updates mode; waiting 5s after typing saves the file to disk (verified by `stat` or watcher).
 
 ---
 
@@ -125,18 +73,19 @@ Goal: Edit files with syntax highlighting and Vim mode.
 Goal: Render Markdown to HTML.
 
 ### Step 6.1: Basic Renderer
-- **Task**: Implement `markdown-it-py` adapter.
+- **Task**: Implement `markdown-it-py` adapter (§11.2).
 - **Action**:
     - Implement `adapters/renderer/markdown_it.py`.
-    - Support basic CommonMark.
+    - Support basic CommonMark and required extensions.
 - **Verification**: Unit test: Markdown string -> HTML string.
 
-### Step 6.2: WebKitGTK Preview
-- **Task**: Show rendered HTML in the UI.
+### Step 6.2: WebKitGTK Preview & Toggle
+- **Task**: Show rendered HTML and implement mode toggle (§10.2, §11).
 - **Action**:
     - Implement `ui/preview.py` wrapping `WebKitWebView`.
-    - Implement the Edit/Read toggle (Ctrl+E).
-- **Verification**: Pressing Ctrl+E flips between source and a rendered view.
+    - Implement floating Edit/Read toggle buttons in the top-right of the editor pane (§8.1).
+    - Implement `Ctrl+E` toggle logic with "best-effort scroll jump".
+- **Verification**: Pressing `Ctrl+E` or clicking buttons flips between source and rendered view.
 
 ---
 
@@ -144,15 +93,16 @@ Goal: Render Markdown to HTML.
 Goal: Vault-aware rendering.
 
 ### Step 7.1: Wikilink Resolution
-- **Task**: Parse and resolve `[[Name]]`.
+- **Task**: Parse and resolve `[[Name]]` (§13).
 - **Action**:
-    - Implement `core/wikilink/` logic (SPEC §13).
-- **Verification**: Unit tests with various vault structures and broken links.
+    - Implement `core/wikilink/` logic to find targets in `FileStore`.
+    - Update Renderer to use the resolver.
+- **Verification**: Unit tests with various vault structures; Preview shows links.
 
 ### Step 7.2: Transclusion
-- **Task**: Implement `![[Name]]`.
+- **Task**: Implement `![[Name]]` (§14).
 - **Action**:
-    - Update Renderer to resolve transclusions (SPEC §14).
+    - Update Renderer to resolve transclusions by reading via `FileStore`.
 - **Verification**: Preview shows content of embedded notes.
 
 ---
@@ -161,17 +111,18 @@ Goal: Vault-aware rendering.
 Goal: The built-in terminal.
 
 ### Step 8.1: VTE Integration
-- **Task**: Embed VTE terminal.
+- **Task**: Embed VTE terminal (§16.1).
 - **Action**:
     - Implement `ui/terminal.py` wrapping `Vte.Terminal`.
     - Set CWD to vault root.
 - **Verification**: Terminal pane opens and runs `$SHELL`.
 
 ### Step 8.2: Terminal Context (OATBRAIN_*)
-- **Task**: Inject environment variables.
+- **Task**: Inject environment variables (§16.3).
 - **Action**:
-    - Implement environment injection and sidecar update (SPEC §16.3).
-- **Verification**: `echo $OATBRAIN_VAULT` in terminal works; updating file in editor updates `$OATBRAIN_CURRENT_FILE` in the sidecar.
+    - Implement environment injection (VAULT, CURRENT_FILE, etc.).
+    - Implement sidecar update logic.
+- **Verification**: `echo $OATBRAIN_VAULT` in terminal works.
 
 ---
 
@@ -179,10 +130,10 @@ Goal: The built-in terminal.
 Goal: Global navigation and command execution.
 
 ### Step 9.1: Palette UI & Search
-- **Task**: Implement the fuzzy search overlay.
+- **Task**: Implement the fuzzy search overlay (§17).
 - **Action**:
-    - Implement `ui/palette.py`.
-    - Implement `core/search/` fuzzy matching.
+    - Implement `ui/palette.py` as a centered overlay.
+    - Implement `Ctrl+P` (files) and `Ctrl+Shift+P` (commands).
 - **Verification**: `Ctrl+P` opens palette; typing filters vault files.
 
 ---
@@ -191,11 +142,11 @@ Goal: Global navigation and command execution.
 Goal: Visual identity and final touches.
 
 ### Step 10.1: Theme Engine
-- **Task**: Implement TOML themes and CSS generation.
+- **Task**: Implement TOML themes and CSS generation (§20).
 - **Action**:
-    - Implement `core/theme/` (SPEC §20).
-    - Bundle Solarized and Monokai.
-- **Verification**: Switching theme in header bar updates both app chrome and preview styles.
+    - Implement `core/theme/` token resolution.
+    - Load and apply theme CSS to both GTK and WebKit.
+- **Verification**: Switching theme in header bar updates app styles.
 
 ---
 
@@ -203,13 +154,6 @@ Goal: Visual identity and final touches.
 Goal: Distribution-ready.
 
 ### Step 11.1: Debian Packaging
-- **Task**: Create `debian/` directory and `Makefile` targets.
-- **Action**:
-    - Implement `make deb`.
-- **Verification**: `dpkg -i oatbrain.deb` installs successfully on a clean system.
-
+- **Task**: Create `debian/` packaging metadata (§3).
 ### Step 11.2: GitHub Actions
-- **Task**: Set up CI pipeline.
-- **Action**:
-    - Create `.github/workflows/ci.yml`.
-- **Verification**: PRs trigger linting, unit tests, and smoke tests.
+- **Task**: Finalize CI pipeline (§31).
