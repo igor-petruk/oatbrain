@@ -120,19 +120,20 @@ class Editor:
         self._btn_read.set_tooltip_text("Read (preview)")
         self._btn_read.set_group(self._btn_source)
 
-        toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        toggle_box.append(self._btn_source)
-        toggle_box.append(self._btn_read)
-        toggle_box.set_halign(Gtk.Align.END)
-        toggle_box.set_valign(Gtk.Align.START)
-        toggle_box.set_margin_top(6)
-        toggle_box.set_margin_end(6)
-        toggle_box.add_css_class("linked")
+        self._toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        self._toggle_box.append(self._btn_source)
+        self._toggle_box.append(self._btn_read)
+        self._toggle_box.set_halign(Gtk.Align.END)
+        self._toggle_box.set_valign(Gtk.Align.START)
+        self._toggle_box.set_margin_top(6)
+        self._toggle_box.set_margin_end(6)
+        self._toggle_box.add_css_class("linked")
+        self._toggle_box.set_visible(False)
 
         self.overlay = Gtk.Overlay()
         self.overlay.set_child(self._stack)
-        self.overlay.add_overlay(toggle_box)
-        self.overlay.set_clip_overlay(toggle_box, True)
+        self.overlay.add_overlay(self._toggle_box)
+        self.overlay.set_clip_overlay(self._toggle_box, True)
 
         # --- Vim command-line bar ---
         self._cmd_bar_label = Gtk.Label(label="")
@@ -273,6 +274,10 @@ class Editor:
         new_read_mode = event.state.editor.read_mode
 
         self.placeholder.set_visible(new_path is None)
+        is_markdown = new_path is not None and str(new_path).endswith(
+            (".md", ".markdown")
+        )
+        self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
         if new_path != self._current_path:
             self._cancel_autosave()
@@ -298,6 +303,10 @@ class Editor:
                 self.buffer.set_text("")
                 self.buffer.set_language(None)
                 self._command_router.dispatch(UpdateWordCount(count=0))
+
+            # If the new file isn't Markdown, drop out of read mode
+            if not is_markdown and self._read_mode:
+                self._command_router.dispatch(ToggleMode())
 
         # Sync mode (may change independently of file)
         if new_read_mode != self._read_mode:
