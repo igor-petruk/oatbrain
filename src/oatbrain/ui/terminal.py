@@ -5,7 +5,7 @@ from pathlib import Path
 gi.require_version("Gtk", "4.0")
 gi.require_version("Vte", "3.91")
 gi.require_version("PangoCairo", "1.0")
-from gi.repository import Gtk, Vte, GLib, Pango, PangoCairo, Gio  # noqa: E402
+from gi.repository import Gtk, Gdk, Vte, GLib, Pango, PangoCairo, Gio  # noqa: E402
 
 # Same priority list as the editor CSS font-family stack (§19).
 # Pick the first family actually installed on this system.
@@ -49,6 +49,7 @@ class Terminal:
         self._url_tag = self._vte.match_add_regex(url_re, 0)
         self._vte.match_set_cursor_name(self._url_tag, "pointer")
 
+        # Ctrl+click opens URLs (plain click is reserved for text selection)
         click = Gtk.GestureClick.new()
         click.set_button(1)
         click.connect("released", self._on_click)
@@ -75,11 +76,15 @@ class Terminal:
 
     def _on_click(
         self,
-        _gesture: Gtk.GestureClick,
+        gesture: Gtk.GestureClick,
         _n_press: int,
         x: float,
         y: float,
     ) -> None:
+        # Only open URLs on Ctrl+click to avoid conflicting with text selection
+        state = gesture.get_current_event_state()
+        if not (state & Gdk.ModifierType.CONTROL_MASK):
+            return
         # OSC 8 hyperlink (app-emitted, e.g. from ls --hyperlink)
         uri = self._vte.check_hyperlink_at(x, y)
         # Plain URL detected by regex
