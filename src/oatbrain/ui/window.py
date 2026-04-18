@@ -74,34 +74,32 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _setup_global_styles(self) -> None:
         """Loads mandatory CSS styles for the application (SPEC §19)."""
-        if AdwAppShell._css_provider is not None:
-            return
+        display = Gdk.Display.get_default()
+        if display:
+            # Register theme CSS provider every time (instance-level, no guard).
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                self._theme_css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+            )
 
-        fonts = (
-            "'Cousine', 'JetBrains Mono', 'Fira Code', "
-            "'DejaVu Sans Mono', monospace"
-        )
-        css = f"""
-            .oatbrain-editor {{
-                font-family: {fonts};
+        if AdwAppShell._css_provider is not None:
+            return  # Font CSS is process-global; only load once.
+
+        css = """
+            .oatbrain-editor {
+                font-family: var(--font-mono, 'Cousine', 'JetBrains Mono', 'Fira Code', monospace);
                 font-size: 12pt;
-            }}
+            }
         """
         AdwAppShell._css_provider = Gtk.CssProvider()
-        css_bytes = css.encode("utf-8")
-        AdwAppShell._css_provider.load_from_data(css_bytes, len(css_bytes))
+        AdwAppShell._css_provider.load_from_string(css)
 
-        display = Gdk.Display.get_default()
         if display:
             Gtk.StyleContext.add_provider_for_display(
                 display,
                 AdwAppShell._css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            )
-            Gtk.StyleContext.add_provider_for_display(
-                display,
-                self._theme_css_provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
             )
 
     def _handle_open_file(self, command: OpenFile) -> None:
@@ -241,7 +239,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # 6. Finalize
         self.main_window.present()
 
-        # 7. Wire proactive saving LATE to avoid construction noise
+        # 7. Apply theme now that all sub-widgets (editor, terminal) exist.
+        # _on_startup applied AdwStyleManager early, but editor/terminal are
+        # only wired up after activate, so we must call this again here.
+        self._load_and_apply_theme(self._state.theme_id)
+
+        # 8. Wire proactive saving LATE to avoid construction noise
         GLib.idle_add(self._connect_late_signals)
 
         # Emit initial state
@@ -283,6 +286,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             ("open_config", self._on_open_config),
             ("set_theme_light", lambda *_: self._on_set_theme("Light")),
             ("set_theme_dark", lambda *_: self._on_set_theme("Dark")),
+            ("set_theme_high_contrast", lambda *_: self._on_set_theme("HighContrast")),
             ("new_note", self._on_new_note),
             ("new_folder", self._on_new_folder),
             ("rename_file", self._on_rename_file),
@@ -294,15 +298,24 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self.add_action(action)
 
     def _load_and_apply_theme(self, theme_id: str) -> None:
-        """Load theme TOML and push CSS to GTK, WebKit, VTE, and GtkSourceView."""
+        """Load theme TOML and push to AdwStyleManager + all sub-widgets."""
         try:
             theme = load_theme(theme_id)
         except Exception:
             return
         self._active_theme = theme
+
+        # Drive AdwStyleManager so the ENTIRE window (header, menus, tree, etc.)
+        # switches light/dark — this is the idiomatic Libadwaita approach (§20.5).
+        style_manager = Adw.StyleManager.get_default()
+        if theme.kind in ("dark", "high-contrast-dark"):
+            style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        else:
+            style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
+
+        # Inject CSS custom-property tokens for our own widgets (preview, etc.)
         css = generate_gtk_css(theme)
-        css_bytes = css.encode("utf-8")
-        self._theme_css_provider.load_from_data(css_bytes, len(css_bytes))
+        self._theme_css_provider.load_from_string(css)
 
         # GtkSourceView style scheme (§20.9)
         if hasattr(self, "editor"):
@@ -322,6 +335,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = new_state
         self._load_and_apply_theme(command.theme_id)
         self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
 
     def _on_open_config(self, *args: Any) -> None:
         print("Action: Open config file")
@@ -329,6 +343,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _on_set_theme(self, theme: str) -> None:
         if theme == "Light":
             self._command_router.dispatch(SetTheme(theme_id="solarized-light"))
+        elif theme == "HighContrast":
+            self._command_router.dispatch(SetTheme(theme_id="high-contrast-dark"))
         else:
             self._command_router.dispatch(SetTheme(theme_id="monokai-dark"))
 

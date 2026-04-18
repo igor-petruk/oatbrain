@@ -51,6 +51,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.store = Gtk.TreeStore(str, str, str, bool, bool, bool)
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
+        self.tree_view.add_css_class("oatbrain-filetree")
 
         # Enable single-click activation (SPEC §9.2 updated)
         self.tree_view.set_activate_on_single_click(True)
