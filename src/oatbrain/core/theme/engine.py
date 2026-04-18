@@ -10,6 +10,8 @@ def generate_gtk_css(theme: ThemeData) -> str:
 
     # Widget rules — use var() so they always track the active token values.
     # Priority is APPLICATION+1, so these override Adwaita's defaults.
+    # color-bg-alt = panel/sidebar color (tree, terminal)
+    # color-bg     = content/editor color (slightly lighter/brighter)
     lines.append("""
 .oatbrain-filetree {
     background-color: var(--color-bg-alt);
@@ -25,6 +27,14 @@ def generate_gtk_css(theme: ThemeData) -> str:
 }
 .oatbrain-filetree row:hover:not(:selected) {
     background-color: var(--color-border);
+}
+.oatbrain-editor {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+}
+.oatbrain-editor text {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
 }
 """)
 
