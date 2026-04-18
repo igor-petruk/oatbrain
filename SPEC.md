@@ -97,7 +97,7 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Terminal pane with `$SHELL` (configurable) rooted at the vault.
 - Filesystem watcher: reload externally-changed files automatically unless the
   buffer is dirty; warn otherwise.
-- Autosave: 5 s idle + on blur + on pane-leave.
+- Save on blur and pane-leave; explicit `Ctrl+S` / `:w`.
 - Header bar: hamburger · tree-toggle · new-note (left) ·
   filename · unsaved-dot · read-only-lock (centre) · terminal-toggle · theme
   switcher · window controls (right).
@@ -528,14 +528,18 @@ There is no split mode. There is no live-preview / typewriter mode.
 - Toggle via the two small buttons in the pane's top-right corner, or `Ctrl+E`.
 - Flipping MUST attempt a best-effort scroll-to-same-place jump.
 
-### 10.3 Autosave
+### 10.3 Save triggers
 
-- Dirty buffer saves:
-  - **5 s** after the last keystroke (idle debounce), OR
-  - On window blur, OR
+- Explicit save: `Ctrl+S` and `:w` (vim command-line) flush immediately.
+- Implicit save:
+  - On window blur.
   - When focus moves out of Editor/Preview (e.g., to Terminal or Tree).
-- Explicit save: `Ctrl+S` and `:w` (vim command-line) both flush immediately.
-- Save is atomic: write to `<file>.tmp` then `rename` into place.
+- Save is atomic: write to a hidden temp file in the same directory, then
+  `rename` into place (guarantees same-filesystem atomicity; temp name is
+  dot-prefixed so the filesystem watcher can filter it trivially).
+
+> **Future**: idle debounce (5 s after last keystroke) will be added once the
+> filesystem watcher (§22) is in place to avoid re-triggering reload loops.
 
 ### 10.4 Vim mode
 
@@ -869,7 +873,7 @@ readline and tmux conflicts.
 - **AI writes a file in the vault**: the watcher (§22.1) detects the change;
   if the buffer is clean, it reloads. If the buffer is dirty, it warns.
 - **AI reads the current editor buffer**: reads the file directly from disk.
-  This works because autosave fires on focus leaving the editor (§10.3), so
+  This works because a save fires on focus leaving the editor (§10.3), so
   moving focus to the terminal flushes.
 
 ### 16.10 Notifications
@@ -1646,8 +1650,8 @@ On startup, the app:
 
 ### 27.5 No crash journal
 
-Unsaved buffers are not journalled. A crash loses them. Autosave (§10.3) is
-the safety net.
+Unsaved buffers are not journalled. A crash loses them. Explicit save
+(`Ctrl+S` / `:w`) and focus-leave saves (§10.3) are the safety net.
 
 ---
 
@@ -1899,7 +1903,7 @@ numbers; do not invent others.
 | Python minimum | 3.12 | §2.1 |
 | Tree pane default width | 15% of window | §6.2 |
 | Terminal pane default width | 30% of window | §6.2 |
-| Autosave idle debounce | 5 s | §10.3 |
+| Autosave idle debounce | future (post §22) | §10.3 |
 | Smoke-test alive window | 2 s | §30.8 |
 | Smoke-test shutdown budget | 10 s | §30.8 |
 | Transclusion depth limit | 6 | §14 |
