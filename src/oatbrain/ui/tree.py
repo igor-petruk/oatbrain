@@ -2,7 +2,7 @@ from typing import Final
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import Gtk, GLib  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus  # noqa: E402
@@ -20,7 +20,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     
     Implementation details:
     - Uses Gtk.TreeView with a Gtk.TreeStore model.
-    - Implements lazy loading: only scans directories when they are expanded.
+    - Implements lazy loading: only scans directories when they are about to expand.
     - Supports single-click to expand/collapse directories.
     """
 
@@ -52,7 +52,8 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.scrolled.set_child(self.tree_view)
 
         # Signals for lazy loading and single-click interaction
-        self.tree_view.connect("row-expanded", self.on_row_expanded)
+        # We use test-expand to load data BEFORE the expansion animation starts.
+        self.tree_view.connect("test-expand", self.on_test_expand)
         self.tree_view.connect("row-activated", self.on_row_activated)
 
         self._populate_root()
@@ -82,35 +83,46 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         Triggered when a row is clicked (single click due to activate-on-single-click).
         Toggles expansion for directories.
         """
+        # Use idle_add to ensure we don't interfere with the current signal emission.
+        # This prevents "double-toggle" or flickering issues.
+        GLib.idle_add(self._toggle_row_expansion, path)
+
+    def _toggle_row_expansion(self, path: Gtk.TreePath) -> None:
+        """Helper to toggle the expansion state of a row."""
         tree_iter = self.store.get_iter(path)
         is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
 
         if is_dir:
-            # Toggle expansion state
             if self.tree_view.row_expanded(path):
                 self.tree_view.collapse_row(path)
             else:
                 self.tree_view.expand_row(path, False)
 
-    def on_row_expanded(
+    def on_test_expand(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
-    ) -> None:
+    ) -> bool:
         """
-        Triggered when a directory row is expanded (either via click or expansion
-        arrow). If the directory contains a dummy child, it fetches the actual contents.
+        Called before a row expands. Returns False to allow expansion.
+        Loads directory contents if they haven't been loaded yet.
         """
+        self._ensure_dir_loaded(iter_)
+        return False  # Return False to allow expansion
+
+    def _ensure_dir_loaded(self, iter_: Gtk.TreeIter) -> None:
+        """Checks if a directory is loaded (no dummy child) and loads it if needed."""
         child_iter = self.store.iter_children(iter_)
         if child_iter:
             # Check if the first child is a dummy placeholder
             is_dummy = self.store.get_value(child_iter, COL_IS_DUMMY)
             if is_dummy:
-                # Remove placeholder and load real data from the filestore
-                self.store.remove(child_iter)
                 parent_path_str = self.store.get_value(iter_, COL_PATH)
                 try:
                     parent_path = VaultPath.from_str(parent_path_str)
                     entries = self.filestore.list_dir(parent_path)
                     entries.sort(key=lambda e: (not e.is_dir, e.path.path.name))
+                    
+                    # Add real entries BEFORE removing the dummy placeholder
+                    # to ensure the row always has children and stays expandable.
                     for entry in entries:
                         name = entry.path.path.name
                         path_str = str(entry.path)
@@ -121,7 +133,8 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                             self.store.append(
                                 new_iter, ["Loading...", "", True, False]
                             )
+                    
+                    # Now safely remove the dummy placeholder
+                    self.store.remove(child_iter)
                 except Exception as e:
                     print(f"Error loading dir {parent_path_str}: {e}")
-            # NOTE: For this phase, we don't implement automatic re-scanning 
-            # of already-loaded directories to maintain performance and simplicity.
