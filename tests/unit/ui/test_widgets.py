@@ -15,6 +15,7 @@ from oatbrain.ui.window import AdwAppShell  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
+from oatbrain.core.ports.state import StateStore  # noqa: E402
 
 def test_headerbar_instantiation() -> None:
     event_bus = EventBus()
@@ -50,12 +51,14 @@ def test_app_shell_activation_smoke() -> None:
     command_router = CommandRouter()
     state = AppState(vault_root=Path("/tmp"))
     filestore = MagicMock(spec=FileStore)
+    state_store = MagicMock(spec=StateStore)
     
     app = AdwAppShell(
         event_bus=event_bus,
         command_router=command_router,
         initial_state=state,
         filestore=filestore,
+        state_store=state_store,
         application_id="org.oatbrain.TestApp"
     )
     
@@ -66,3 +69,28 @@ def test_app_shell_activation_smoke() -> None:
     assert isinstance(app.main_window, Adw.ApplicationWindow)
     assert isinstance(app.editor, Editor)
     assert isinstance(app.tree_pane, FileTree)
+
+def test_app_shell_shutdown_saves_state() -> None:
+    """Verifies that state is saved on shutdown without error."""
+    event_bus = EventBus()
+    command_router = CommandRouter()
+    state = AppState(vault_root=Path("/tmp"))
+    filestore = MagicMock(spec=FileStore)
+    state_store = MagicMock(spec=StateStore)
+    
+    app = AdwAppShell(
+        event_bus=event_bus,
+        command_router=command_router,
+        initial_state=state,
+        filestore=filestore,
+        state_store=state_store,
+        application_id="org.oatbrain.ShutdownTest"
+    )
+    
+    app.on_activate(app)
+    
+    # Simulate shutdown
+    app.emit("shutdown")
+    
+    # Verify save was called
+    state_store.save.assert_called()

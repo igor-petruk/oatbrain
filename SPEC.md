@@ -185,6 +185,7 @@ gir1.2-gtksource-5
 python3-markdown-it
 python3-mdit-py-plugins
 python3-yaml
+python3-tomli-w
 python3-watchdog         (for FileWatcher adapter — GLib-only fallback acceptable)
 ```
 

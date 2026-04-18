@@ -57,6 +57,7 @@ jobs:
             python3-markdown-it \
             python3-mdit-py-plugins \
             python3-yaml \
+            python3-tomli-w \
             python3-watchdog \
             python3-pytest \
             xvfb \
@@ -83,6 +84,7 @@ jobs:
             python3-markdown-it \
             python3-mdit-py-plugins \
             python3-yaml \
+            python3-tomli-w \
             python3-watchdog \
             python3-pytest \
             xvfb \
