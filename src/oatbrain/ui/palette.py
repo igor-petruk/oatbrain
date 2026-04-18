@@ -2,12 +2,11 @@ from gi.repository import Gtk, Adw, Gdk
 from ..core.ports.state import AppState
 
 class Palette(Adw.Window):
-    def __init__(self, state: AppState):
-        super().__init__()
+    def __init__(self, state: AppState, parent_window: Gtk.Window):
+        super().__init__(transient_for=parent_window, modal=True)
         self.set_title("Palette")
         self.set_default_size(600, 400)
-        self.set_modal(True)
-        self.set_transient_for(None) # Ensure it doesn't try to inherit transient properties incorrectly
+        self.set_destroy_with_parent(True)
         
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.set_content(self.box)
@@ -22,6 +21,7 @@ class Palette(Adw.Window):
         self.key_controller = Gtk.EventControllerKey()
         self.key_controller.connect("key-pressed", self._on_key_pressed)
         self.add_controller(self.key_controller)
+        self.search_entry.grab_focus()
         
     def _on_search_changed(self, entry: Gtk.SearchEntry):
         text = entry.get_text()

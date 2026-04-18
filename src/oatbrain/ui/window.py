@@ -514,8 +514,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _shortcut_open_palette(self, *_: Any) -> bool:
         from oatbrain.ui.palette import Palette
-        palette = Palette(self._state)
-        palette.set_transient_for(self.main_window)
+        palette = Palette(self._state, self.main_window)
         palette.present()
         return True
 
