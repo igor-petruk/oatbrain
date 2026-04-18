@@ -447,6 +447,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _setup_shortcuts(self) -> None:
         controller = Gtk.ShortcutController.new()
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         self.main_window.add_controller(controller)
 
         # Ctrl+P: Palette (files) (§17.2)
