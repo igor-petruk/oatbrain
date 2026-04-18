@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 from oatbrain.core.ports.filestore import FileStore, VaultPath, FileEntry
@@ -46,9 +47,21 @@ class LocalFileStore(FileStore):
 
     def write_text(self, p: VaultPath, content: str) -> None:
         target = self._to_local(p)
-        tmp = target.with_suffix(target.suffix + ".tmp")
-        tmp.write_text(content, encoding="utf-8")
-        tmp.rename(target)
+        # Dot-prefix keeps the temp file hidden from vault listings and watcher
+        # filters. Same directory guarantees atomic rename on the same filesystem.
+        fd, tmp_path = tempfile.mkstemp(
+            dir=target.parent, prefix=".", suffix=".oatbrain.tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(content)
+            os.replace(tmp_path, target)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def list_dir(self, p: VaultPath) -> list[FileEntry]:
         local_dir = self._to_local(p)
