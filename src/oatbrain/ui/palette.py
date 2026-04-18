@@ -18,13 +18,15 @@ class Palette(Adw.Window):
         self.list_view = Gtk.ListView()
         self.box.append(self.list_view)
         
-        self.connect("key-pressed", self._on_key_pressed)
+        self.key_controller = Gtk.EventControllerKey()
+        self.key_controller.connect("key-pressed", self._on_key_pressed)
+        self.add_controller(self.key_controller)
         
     def _on_search_changed(self, entry: Gtk.SearchEntry):
         text = entry.get_text()
         print(f"Searching for: {text}")
         
-    def _on_key_pressed(self, widget, keyval, keycode, state):
+    def _on_key_pressed(self, controller, keyval, keycode, state):
         if keyval == Gtk.keysyms.Escape:
             self.close()
             return True

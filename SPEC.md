@@ -912,16 +912,15 @@ minimise clashes.
 
 ### 17.1 Single widget, four modes
 
-The palette is a modal overlay, centered, ~50% window width. One widget, four
-prefix modes:
+The palette is a modal overlay, centered, ~50% window width. One widget, prefix modes determine the source:
 
-| First char of query | Mode |
-|---|---|
-| (none) | files — default |
-| `>` | commands |
-| `@` | symbols — deferred |
-| `#` | tags — deferred |
-| `?` | help cheatsheet |
+| First char of query | Mode | Source |
+|---|---|---|
+| (none) | files | fuzzy matching (FZF algorithm) |
+| `#` | tags | tag list |
+| `%` | full text | fuzzy search index |
+| `>` | app commands | registered command list |
+| `/` | AI commands | `config.toml` list or dynamic command |
 
 Backspacing past the prefix reverts to files.
 
@@ -933,11 +932,11 @@ Backspacing past the prefix reverts to files.
 
 ### 17.3 Matching
 
-- Algorithm: fuzzy subsequence match with smart case, similar to `fzf`.
+- Algorithm: fuzzy subsequence match with smart case (FZF algorithm).
+- AI commands (`/`): populated by `[palette.ai_commands]` in `config.toml` (list of static strings) or `[palette]` key `ai_commands_fetcher` (command to list commands).
 - No regex mode in MVP.
 - Paths in files mode match against the vault-relative path, not only basename.
-- Result ranking: simple match-quality score. Recency, frequency, and
-  backlink count — deferred.
+- Result ranking: match-quality score. Recency, frequency, and backlink count — deferred.
 
 ### 17.4 Empty query
 
