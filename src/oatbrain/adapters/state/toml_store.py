@@ -30,6 +30,9 @@ class TomlStateStore:
                 "read_mode": state.editor.read_mode,
                 "mru": state.editor.mru,
             },
+            "theme": {
+                "theme_id": state.theme_id,
+            },
         }
         if state.editor.open_file:
             data["editor"]["open_file"] = str(state.editor.open_file) # type: ignore
@@ -49,6 +52,7 @@ class TomlStateStore:
         window = data.get("window", {})
         panes = data.get("panes", {})
         editor_data = data.get("editor", {})
+        theme_data = data.get("theme", {})
         
         open_file_str = editor_data.get("open_file")
         
@@ -68,4 +72,5 @@ class TomlStateStore:
             terminal_width=panes.get("terminal_width", 360),
             terminal_visible=panes.get("terminal_visible", True),
             editor=editor,
+            theme_id=theme_data.get("theme_id", "solarized-light"),
         )

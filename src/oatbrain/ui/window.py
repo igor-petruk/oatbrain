@@ -74,8 +74,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _setup_global_styles(self) -> None:
         """Loads mandatory CSS styles for the application (SPEC §19)."""
+        display = Gdk.Display.get_default()
+        if display:
+            # Register theme CSS provider every time (instance-level, no guard).
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                self._theme_css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+            )
+
         if AdwAppShell._css_provider is not None:
-            return
+            return  # Font CSS is process-global; only load once.
 
         fonts = (
             "'Cousine', 'JetBrains Mono', 'Fira Code', "
@@ -91,17 +100,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         css_bytes = css.encode("utf-8")
         AdwAppShell._css_provider.load_from_data(css_bytes, len(css_bytes))
 
-        display = Gdk.Display.get_default()
         if display:
             Gtk.StyleContext.add_provider_for_display(
                 display,
                 AdwAppShell._css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            )
-            Gtk.StyleContext.add_provider_for_display(
-                display,
-                self._theme_css_provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
             )
 
     def _handle_open_file(self, command: OpenFile) -> None:
@@ -294,12 +297,22 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self.add_action(action)
 
     def _load_and_apply_theme(self, theme_id: str) -> None:
-        """Load theme TOML and push CSS to GTK, WebKit, VTE, and GtkSourceView."""
+        """Load theme TOML and push to AdwStyleManager + all sub-widgets."""
         try:
             theme = load_theme(theme_id)
         except Exception:
             return
         self._active_theme = theme
+
+        # Drive AdwStyleManager so the ENTIRE window (header, menus, tree, etc.)
+        # switches light/dark — this is the idiomatic Libadwaita approach (§20.5).
+        style_manager = Adw.StyleManager.get_default()
+        if theme.kind in ("dark", "high-contrast-dark"):
+            style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        else:
+            style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
+
+        # Inject CSS custom-property tokens for our own widgets (preview, etc.)
         css = generate_gtk_css(theme)
         css_bytes = css.encode("utf-8")
         self._theme_css_provider.load_from_data(css_bytes, len(css_bytes))
@@ -322,6 +335,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = new_state
         self._load_and_apply_theme(command.theme_id)
         self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
 
     def _on_open_config(self, *args: Any) -> None:
         print("Action: Open config file")
