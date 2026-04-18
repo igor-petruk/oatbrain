@@ -434,6 +434,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         controller = Gtk.ShortcutController.new()
         self.main_window.add_controller(controller)
 
+        # Ctrl+P: Palette (§17.2, §18.2)
+        controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control>p"),
+            action=Gtk.CallbackAction.new(self._shortcut_open_palette)
+        ))
+
         # Ctrl+B: Toggle Tree
         controller.add_shortcut(Gtk.Shortcut.new(
             trigger=Gtk.ShortcutTrigger.parse_string("<Control>b"),
@@ -505,6 +511,13 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>u"),
             action=Gtk.CallbackAction.new(self._shortcut_send_selection_to_terminal)
         ))
+
+    def _shortcut_open_palette(self, *_: Any) -> bool:
+        from oatbrain.ui.palette import Palette
+        palette = Palette(self._state)
+        palette.set_transient_for(self.main_window)
+        palette.present()
+        return True
 
     def _shortcut_save(self, *_: Any) -> bool:
         self.editor._save()
