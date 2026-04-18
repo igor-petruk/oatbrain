@@ -116,7 +116,7 @@ class Editor:
         self._btn_source.set_active(True)
 
         self._btn_read = Gtk.ToggleButton()
-        self._btn_read.set_icon_name("view-paged-symbolic")
+        self._btn_read.set_icon_name("accessories-dictionary-symbolic")
         self._btn_read.set_tooltip_text("Read (preview)")
         self._btn_read.set_group(self._btn_source)
 
