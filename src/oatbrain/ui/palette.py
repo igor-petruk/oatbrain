@@ -1,4 +1,4 @@
-from gi.repository import Gtk, Adw
+from gi.repository import Gtk, Adw, Gdk
 from ..core.ports.state import AppState
 
 class Palette(Adw.Window):
@@ -7,6 +7,7 @@ class Palette(Adw.Window):
         self.set_title("Palette")
         self.set_default_size(600, 400)
         self.set_modal(True)
+        self.set_transient_for(None) # Ensure it doesn't try to inherit transient properties incorrectly
         
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.set_content(self.box)
@@ -27,7 +28,7 @@ class Palette(Adw.Window):
         print(f"Searching for: {text}")
         
     def _on_key_pressed(self, controller, keyval, keycode, state):
-        if keyval == Gtk.keysyms.Escape:
+        if keyval == Gdk.KEY_Escape:
             self.close()
             return True
         return False
