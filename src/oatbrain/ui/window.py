@@ -86,15 +86,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         if AdwAppShell._css_provider is not None:
             return  # Font CSS is process-global; only load once.
 
-        fonts = (
-            "'Cousine', 'JetBrains Mono', 'Fira Code', "
-            "'DejaVu Sans Mono', monospace"
-        )
-        css = f"""
-            .oatbrain-editor {{
-                font-family: {fonts};
+        css = """
+            .oatbrain-editor {
+                font-family: var(--font-mono, 'Cousine', 'JetBrains Mono', 'Fira Code', monospace);
                 font-size: 12pt;
-            }}
+            }
         """
         AdwAppShell._css_provider = Gtk.CssProvider()
         AdwAppShell._css_provider.load_from_string(css)
@@ -290,6 +286,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             ("open_config", self._on_open_config),
             ("set_theme_light", lambda *_: self._on_set_theme("Light")),
             ("set_theme_dark", lambda *_: self._on_set_theme("Dark")),
+            ("set_theme_high_contrast", lambda *_: self._on_set_theme("HighContrast")),
             ("new_note", self._on_new_note),
             ("new_folder", self._on_new_folder),
             ("rename_file", self._on_rename_file),
@@ -346,6 +343,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _on_set_theme(self, theme: str) -> None:
         if theme == "Light":
             self._command_router.dispatch(SetTheme(theme_id="solarized-light"))
+        elif theme == "HighContrast":
+            self._command_router.dispatch(SetTheme(theme_id="high-contrast-dark"))
         else:
             self._command_router.dispatch(SetTheme(theme_id="monokai-dark"))
 

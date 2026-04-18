@@ -16,6 +16,7 @@ def generate_gtk_css(theme: ThemeData) -> str:
 .oatbrain-filetree {
     background-color: var(--color-bg-alt);
     color: var(--color-fg);
+    font-family: var(--font-ui);
 }
 .oatbrain-filetree row {
     background-color: var(--color-bg-alt);
@@ -31,10 +32,22 @@ def generate_gtk_css(theme: ThemeData) -> str:
 .oatbrain-editor {
     background-color: var(--color-bg);
     color: var(--color-fg);
+    font-family: var(--font-mono);
 }
 .oatbrain-editor text {
     background-color: var(--color-bg);
     color: var(--color-fg);
+}
+.oatbrain-headerbar {
+    background-color: var(--color-bg-alt);
+    color: var(--color-fg);
+    box-shadow: none;
+    border: none;
+}
+:backdrop .oatbrain-headerbar,
+:backdrop .oatbrain-filetree,
+:backdrop .oatbrain-filetree row {
+    background-color: var(--color-bg-alt-bd);
 }
 """)
 

@@ -1031,11 +1031,11 @@ preview and terminal each remember their zoom level across restarts (§27).
 
 | Context | Family | Size | Line height |
 |---|---|---|---|
-| Editor  | monospace (probe order: JetBrains Mono → Fira Code → DejaVu Sans Mono → system `monospace`; `Cousine` if Chrome-OS fonts present) | 13 pt | 1.3 |
-| UI chrome | libadwaita default (usually Cantarell / Adwaita Sans) | default | default |
-| Preview body | system sans | 14 pt | 1.45 |
-| Preview code blocks | same as editor | 13 pt | 1.3 |
-| Terminal | same as editor | 13 pt | 1.0 |
+| Editor  | monospace (probe order: **Cousine** → JetBrains Mono → Fira Code → DejaVu Sans Mono → system `monospace`) | 13 pt | 1.3 |
+| UI chrome | **Arimo** → libadwaita default (Cantarell / Adwaita Sans) | default | default |
+| Preview body | **Arimo** → system sans | 14 pt | 1.45 |
+| Preview code blocks | **Cousine** → same as editor | 13 pt | 1.3 |
+| Terminal | **Cousine** → same as editor | 13 pt | 1.0 |
 
 - Size range: 8 – 32 pt.
 - Heading scale (preview): `h1=2em`, `h2=1.6em`, `h3=1.3em`, `h4=1.15em`,

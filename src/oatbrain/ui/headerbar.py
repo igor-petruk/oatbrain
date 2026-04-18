@@ -7,6 +7,7 @@ class HeaderBar:
 
     def __init__(self, event_bus: EventBus) -> None:
         self.widget = Adw.HeaderBar()
+        self.widget.add_css_class("oatbrain-headerbar")
 
         # Left: hamburger, tree toggle, new note
         self._hamburger_btn = Gtk.MenuButton(icon_name="open-menu-symbolic")
@@ -20,6 +21,7 @@ class HeaderBar:
         theme_section = Gio.Menu()
         theme_section.append("Light Theme", "app.set_theme_light")
         theme_section.append("Dark Theme", "app.set_theme_dark")
+        theme_section.append("High Contrast Dark", "app.set_theme_high_contrast")
         self.menu.append_section("Theme", theme_section)
         
         self._hamburger_btn.set_menu_model(self.menu)
