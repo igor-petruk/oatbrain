@@ -21,10 +21,13 @@ class Preview:
 
         self.widget = self._webview
 
-    def render(self, markdown: str, scroll_to: float = 0.0) -> None:
+    def render(
+        self, markdown: str, scroll_to: float = 0.0, theme_css: str = ""
+    ) -> None:
         self._pending_fraction = scroll_to
+        self._theme_css = theme_css
         html = self._renderer.render(markdown)
-        self._webview.load_html(self._wrap_html(html), "file:///")
+        self._webview.load_html(self._wrap_html(html, theme_css), "file:///")
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
         script = (
@@ -74,18 +77,24 @@ class Preview:
         return bool(GLib.SOURCE_REMOVE)
 
     @staticmethod
-    def _wrap_html(body: str) -> str:
+    def _wrap_html(body: str, theme_css: str = "") -> str:
         return (
             "<!DOCTYPE html><html><head>"
             "<meta charset='utf-8'>"
+            f"<style>{theme_css}</style>"
             "<style>"
-            "body { font-family: sans-serif; max-width: 72ch;"
-            " margin: 2em auto; line-height: 1.6; }"
-            "code { background: #f4f4f4; padding: 0.1em 0.3em;"
-            " border-radius: 3px; }"
+            "body { font-family: var(--font-sans, sans-serif);"
+            " color: var(--color-fg, #333);"
+            " background: var(--color-bg, #fff);"
+            " max-width: 72ch; margin: 2em auto; line-height: 1.6; }"
+            "a { color: var(--color-link, #268bd2); }"
+            "code { background: var(--color-code-bg, #f4f4f4);"
+            " color: var(--color-code-fg, #333);"
+            " padding: 0.1em 0.3em; border-radius: 3px; }"
             "pre code { display: block; padding: 1em; overflow-x: auto; }"
-            "table { border-collapse: collapse; } "
-            "th, td { border: 1px solid #ccc; padding: 0.4em 0.8em; }"
+            "table { border-collapse: collapse; }"
+            "th, td { border: 1px solid var(--color-border, #ccc);"
+            " padding: 0.4em 0.8em; }"
             "</style>"
             "</head><body>"
             f"{body}"

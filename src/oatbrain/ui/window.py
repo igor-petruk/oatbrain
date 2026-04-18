@@ -16,9 +16,13 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     SetDirty,
     ToggleMode,
 )
+from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
+from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
+from oatbrain.core.theme.models import ThemeData  # noqa: E402
+from oatbrain.adapters.theme.loader import load_theme  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
@@ -48,6 +52,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._filestore = filestore
         self._state_store = state_store
         self._renderer = renderer
+        self._active_theme: Optional[ThemeData] = None
+        self._theme_css_provider = Gtk.CssProvider()
 
         self._command_router.register(OpenFile, self._handle_open_file)
         self._command_router.register(
@@ -55,6 +61,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         self._command_router.register(SetDirty, self._handle_set_dirty)
         self._command_router.register(ToggleMode, self._handle_toggle_mode)
+        self._command_router.register(SetTheme, self._handle_set_theme)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -63,6 +70,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _on_startup(self, app: Adw.Application) -> None:
         """Called once when the application starts."""
         self._setup_global_styles()
+        self._load_and_apply_theme(self._state.theme_id)
 
     def _setup_global_styles(self) -> None:
         """Loads mandatory CSS styles for the application (SPEC §19)."""
@@ -89,6 +97,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 display,
                 AdwAppShell._css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                self._theme_css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
             )
 
     def _handle_open_file(self, command: OpenFile) -> None:
@@ -280,11 +293,44 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             action.connect("activate", callback)
             self.add_action(action)
 
+    def _load_and_apply_theme(self, theme_id: str) -> None:
+        """Load theme TOML and push CSS to GTK, WebKit, VTE, and GtkSourceView."""
+        try:
+            theme = load_theme(theme_id)
+        except Exception:
+            return
+        self._active_theme = theme
+        css = generate_gtk_css(theme)
+        css_bytes = css.encode("utf-8")
+        self._theme_css_provider.load_from_data(css_bytes, len(css_bytes))
+
+        # GtkSourceView style scheme (§20.9)
+        if hasattr(self, "editor"):
+            self.editor.apply_source_scheme(theme.source_scheme)
+            self.editor.set_theme_css(css)
+
+        # VTE terminal colors from ansi palette (§16.5, §20.2)
+        if hasattr(self, "terminal_placeholder"):
+            self.terminal_placeholder.apply_theme(theme)
+
+    def _handle_set_theme(self, command: SetTheme) -> None:
+        new_state = replace(
+            self._state,
+            theme_id=command.theme_id,
+            theme_name=command.theme_id.replace("-", " ").title(),
+        )
+        self._state = new_state
+        self._load_and_apply_theme(command.theme_id)
+        self._event_bus.publish(StateUpdated(self._state))
+
     def _on_open_config(self, *args: Any) -> None:
         print("Action: Open config file")
 
     def _on_set_theme(self, theme: str) -> None:
-        print(f"Action: Set theme to {theme}")
+        if theme == "Light":
+            self._command_router.dispatch(SetTheme(theme_id="solarized-light"))
+        else:
+            self._command_router.dispatch(SetTheme(theme_id="monokai-dark"))
 
     def _on_new_note(self, *args: Any) -> None:
         print("Action: New Note")

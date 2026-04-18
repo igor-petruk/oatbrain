@@ -38,6 +38,7 @@ class Editor:
         self._read_mode = False
         self._current_content: str = ""
         self._scroll_fraction: float = 0.0
+        self._theme_css: str = ""
 
         # --- Source view ---
         self.buffer = GtkSource.Buffer()
@@ -168,6 +169,27 @@ class Editor:
         event_bus.subscribe(StateUpdated, self._on_state_updated)
 
     # ------------------------------------------------------------------
+    # Theme
+    # ------------------------------------------------------------------
+
+    def apply_source_scheme(self, scheme_id: str) -> None:
+        """Apply a GtkSourceView style scheme by ID (SPEC §20.9)."""
+        sm = GtkSource.StyleSchemeManager.get_default()
+        scheme = sm.get_scheme(scheme_id)
+        if scheme is not None:
+            self.buffer.set_style_scheme(scheme)
+
+    def set_theme_css(self, css: str) -> None:
+        """Update the CSS injected into the WebKit preview (§11.3)."""
+        self._theme_css = css
+        if self._read_mode and self._preview is not None:
+            self._preview.render(
+                self._current_content,
+                scroll_to=self._scroll_fraction,
+                theme_css=css,
+            )
+
+    # ------------------------------------------------------------------
     # Mode toggle
     # ------------------------------------------------------------------
 
@@ -189,7 +211,9 @@ class Editor:
             return
         if read:
             if self._preview is not None:
-                self._preview.render(self._current_content)
+                self._preview.render(
+                    self._current_content, theme_css=self._theme_css
+                )
                 self._stack.set_visible_child_name("preview")
         else:
             self._stack.set_visible_child_name("source")
@@ -346,7 +370,9 @@ class Editor:
         elif new_read_mode:
             if self._preview is not None:
                 self._preview.render(
-                    self._current_content, scroll_to=self._scroll_fraction
+                    self._current_content,
+                    scroll_to=self._scroll_fraction,
+                    theme_css=self._theme_css,
                 )
                 self._stack.set_visible_child_name("preview")
             else:

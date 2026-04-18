@@ -72,6 +72,24 @@ class Terminal:
         """Write text directly to the terminal's stdin (§16.9)."""
         self._vte.feed_child(list(text.encode()))
 
+    def apply_theme(self, theme: object) -> None:
+        """Apply VTE colors from theme ansi palette (SPEC §16.5, §20.2)."""
+        from oatbrain.core.theme.models import ThemeData
+        if not isinstance(theme, ThemeData):
+            return
+        fg_hex = theme.ansi.get("fg", "#ffffff")
+        bg_hex = theme.ansi.get("bg", "#000000")
+        fg = Gdk.RGBA()
+        bg = Gdk.RGBA()
+        fg.parse(fg_hex)
+        bg.parse(bg_hex)
+        palette: list[Gdk.RGBA] = []
+        for i in range(16):
+            c = Gdk.RGBA()
+            c.parse(theme.ansi.get(str(i), "#000000"))
+            palette.append(c)
+        self._vte.set_colors(fg, bg, palette)
+
     # ------------------------------------------------------------------
     # Hyperlinks (§16.6)
     # ------------------------------------------------------------------
