@@ -37,6 +37,7 @@ class Editor:
         self._loading = False
         self._read_mode = False
         self._current_content: str = ""
+        self._scroll_fraction: float = 0.0
 
         # --- Source view ---
         self.buffer = GtkSource.Buffer()
@@ -174,6 +175,14 @@ class Editor:
         """Flip between source and read mode (Ctrl+E / SPEC §10.2)."""
         self._command_router.dispatch(ToggleMode())
 
+    def _apply_fraction_to_source(self, fraction: float) -> None:
+        """Apply scroll fraction to the source view (called async from preview)."""
+        self._scroll_fraction = fraction
+        adj = self._source_scroll.get_vadjustment()
+        upper = adj.get_upper() - adj.get_page_size()
+        if upper > 0:
+            adj.set_value(fraction * upper)
+
     def _set_read_mode(self, read: bool) -> None:
         self._read_mode = read
         if self._current_path is None:
@@ -309,9 +318,22 @@ class Editor:
                 self._command_router.dispatch(ToggleMode())
 
         # Sync mode (may change independently of file)
-        if new_read_mode != self._read_mode:
+        mode_changed = new_read_mode != self._read_mode
+        if mode_changed:
+            if self._read_mode:
+                # Leaving preview → capture scroll fraction asynchronously;
+                # apply it to the source view once the value arrives.
+                if self._preview is not None:
+                    self._preview.get_scroll_fraction(self._apply_fraction_to_source)
+            else:
+                # Leaving source → capture fraction synchronously from vadjustment.
+                adj = self._source_scroll.get_vadjustment()
+                upper = adj.get_upper() - adj.get_page_size()
+                self._scroll_fraction = (
+                    adj.get_value() / upper if upper > 0 else 0.0
+                )
+
             self._read_mode = new_read_mode
-            # Suppress toggle signal re-entrancy
             self._btn_read.handler_block_by_func(self._on_read_toggled)
             self._btn_source.handler_block_by_func(self._on_source_toggled)
             self._btn_read.set_active(new_read_mode)
@@ -323,7 +345,9 @@ class Editor:
             self._stack.set_visible_child_name("placeholder")
         elif new_read_mode:
             if self._preview is not None:
-                self._preview.render(self._current_content)
+                self._preview.render(
+                    self._current_content, scroll_to=self._scroll_fraction
+                )
                 self._stack.set_visible_child_name("preview")
             else:
                 self._stack.set_visible_child_name("source")
