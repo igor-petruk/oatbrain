@@ -72,7 +72,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             ToggleZen, self._handle_toggle_zen, "Toggle Zen Mode"
         )
-        self._command_router.register(SetTheme, self._handle_set_theme, visible=False)
+        self._command_router.register(SetTheme, self._handle_set_theme, "Set Theme")
         self._command_router.register(
             ToggleTree, self._handle_toggle_tree, "Toggle File Tree"
         )
