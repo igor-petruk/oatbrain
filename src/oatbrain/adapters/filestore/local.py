@@ -22,7 +22,7 @@ class LocalFileStore(FileStore):
 
     def _from_local(self, local_path: Path) -> VaultPath:
         """Convert local Path to VaultPath."""
-        rel = local_path.resolve().relative_to(self._root)
+        rel = local_path.relative_to(self._root)
         return VaultPath(PurePosixPath(rel))
 
     def _make_entry(self, local_path: Path) -> FileEntry:
