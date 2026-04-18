@@ -93,7 +93,7 @@ Goal: Explore the vault.
     - Implement `ui/tree.py` using GTK 4 `Gtk.TreeView`.
     - Populated from `FileStore`.
 - **Verification**: Tree displays files and folders of a test directory.
-### Step 4.2: File Selection & Opening
+### Step 4.2: File Selection & Opening [DONE]
 - **Task**: Selecting a file updates the app state.
 - **Action**:
     - Click/Enter in Tree dispatches `OpenFile` command.
