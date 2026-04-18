@@ -18,8 +18,32 @@ class Preview:
         self._webview.set_hexpand(True)
         self._webview.set_vexpand(True)
         self._webview.connect("load-changed", self._on_load_changed)
+        self._webview.connect("decide-policy", self._on_decide_policy)
 
         self.widget = self._webview
+    
+    def _on_decide_policy(
+        self,
+        webview: WebKit.WebView,
+        decision: WebKit.PolicyDecision,
+        decision_type: WebKit.PolicyDecisionType,
+    ) -> bool:
+        if decision_type in (
+            WebKit.PolicyDecisionType.NAVIGATION_ACTION,
+            WebKit.PolicyDecisionType.NEW_WINDOW_ACTION,
+        ):
+            navigation_action = decision.get_navigation_action()
+            request = navigation_action.get_request()
+            uri = request.get_uri() if request else "N/A"
+            
+            # If the navigation was initiated by a user gesture, open in external browser
+            if navigation_action.is_user_gesture() and uri and uri.startswith("http"):
+                print(f"DEBUG: Intercepting external link: {uri}")
+                import subprocess
+                subprocess.Popen(["xdg-open", uri])
+                decision.ignore()
+                return True
+        return False
 
     def render(
         self, markdown: str, scroll_to: float = 0.0, theme_css: str = ""

@@ -24,13 +24,17 @@ def test_output_is_deterministic() -> None:
     assert r.render(md) == r.render(md)
 
 
-def test_frontmatter_is_stripped() -> None:
-    # We explicitly chose to add front_matter_plugin; verify it strips YAML
+def test_frontmatter_is_rendered() -> None:
+    # Verifies that frontmatter is rendered with the new structure
     md = "---\ntitle: Test\ntags: [a, b]\n---\n\nBody."
     html = make_renderer().render(md)
-    assert "title:" not in html
-    assert "tags:" not in html
+    assert '<div class="frontmatter"' in html
+    assert '<h1 style="margin-top:0; font-size: 1.5em; font-family: var(--font-sans, sans-serif);">Test</h1>' in html
+    assert "🏷️" in html
+    assert '<span class="tag"' in html
     assert "Body." in html
+    assert "Tags" in html
+    assert "Tags:" not in html # Verify no colon
 
 
 def test_all_configured_extensions_are_active() -> None:

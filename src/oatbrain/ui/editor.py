@@ -351,9 +351,11 @@ class Editor:
                 self.buffer.set_language(None)
                 self._command_router.dispatch(UpdateWordCount(count=0))
 
-            # If the new file isn't Markdown, drop out of read mode
-            if not is_markdown and self._read_mode:
-                self._command_router.dispatch(ToggleMode())
+        # If the new file isn't Markdown, drop out of read mode
+        if not is_markdown and self._read_mode:
+            self._read_mode = False
+            new_read_mode = False
+            self._command_router.dispatch(ToggleMode())
 
         # Sync mode (may change independently of file)
         mode_changed = new_read_mode != self._read_mode
@@ -379,15 +381,18 @@ class Editor:
             self._btn_read.handler_unblock_by_func(self._on_read_toggled)
             self._btn_source.handler_unblock_by_func(self._on_source_toggled)
 
+        # Switch view
+        self._stack.set_visible_child_name("preview" if new_read_mode else "source")
         if new_path is None:
             self._stack.set_visible_child_name("placeholder")
         elif new_read_mode:
             if self._preview is not None:
                 self._preview.render(
                     self._current_content,
-                    scroll_to=self._scroll_fraction,
-                    theme_css=self._theme_css,
+                    self._scroll_fraction,
+                    self._theme_css
                 )
+
                 self._stack.set_visible_child_name("preview")
             else:
                 self._stack.set_visible_child_name("source")

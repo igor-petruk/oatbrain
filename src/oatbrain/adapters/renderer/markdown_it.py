@@ -34,4 +34,37 @@ class MarkdownItRenderer:
         )
 
     def render(self, markdown: str) -> str:
-        return str(self._md.render(markdown))
+        frontmatter_html = ""
+        body = markdown
+        if markdown.startswith("---"):
+            parts = markdown.split("---", 2)
+            if len(parts) >= 3:
+                import yaml
+                try:
+                    fm = yaml.safe_load(parts[1])
+                    if fm and isinstance(fm, dict):
+                        frontmatter_html = '<div class="frontmatter" style="font-size: 0.9em; margin-bottom: 1.5em; opacity: 0.9; font-family: var(--font-mono, monospace);">'
+                        
+                        # Use 'title' as main header if exists
+                        if "title" in fm:
+                            frontmatter_html += f'<h1 style="margin-top:0; font-size: 1.5em; font-family: var(--font-sans, sans-serif);">{fm["title"]}</h1>'
+                            del fm["title"]
+                        
+                        frontmatter_html += '<table style="border:none; width:100%; border-collapse: collapse;">'
+                        for k, v in fm.items():
+                            icon = "🏷️" if k == "tags" else "📝"
+                            if k == "tags" and isinstance(v, list):
+                                val = " ".join([f'<span class="tag" style="background:var(--color-bg-alt); color:var(--color-fg-muted); padding:0.1em 0.4em; border-radius:3px; font-size: 0.9em;">{t}</span>' for t in v])
+                            else:
+                                str_v = str(v)
+                                if str_v.startswith(("http://", "https://")):
+                                    val = f'<a href="{str_v}" style="color:var(--color-link);" target="_blank">{str_v}</a>'
+                                else:
+                                    val = str_v
+                            frontmatter_html += f'<tr><td style="border:none; width:20px; padding: 2px;">{icon}</td><td style="border:none; font-weight:bold; width:80px; padding: 2px; color:var(--color-fg-muted);">{k.capitalize()}</td><td style="border:none; padding: 2px;">{val}</td></tr>'
+                        frontmatter_html += '</table></div>'
+                except yaml.YAMLError:
+                    pass
+                body = parts[2]
+        
+        return frontmatter_html + str(self._md.render(body))
