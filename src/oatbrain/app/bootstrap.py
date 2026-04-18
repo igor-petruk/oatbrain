@@ -50,5 +50,6 @@ def build_app(argv: list[str]) -> Adw.Application:
         command_router=command_router,
         initial_state=initial_state,
         filestore=filestore,
+        state_store=state_store,
     )
     return app

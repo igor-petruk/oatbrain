@@ -12,6 +12,7 @@ from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.commands import OpenFile  # noqa: E402
 from oatbrain.core.commands.editor import UpdateWordCount  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
+from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
@@ -27,6 +28,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         command_router: CommandRouter,
         initial_state: AppState,
         filestore: FileStore,
+        state_store: StateStore,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -34,6 +36,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router = command_router
         self._state = initial_state
         self._filestore = filestore
+        self._state_store = state_store
 
         self._command_router.register(OpenFile, self._handle_open_file)
         self._command_router.register(
@@ -41,6 +44,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
 
         self.connect("activate", self.on_activate)
+        self.connect("shutdown", self._on_shutdown)
 
     def _handle_open_file(self, command: OpenFile) -> None:
         """Updates state when a file is opened."""
@@ -53,12 +57,43 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             status_message=f"Opened {command.path}"
         )
         self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
 
     def _handle_update_word_count(self, command: UpdateWordCount) -> None:
         """Updates word count in state."""
         new_editor = replace(self._state.editor, word_count=command.count)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
+
+    def _save_state(self) -> None:
+        """Collects current UI state and persists it via StateStore."""
+        if not hasattr(self, "main_window"):
+            return
+
+        # Get current dimensions
+        width = self.main_window.get_width()
+        height = self.main_window.get_height()
+        
+        # Get pane positions
+        tree_width = self.main_paned.get_position()
+        
+        # Terminal width calculation
+        total_right = self.right_paned.get_width()
+        editor_width = self.right_paned.get_position()
+        terminal_width = total_right - editor_width
+
+        self._state = replace(
+            self._state,
+            window_width=width,
+            window_height=height,
+            tree_width=tree_width,
+            terminal_width=terminal_width,
+        )
+        self._state_store.save(self._state)
+
+    def _on_shutdown(self, *args: Any) -> None:
+        """Ensures state is saved on application exit."""
+        self._save_state()
 
     def on_activate(self, app: Adw.Application) -> None:
         self.main_window = Adw.ApplicationWindow(application=app)
