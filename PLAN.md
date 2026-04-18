@@ -66,7 +66,7 @@ Goal: Edit files with syntax highlighting and Vim mode.
     - Implement Tree interactions (single click select+open, right-click menu, permanent delete on Del).
 - **Verification**: TOML is written instead of YAML; Single click opens file in tree; Delete prompts for permanent deletion.
 
-### Step 5.3: Vim Mode & Autosave
+### Step 5.3: Vim Mode & Autosave [DONE]
 - **Task**: Add Vim IM context and save logic (§10.3, §10.4).
 - **Action**:
     - Enable `GtkSourceVimIMContext` in `ui/editor.py`.
