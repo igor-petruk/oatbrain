@@ -2,21 +2,9 @@ import gi
 from typing import Callable, Optional
 
 gi.require_version("WebKit", "6.0")
-from gi.repository import WebKit, Gio  # noqa: E402
+from gi.repository import WebKit, Gio, GLib  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
-
-_JS_GET_FRACTION = (
-    "document.documentElement.scrollHeight > window.innerHeight"
-    " ? window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)"
-    " : 0"
-)
-_JS_SET_FRACTION = (
-    "(function(f){{"
-    "var h = document.documentElement.scrollHeight - window.innerHeight;"
-    "if(h>0) window.scrollTo({{top: f*h, behavior:'instant'}});"
-    "}})({})"
-)
 
 
 class Preview:
@@ -29,25 +17,23 @@ class Preview:
         self._webview = WebKit.WebView()
         self._webview.set_hexpand(True)
         self._webview.set_vexpand(True)
-
-        # JS is disabled for page content; evaluate_javascript() is a host-side
-        # API and still works regardless of this setting.
-        settings = self._webview.get_settings()
-        settings.set_enable_javascript(False)
-        settings.set_enable_write_console_messages_to_stdout(False)
-
         self._webview.connect("load-changed", self._on_load_changed)
 
         self.widget = self._webview
 
     def render(self, markdown: str, scroll_to: float = 0.0) -> None:
-        """Render markdown and, once loaded, scroll to the given fraction (0–1)."""
         self._pending_fraction = scroll_to
         html = self._renderer.render(markdown)
         self._webview.load_html(self._wrap_html(html), "file:///")
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
-        """Asynchronously reads the current scroll fraction then calls callback."""
+        script = (
+            "(function(){"
+            "var h=document.documentElement.scrollHeight-window.innerHeight;"
+            "return h>0?window.scrollY/h:0;"
+            "})()"
+        )
+
         def _on_result(
             _wv: WebKit.WebView, result: Gio.AsyncResult, _ud: None
         ) -> None:
@@ -59,7 +45,7 @@ class Preview:
             callback(fraction)
 
         self._webview.evaluate_javascript(
-            _JS_GET_FRACTION, -1, None, None, None, _on_result, None
+            script, -1, None, None, None, _on_result, None
         )
 
     def clear(self) -> None:
@@ -72,10 +58,20 @@ class Preview:
             frac = self._pending_fraction
             self._pending_fraction = None
             if frac > 0.0:
-                script = _JS_SET_FRACTION.format(frac)
-                self._webview.evaluate_javascript(
-                    script, -1, None, None, None, None, None
-                )
+                # Delay slightly so layout is complete before scrolling
+                GLib.timeout_add(80, self._apply_scroll, frac)
+
+    def _apply_scroll(self, frac: float) -> bool:
+        script = (
+            f"(function(){{"
+            f"var h=document.documentElement.scrollHeight-window.innerHeight;"
+            f"if(h>0)window.scrollTo(0,{frac}*h);"
+            f"}})()"
+        )
+        self._webview.evaluate_javascript(
+            script, -1, None, None, None, None, None
+        )
+        return bool(GLib.SOURCE_REMOVE)
 
     @staticmethod
     def _wrap_html(body: str) -> str:
