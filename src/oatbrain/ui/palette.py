@@ -3,23 +3,24 @@ from gi.repository import Gtk, Adw, Gdk
 from oatbrain.core.state.app_state import AppState
 
 
+from oatbrain.core.ports.config import AppConfig
+from oatbrain.core.search import AICommandFetcher, filter_and_rank
+
+
 class Palette(Adw.Dialog):  # type: ignore[misc]
-    def __init__(self, state: AppState):
+    def __init__(self, state: AppState, config: AppConfig):
         super().__init__()
         self.set_title("Palette")
         self.set_content_width(600)
         self.set_content_height(400)
 
+        self._ai_fetcher = AICommandFetcher(config.palette)
         self._mock_data: Dict[str, List[str]] = {
             "": ["README.md", "PLAN.md", "SPEC.md", "src/main.py"],
             "#": ["#todo", "#work", "#personal", "#idea"],
             "%": ["Search result 1", "Search result 2", "Search result 3"],
             ">": ["Toggle Tree", "Toggle Terminal", "Set Theme: Dark", "New Note"],
-            "/": [
-                "/explain this code",
-                "/fix the bug",
-                "/refactor this function",
-            ],
+            "/": self._ai_fetcher.fetch(),
             "!": ["ls -la", "git status", "make build"],
         }
         self._current_prefix = ""
@@ -170,8 +171,6 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         self._update_list(prefix, query)
 
     def _update_list(self, prefix: str, query: str) -> None:
-        from oatbrain.core.search import filter_and_rank
-
         items = self._mock_data.get(prefix, [])
         filtered_items = filter_and_rank(query, items)
 
