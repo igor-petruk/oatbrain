@@ -26,9 +26,19 @@ class CommandRouter:
 
     def __init__(self) -> None:
         self._handlers: dict[type[Any], Callable[[Any], None]] = {}
+        self._command_names: dict[type[Any], str] = {}
+        self._command_visible: dict[type[Any], bool] = {}
 
-    def register(self, command_type: type[T], handler: Callable[[T], None]) -> None:
+    def register(
+        self,
+        command_type: type[T],
+        handler: Callable[[T], None],
+        name: str = "",
+        visible: bool = True,
+    ) -> None:
         self._handlers[command_type] = handler
+        self._command_names[command_type] = name or command_type.__name__
+        self._command_visible[command_type] = visible
 
     def dispatch(self, command: Any) -> None:
         command_type = type(command)
@@ -37,3 +47,20 @@ class CommandRouter:
             handler(command)
         else:
             raise ValueError(f"No handler for command {command_type}")
+
+    def list_commands(self) -> list[tuple[Any, str]]:
+        """Returns a list of (command_instance, human_name) for registered commands."""
+        results: list[tuple[Any, str]] = []
+        for ct, name in self._command_names.items():
+            if not self._command_visible.get(ct, True):
+                continue
+            if hasattr(ct, "get_palette_commands"):
+                for human_name, instance in ct.get_palette_commands():
+                    results.append((instance, human_name))
+            else:
+                try:
+                    results.append((ct(), name))
+                except TypeError:
+                    # Cannot instantiate without args, skip
+                    pass
+        return results

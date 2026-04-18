@@ -192,6 +192,7 @@ python3-tomli-w
 python3-watchdog         (for FileWatcher adapter — GLib-only fallback acceptable)
 fzf                      (fuzzy matching engine)
 python3-pyfzf            (fzf python wrapper)
+ripgrep                  (fast search tool)
 ```
 
 If a listed package turns out not to be in Debian testing, the app MAY NOT

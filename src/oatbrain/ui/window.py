@@ -10,7 +10,7 @@ from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
-from oatbrain.core.commands import OpenFile  # noqa: E402
+from oatbrain.core.commands import OpenFile, ToggleTree, ToggleTerminal  # noqa: E402
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
@@ -59,12 +59,26 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._active_theme: Optional[ThemeData] = None
         self._theme_css_provider = Gtk.CssProvider()
 
-        self._command_router.register(OpenFile, self._handle_open_file)
-        self._command_router.register(UpdateWordCount, self._handle_update_word_count)
-        self._command_router.register(SetDirty, self._handle_set_dirty)
-        self._command_router.register(ToggleMode, self._handle_toggle_mode)
-        self._command_router.register(ToggleZen, self._handle_toggle_zen)
-        self._command_router.register(SetTheme, self._handle_set_theme)
+        self._command_router.register(
+            OpenFile, self._handle_open_file, "Open File", visible=False
+        )
+        self._command_router.register(
+            UpdateWordCount, self._handle_update_word_count, visible=False
+        )
+        self._command_router.register(SetDirty, self._handle_set_dirty, visible=False)
+        self._command_router.register(
+            ToggleMode, self._handle_toggle_mode, "Toggle Read Mode"
+        )
+        self._command_router.register(
+            ToggleZen, self._handle_toggle_zen, "Toggle Zen Mode"
+        )
+        self._command_router.register(SetTheme, self._handle_set_theme, "Set Theme")
+        self._command_router.register(
+            ToggleTree, self._handle_toggle_tree, "Toggle File Tree"
+        )
+        self._command_router.register(
+            ToggleTerminal, self._handle_toggle_terminal, "Toggle Terminal"
+        )
 
         self._zen_mode: bool = False
         self._pre_zen_tree_visible: bool = True
@@ -135,6 +149,18 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         new_editor = replace(self._state.editor, read_mode=new_read_mode)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_toggle_tree(self, _command: ToggleTree) -> None:
+        visible = not self.tree_pane.get_visible()
+        self.tree_pane.set_visible(visible)
+        self._state = replace(self._state, tree_visible=visible)
+        self._save_state()
+
+    def _handle_toggle_terminal(self, _command: ToggleTerminal) -> None:
+        visible = not self.terminal_placeholder.widget.get_visible()
+        self.terminal_placeholder.widget.set_visible(visible)
+        self._state = replace(self._state, terminal_visible=visible)
+        self._save_state()
 
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
         GLib.idle_add(self._apply_zen_toggle)
@@ -423,11 +449,27 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         controller = Gtk.ShortcutController.new()
         self.main_window.add_controller(controller)
 
-        # Ctrl+P: Palette (§17.2, §18.2)
+        # Ctrl+P: Palette (files) (§17.2)
         controller.add_shortcut(
             Gtk.Shortcut.new(
                 trigger=Gtk.ShortcutTrigger.parse_string("<Control>p"),
                 action=Gtk.CallbackAction.new(self._shortcut_open_palette),
+            )
+        )
+
+        # Ctrl+Shift+P: Palette (commands) (§17.2)
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>p"),
+                action=Gtk.CallbackAction.new(self._shortcut_open_palette_commands),
+            )
+        )
+
+        # F1: Palette (help) (§17.2)
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("F1"),
+                action=Gtk.CallbackAction.new(self._shortcut_open_palette_help),
             )
         )
 
@@ -530,7 +572,27 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _shortcut_open_palette(self, *_: Any) -> bool:
         from oatbrain.ui.palette import Palette
 
-        palette = Palette(self._state, self._config)
+        palette = Palette(
+            self._state, self._config, self._filestore, self._command_router
+        )
+        palette.present(self.main_window)
+        return True
+
+    def _shortcut_open_palette_commands(self, *_: Any) -> bool:
+        from oatbrain.ui.palette import Palette
+
+        palette = Palette(
+            self._state, self._config, self._filestore, self._command_router, ">"
+        )
+        palette.present(self.main_window)
+        return True
+
+    def _shortcut_open_palette_help(self, *_: Any) -> bool:
+        from oatbrain.ui.palette import Palette
+
+        palette = Palette(
+            self._state, self._config, self._filestore, self._command_router, "?"
+        )
         palette.present(self.main_window)
         return True
 
@@ -590,6 +652,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 if current == t or current.is_ancestor(t):
                     start_idx = (i + 1) % len(targets)
                     break
+
+        for j in range(len(targets)):
+            idx = (start_idx + j) % len(targets)
+            target = targets[idx]
+            if target.get_visible():
+                target.grab_focus()
+                return True
+
+        return True
 
         for j in range(len(targets)):
             idx = (start_idx + j) % len(targets)

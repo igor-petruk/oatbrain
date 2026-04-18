@@ -11,22 +11,23 @@ Goal: Render the palette overlay and handle basic keyboard events.
 
 ---
 
-## Phase 2: Core Integration & Search Engine
+## Phase 2: Core Integration & Search Engine [DONE]
 Goal: Replace mocks with actual logic.
 
-### Step 2.1: Fuzzy Matching (FZF)
+### Step 2.1: Fuzzy Matching (FZF) [DONE]
 - **Task**: Integrate fzf library for file search.
 - **Action**:
-    - Use `python3-fzf` wrapper around `fzf` CLI.
-    - Hook the palette to the `FileStore` and `search` adapter.
-- **Verification**: Palette lists actual vault files and filters them correctly using FZF.
+    - Use `python3-pyfzf` wrapper around `fzf` CLI. [DONE]
+    - Hook the palette to the `FileStore` and `search` adapter. [DONE]
+- **Verification**: Palette lists actual vault files and filters them correctly using FZF. [DONE]
 
-### Step 2.2: Config-Driven AI Commands
+### Step 2.2: Config-Driven AI Commands [DONE]
 - **Task**: Implement AI command source.
 - **Action**:
-    - Add `palette` sections to `config.toml` parser.
-    - Implement `AICommandFetcher` (static list + dynamic command execution logic).
-- **Verification**: AI commands are populated in the palette based on `config.toml` or the result of the fetcher command.
+    - Add `palette` sections to `config.toml` parser. [DONE]
+    - Implement `AICommandFetcher` (static list + dynamic command execution logic). [DONE]
+- **Verification**: AI commands are populated in the palette based on `config.toml` or the result of the fetcher command. [DONE]
+
 
 ---
 
@@ -39,12 +40,12 @@ Goal: End-to-end functionality.
     - Implement `Enter` key handlers:
         - Files: Open in editor.
         - AppCommands: Execute via `CommandRouter`.
-        - AICommands: Paste string to terminal via `ui/terminal.py`.
+        - AICommands: Paste string to terminal via `ui/terminal.py` (and press Enter).
 - **Verification**: `Enter` on AI command pastes the string to terminal stdin.
 
 ### Step 3.2: Full Text & Tag Search (Bonus)
 - **Task**: Connect remaining sources.
 - **Action**:
-    - Hook `%` mode to a simple file-crawler-based text index (deferred advanced indexer).
-    - Hook `#` mode to a tag scanner.
+    - Hook `%` mode to a simple fzf from the vault (deferred advanced indexer).
+    - Hook `#` mode to a tag scanner via ripgrep from the root of the vault (update dependencies in README.md and in Github Actions).
 - **Verification**: Tag/Text search returns relevant notes.
