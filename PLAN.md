@@ -148,17 +148,18 @@ Goal: Vault-aware rendering.
 ## Phase 10: Fuzzy Palette & Commands
 Goal: Global navigation and command execution.
 
-### Step 10.1: Palette UI & Search
+### Step 10.1: Palette UI & Search [IN PROGRESS]
 - **Task**: Implement the fuzzy search overlay with prefix-based commands (§17).
 - **Action**:
-    - Implement `ui/palette.py` as a centered overlay.
-    - Implement `Ctrl+P` to trigger the palette.
-    - Implement command prefix logic:
+    - Implement `ui/palette.py` as a centered overlay. [DONE]
+    - Implement `Ctrl+P` to trigger the palette. [DONE]
+    - Implement command prefix logic: [DONE]
         - (no prefix): File search (powered by FZF-like fuzzy matching)
         - `#`: Tags search
         - `%`: Full text search
         - `>`: App commands
         - `/`: AI commands (pasted to terminal). AI commands are either configured directly in `config.toml` or dynamically fetched from a command specified in the config.
+        - `!`: Shell commands.
 - **Verification**: `Ctrl+P` opens palette; prefixes filter the search list; `/` commands are populated via config and execution pastes them to the terminal.
 
 ---

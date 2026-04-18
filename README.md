@@ -28,6 +28,8 @@ sudo apt-get install -y \
     python3-mdit-py-plugins \
     python3-yaml \
     python3-watchdog \
+    fzf \
+    python3-pyfzf \
     python3-pytest \
     python3-mypy \
     python3-ruff \

@@ -63,7 +63,7 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         self.add_controller(shortcut_controller)
 
         # Initial data
-        self._update_list("")
+        self._update_list("", "")
 
         # Grabbing focus on search entry
         self.connect("map", lambda *_: self.search_entry.grab_focus())
@@ -95,16 +95,25 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         prefix = ""
         if text.startswith(("#", "%", ">", "/", "!")):
             prefix = text[0]
+            query = text[1:]
+        else:
+            query = text
 
         if prefix != self._current_prefix:
             self._current_prefix = prefix
-            self._update_list(prefix)
 
-    def _update_list(self, prefix: str) -> None:
+        self._update_list(prefix, query)
+
+    def _update_list(self, prefix: str, query: str) -> None:
+        from oatbrain.core.search import filter_and_rank
+
         items = self._mock_data.get(prefix, [])
+        filtered_items = filter_and_rank(query, items)
+
         # Clear model
         while self.model.get_n_items() > 0:
             self.model.remove(0)
         # Add items
-        for item in items:
+        for item in filtered_items:
             self.model.append(item)
+
