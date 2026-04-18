@@ -1,4 +1,4 @@
-from gi.repository import Gtk, Adw, Gdk, Gio
+from gi.repository import Gtk, Adw
 from ..core.ports.state import AppState
 
 class Palette(Adw.Dialog):
@@ -22,8 +22,9 @@ class Palette(Adw.Dialog):
         self.list_view = Gtk.ListView()
         self.box.append(self.list_view)
         
-        # In Adw.Dialog, we might still need to capture Escape if we want custom behavior,
-        # but Adw.Dialog usually handles it. Let's see if it works out of the box.
+        # In Adw.Dialog, we might still need to capture Escape if we want
+        # custom behavior, but Adw.Dialog usually handles it.
+        # Let's see if it works out of the box.
         # However, SearchEntry might still swallow it.
         shortcut_controller = Gtk.ShortcutController.new()
         shortcut_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)

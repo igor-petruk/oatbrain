@@ -1,9 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
 from dataclasses import replace
 from oatbrain.ui.editor import Editor
 from oatbrain.core.events.state import StateUpdated
-from oatbrain.core.state.app_state import AppState, EditorState
+from oatbrain.core.state.app_state import AppState
 from pathlib import Path
 from oatbrain.core.ports.filestore import VaultPath
 
