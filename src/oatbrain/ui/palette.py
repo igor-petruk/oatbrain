@@ -194,9 +194,9 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             self._command_router.dispatch(OpenFile(VaultPath.from_str(path_str)))
         elif prefix == ">":
             # Execute app command
-            for cmd_type, name in self._command_router.list_commands():
+            for cmd_instance, name in self._command_router.list_commands():
                 if name == text:
-                    self._command_router.dispatch(cmd_type())
+                    self._command_router.dispatch(cmd_instance)
                     break
         elif prefix == "/":
             self._paste_to_terminal(text)

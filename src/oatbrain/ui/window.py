@@ -10,7 +10,7 @@ from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
-from oatbrain.core.commands import OpenFile  # noqa: E402
+from oatbrain.core.commands import OpenFile, ToggleTree, ToggleTerminal  # noqa: E402
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
@@ -59,16 +59,26 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._active_theme: Optional[ThemeData] = None
         self._theme_css_provider = Gtk.CssProvider()
 
-        self._command_router.register(OpenFile, self._handle_open_file, "Open File")
         self._command_router.register(
-            UpdateWordCount, self._handle_update_word_count, "Update Word Count"
+            OpenFile, self._handle_open_file, "Open File", visible=False
         )
-        self._command_router.register(SetDirty, self._handle_set_dirty, "Set Dirty")
         self._command_router.register(
-            ToggleMode, self._handle_toggle_mode, "Toggle Mode"
+            UpdateWordCount, self._handle_update_word_count, visible=False
         )
-        self._command_router.register(ToggleZen, self._handle_toggle_zen, "Toggle Zen")
-        self._command_router.register(SetTheme, self._handle_set_theme, "Set Theme")
+        self._command_router.register(SetDirty, self._handle_set_dirty, visible=False)
+        self._command_router.register(
+            ToggleMode, self._handle_toggle_mode, "Toggle Read Mode"
+        )
+        self._command_router.register(
+            ToggleZen, self._handle_toggle_zen, "Toggle Zen Mode"
+        )
+        self._command_router.register(SetTheme, self._handle_set_theme, visible=False)
+        self._command_router.register(
+            ToggleTree, self._handle_toggle_tree, "Toggle File Tree"
+        )
+        self._command_router.register(
+            ToggleTerminal, self._handle_toggle_terminal, "Toggle Terminal"
+        )
 
         self._zen_mode: bool = False
         self._pre_zen_tree_visible: bool = True
@@ -139,6 +149,18 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         new_editor = replace(self._state.editor, read_mode=new_read_mode)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_toggle_tree(self, _command: ToggleTree) -> None:
+        visible = not self.tree_pane.get_visible()
+        self.tree_pane.set_visible(visible)
+        self._state = replace(self._state, tree_visible=visible)
+        self._save_state()
+
+    def _handle_toggle_terminal(self, _command: ToggleTerminal) -> None:
+        visible = not self.terminal_placeholder.widget.get_visible()
+        self.terminal_placeholder.widget.set_visible(visible)
+        self._state = replace(self._state, terminal_visible=visible)
+        self._save_state()
 
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
         GLib.idle_add(self._apply_zen_toggle)
@@ -630,6 +652,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 if current == t or current.is_ancestor(t):
                     start_idx = (i + 1) % len(targets)
                     break
+
+        for j in range(len(targets)):
+            idx = (start_idx + j) % len(targets)
+            target = targets[idx]
+            if target.get_visible():
+                target.grab_focus()
+                return True
+
+        return True
 
         for j in range(len(targets)):
             idx = (start_idx + j) % len(targets)
