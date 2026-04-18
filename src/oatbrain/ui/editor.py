@@ -50,16 +50,23 @@ class Editor:
             )
             # Canonical setup per GtkSourceVimIMContext docs:
             # EventControllerKey routes capture-phase key events through the IM context.
-            # Without set_im_context(), key events never reach VimIMContext.
             self._vim_key_ctrl = Gtk.EventControllerKey.new()
             self._vim_key_ctrl.set_im_context(self._vim_context)
             self._vim_key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             self.view.add_controller(self._vim_key_ctrl)
             self._vim_context.set_client_widget(self.view)
             self._vim_context.connect("write", self._on_vim_write)
+            # Mode is tracked via three complementary signals:
+            # 1. notify::overwrite on view  → INSERT vs NORMAL (most reliable)
+            # 2. notify::command-text       → VISUAL / REPLACE hints
+            # 3. notify::command-bar-text   → COMMAND mode + command-line label
             self._vim_context.connect(
-                "notify::command-text", self._on_vim_command_text
+                "notify::command-text", self._on_vim_state_changed
             )
+            self._vim_context.connect(
+                "notify::command-bar-text", self._on_vim_command_bar_changed
+            )
+            self.view.connect("notify::overwrite", self._on_vim_state_changed)
         else:
             self._vim_context = None
             self._vim_key_ctrl = None
@@ -76,7 +83,6 @@ class Editor:
         )
         self.placeholder.set_valign(Gtk.Align.CENTER)
         self.placeholder.set_halign(Gtk.Align.CENTER)
-
         hint_label = Gtk.Label()
         hint_label.set_markup(
             "<span size='large' weight='bold'>oatbrain</span>\n\n"
@@ -92,7 +98,24 @@ class Editor:
         self.overlay.set_child(self.scrolled)
         self.overlay.add_overlay(self.placeholder)
 
-        self.widget = self.overlay
+        # Vim command-line bar shown at bottom of editor pane (like Vim's last line)
+        self._cmd_bar_label = Gtk.Label(label="")
+        self._cmd_bar_label.set_halign(Gtk.Align.START)
+        self._cmd_bar_label.set_hexpand(True)
+        self._cmd_bar_label.add_css_class("monospace")
+        self._cmd_bar_label.set_margin_start(6)
+        self._cmd_bar_label.set_margin_end(6)
+        self._cmd_bar_label.set_margin_top(2)
+        self._cmd_bar_label.set_margin_bottom(2)
+        self._cmd_bar_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._cmd_bar_row.append(self._cmd_bar_label)
+        self._cmd_bar_row.set_visible(False)
+
+        self._main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._main_box.append(self.overlay)
+        self._main_box.append(self._cmd_bar_row)
+
+        self.widget = self._main_box
 
         self.buffer.connect("changed", self._on_buffer_changed)
 
@@ -112,32 +135,54 @@ class Editor:
     ) -> None:
         self._save()
 
-    def _on_vim_command_text(self, ctx: GtkSource.VimIMContext, _pspec: object) -> None:
-        raw = ctx.get_property("command-text") or ""
-        if "INSERT" in raw:
-            mode = "INSERT"
-        elif "VISUAL" in raw:
-            mode = "VISUAL"
-        elif "REPLACE" in raw:
-            mode = "REPLACE"
-        elif "COMMAND" in raw or raw.startswith(":"):
-            mode = "COMMAND"
-        else:
-            mode = "NORMAL"
+    def _compute_vim_mode(self) -> str:
+        """Determine current Vim mode from all available signals."""
+        if self._vim_context is None:
+            return "NORMAL"
+        bar = self._vim_context.get_property("command-bar-text") or ""
+        if bar:
+            return "COMMAND"
+        cmd = self._vim_context.get_property("command-text") or ""
+        upper = cmd.upper()
+        if "VISUAL" in upper:
+            return "VISUAL"
+        if "REPLACE" in upper:
+            return "REPLACE"
+        # Overwrite=False is the most reliable INSERT indicator (set by VimIMContext)
+        if not self.view.get_overwrite():
+            return "INSERT"
+        return "NORMAL"
+
+    def _on_vim_state_changed(self, *_: object) -> None:
+        mode = self._compute_vim_mode()
         self._command_router.dispatch(UpdateVimMode(mode=mode))
+
+    def _on_vim_command_bar_changed(
+        self, ctx: GtkSource.VimIMContext, _pspec: object
+    ) -> None:
+        bar = ctx.get_property("command-bar-text") or ""
+        GLib.idle_add(self._update_cmd_bar_label, bar)
+        self._on_vim_state_changed()
+
+    def _update_cmd_bar_label(self, text: str) -> bool:
+        self._cmd_bar_label.set_text(text)
+        self._cmd_bar_row.set_visible(bool(text))
+        return bool(GLib.SOURCE_REMOVE)
 
     # ------------------------------------------------------------------
     # Buffer & focus callbacks
     # ------------------------------------------------------------------
 
-    def _on_buffer_changed(self, _buffer: GtkSource.Buffer) -> None:
-        if self._loading:
-            return
+    def _count_words(self) -> int:
         start = self.buffer.get_start_iter()
         end = self.buffer.get_end_iter()
         text = self.buffer.get_text(start, end, True)
-        words = len(text.split()) if text.strip() else 0
-        self._command_router.dispatch(UpdateWordCount(count=words))
+        return len(text.split()) if text.strip() else 0
+
+    def _on_buffer_changed(self, _buffer: GtkSource.Buffer) -> None:
+        if self._loading:
+            return
+        self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
         self._command_router.dispatch(SetDirty(dirty=True))
         self._schedule_autosave()
 
@@ -203,6 +248,10 @@ class Editor:
                     content = self._filestore.read_text(new_path)
                     self.buffer.set_text(content)
                     self._loading = False
+                    # Initial word count: buffer-changed is suppressed during load
+                    self._command_router.dispatch(
+                        UpdateWordCount(count=self._count_words())
+                    )
                     self._command_router.dispatch(SetDirty(dirty=False))
                 except Exception as e:
                     self._loading = False
@@ -210,4 +259,5 @@ class Editor:
             else:
                 self.buffer.set_text("")
                 self.buffer.set_language(None)
+                self._command_router.dispatch(UpdateWordCount(count=0))
         return bool(GLib.SOURCE_REMOVE)

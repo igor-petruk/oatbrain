@@ -39,8 +39,9 @@ def test_editor_instantiation() -> None:
     event_bus = EventBus()
     command_router = CommandRouter()
     editor = Editor(filestore, event_bus, command_router)
-    assert isinstance(editor.widget, Gtk.Overlay)
+    assert isinstance(editor.widget, Gtk.Box)
     assert isinstance(editor.view, GtkSource.View)
+    assert isinstance(editor.overlay, Gtk.Overlay)
 
 
 def test_editor_vim_context_enabled() -> None:
