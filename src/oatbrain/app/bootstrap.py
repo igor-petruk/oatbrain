@@ -22,7 +22,7 @@ def build_app(argv: list[str]) -> Adw.Application:
     
     app = AdwAppShell(
         application_id="app.oatbrain.App", 
-        flags=Gio.ApplicationFlags.FLAGS_NONE,
+        flags=Gio.ApplicationFlags.FLAGS_NONE | Gio.ApplicationFlags.NON_UNIQUE,
         event_bus=event_bus,
         command_router=command_router,
         initial_state=initial_state,

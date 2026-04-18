@@ -11,6 +11,7 @@ from oatbrain.core.bus import EventBus  # noqa: E402
 COL_NAME: Final[int] = 0
 COL_PATH: Final[int] = 1
 COL_IS_DUMMY: Final[int] = 2
+COL_IS_DIR: Final[int] = 3
 
 
 class FileTree(Gtk.Box):  # type: ignore[misc]
@@ -30,8 +31,8 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.scrolled.set_hexpand(True)
         self.append(self.scrolled)
 
-        # Gtk.TreeStore(Name: str, Path: str, IsDummy: bool)
-        self.store = Gtk.TreeStore(str, str, bool)
+        # Gtk.TreeStore(Name: str, Path: str, IsDummy: bool, IsDir: bool)
+        self.store = Gtk.TreeStore(str, str, bool, bool)
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
 
@@ -45,6 +46,11 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Connect the expansion signal to implement lazy loading of subdirectories
         self.tree_view.connect("row-expanded", self.on_row_expanded)
 
+        # Single click to expand/collapse directories
+        self.click_gesture = Gtk.GestureClick()
+        self.click_gesture.connect("released", self.on_click_released)
+        self.tree_view.add_controller(self.click_gesture)
+
         self._populate_root()
 
     def _populate_root(self) -> None:
@@ -57,14 +63,36 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             for entry in entries:
                 name = entry.path.path.name
                 path_str = str(entry.path)
-                iter_ = self.store.append(None, [name, path_str, False])
+                iter_ = self.store.append(None, [name, path_str, False, entry.is_dir])
                 if entry.is_dir:
                     # Add a dummy child to folders so they are expandable.
                     # The actual content will be loaded when the user expands the row.
-                    self.store.append(iter_, ["Loading...", "", True])
+                    self.store.append(iter_, ["Loading...", "", True, False])
         except Exception as e:
             # TODO: Propagate this to the UI status bar instead of just printing
             print(f"Error loading root: {e}")
+
+    def on_click_released(
+        self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float
+    ) -> None:
+        """Handles single clicks on the tree view to toggle expansion of directories."""
+        if n_press != 1:
+            return
+
+        # Identify which row (path) was clicked
+        path_info = self.tree_view.get_path_at_pos(int(x), int(y))
+        if not path_info:
+            return
+
+        path, column, cell_x, cell_y = path_info
+        tree_iter = self.store.get_iter(path)
+        is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
+
+        if is_dir:
+            if self.tree_view.row_expanded(path):
+                self.tree_view.collapse_row(path)
+            else:
+                self.tree_view.expand_row(path, False)
 
     def on_row_expanded(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
@@ -89,9 +117,11 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                     for entry in entries:
                         name = entry.path.path.name
                         path_str = str(entry.path)
-                        new_iter = self.store.append(iter_, [name, path_str, False])
+                        new_iter = self.store.append(
+                            iter_, [name, path_str, False, entry.is_dir]
+                        )
                         if entry.is_dir:
-                            self.store.append(new_iter, ["Loading...", "", True])
+                            self.store.append(new_iter, ["Loading...", "", True, False])
                 except Exception as e:
                     print(f"Error loading dir {parent_path_str}: {e}")
             # Note: If is_dummy is False, the directory has already been loaded.
