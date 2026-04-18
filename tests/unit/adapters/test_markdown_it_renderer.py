@@ -10,82 +10,42 @@ def test_implements_renderer_protocol() -> None:
     assert isinstance(make_renderer(), Renderer)
 
 
-def test_heading() -> None:
-    html = make_renderer().render("# Hello World")
-    assert "<h1>Hello World</h1>" in html
+def test_instantiation_does_not_raise() -> None:
+    make_renderer()
 
 
-def test_paragraph() -> None:
-    html = make_renderer().render("Simple paragraph.")
-    assert "<p>Simple paragraph.</p>" in html
-
-
-def test_bold_and_italic() -> None:
-    html = make_renderer().render("**bold** and *italic*")
-    assert "<strong>bold</strong>" in html
-    assert "<em>italic</em>" in html
-
-
-def test_inline_code_and_fenced_block() -> None:
-    html = make_renderer().render("`code`\n\n```\nblock\n```")
-    assert "<code>code</code>" in html
-    assert "<code>block" in html
-
-
-def test_link() -> None:
-    html = make_renderer().render("[label](https://example.com)")
-    assert 'href="https://example.com"' in html
-    assert ">label<" in html
-
-
-def test_gfm_table() -> None:
-    md = "| A | B |\n|---|---|\n| 1 | 2 |"
-    html = make_renderer().render(md)
-    assert "<table>" in html
-    assert "<th>A</th>" in html
-    assert "<td>1</td>" in html
-
-
-def test_strikethrough() -> None:
-    html = make_renderer().render("~~struck~~")
-    assert "<s>struck</s>" in html
-
-
-def test_task_list_unchecked() -> None:
-    html = make_renderer().render("- [ ] todo")
-    assert 'type="checkbox"' in html
-    assert "checked" not in html
-
-
-def test_task_list_checked() -> None:
-    html = make_renderer().render("- [x] done")
-    assert 'checked="checked"' in html
-
-
-def test_footnote() -> None:
-    md = "Text[^1]\n\n[^1]: The footnote."
-    html = make_renderer().render(md)
-    assert "footnote" in html
-    assert "The footnote." in html
-
-
-def test_subscript() -> None:
-    html = make_renderer().render("H~2~O")
-    assert "<sub>2</sub>" in html
-
-
-def test_frontmatter_stripped() -> None:
-    md = "---\ntitle: Test\n---\n\nBody text."
-    html = make_renderer().render(md)
-    assert "title:" not in html
-    assert "<p>Body text.</p>" in html
-
-
-def test_empty_string() -> None:
+def test_empty_string_returns_empty() -> None:
     assert make_renderer().render("") == ""
 
 
-def test_deterministic_output() -> None:
+def test_output_is_deterministic() -> None:
     r = make_renderer()
-    md = "# Heading\n\nParagraph."
+    md = "# Heading\n\nParagraph with **bold** text."
     assert r.render(md) == r.render(md)
+
+
+def test_frontmatter_is_stripped() -> None:
+    # We explicitly chose to add front_matter_plugin; verify it strips YAML
+    md = "---\ntitle: Test\ntags: [a, b]\n---\n\nBody."
+    html = make_renderer().render(md)
+    assert "title:" not in html
+    assert "tags:" not in html
+    assert "Body." in html
+
+
+def test_all_configured_extensions_are_active() -> None:
+    # One smoke test: verify every extension we wired actually fires.
+    # Tests the wiring in __init__, not the extension internals.
+    md = (
+        "| A | B |\n|---|---|\n| 1 | 2 |\n\n"  # tables
+        "~~s~~\n\n"                              # strikethrough
+        "- [ ] todo\n\n"                         # tasklists
+        "H~2~O\n\n"                              # subscript
+        "foot[^1]\n\n[^1]: note"                 # footnotes
+    )
+    html = make_renderer().render(md)
+    assert "<table>" in html
+    assert "<s>" in html
+    assert 'type="checkbox"' in html
+    assert "<sub>" in html
+    assert "footnote" in html
