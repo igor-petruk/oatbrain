@@ -10,8 +10,6 @@ from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.commands.editor import UpdateWordCount, SetDirty  # noqa: E402
 
-_AUTOSAVE_DELAY_MS = 5000
-
 
 class Editor:
     """Markdown editor wrapping GtkSourceView with Vim mode and autosave."""
@@ -157,7 +155,6 @@ class Editor:
             return
         self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
         self._command_router.dispatch(SetDirty(dirty=True))
-        self._schedule_autosave()
 
     def _on_focus_leave(self, _ctrl: Gtk.EventControllerFocus) -> None:
         self._save()
@@ -165,18 +162,6 @@ class Editor:
     # ------------------------------------------------------------------
     # Save logic
     # ------------------------------------------------------------------
-
-    def _schedule_autosave(self) -> None:
-        if self._autosave_timer is not None:
-            GLib.source_remove(self._autosave_timer)
-        self._autosave_timer = GLib.timeout_add(
-            _AUTOSAVE_DELAY_MS, self._autosave_fire
-        )
-
-    def _autosave_fire(self) -> bool:
-        self._autosave_timer = None
-        self._save()
-        return bool(GLib.SOURCE_REMOVE)
 
     def _cancel_autosave(self) -> None:
         if self._autosave_timer is not None:
