@@ -16,6 +16,7 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             "%": ["Search result 1", "Search result 2", "Search result 3"],
             ">": ["Toggle Tree", "Toggle Terminal", "Set Theme: Dark", "New Note"],
             "/": ["/explain this code", "/fix the bug", "/refactor this function"],
+            "!": ["ls -la", "git status", "make build"],
         }
         self._current_prefix = ""
 
@@ -27,7 +28,9 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         self.set_child(self.box)
 
         self.search_entry = Gtk.SearchEntry()
-        self.search_entry.set_placeholder_text("Search files or type: # tags, % text, > commands, / AI")
+        self.search_entry.set_placeholder_text(
+            "Search files or type: # tags, % text, > commands, / AI command, ! shell"
+        )
         self.search_entry.connect("search-changed", self._on_search_changed)
         self.box.append(self.search_entry)
 
@@ -90,7 +93,7 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
         text = entry.get_text()
         prefix = ""
-        if text.startswith(("#", "%", ">", "/")):
+        if text.startswith(("#", "%", ">", "/", "!")):
             prefix = text[0]
 
         if prefix != self._current_prefix:
