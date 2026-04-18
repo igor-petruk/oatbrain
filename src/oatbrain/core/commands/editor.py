@@ -19,4 +19,3 @@ class ToggleMode:
 @dataclass(frozen=True)
 class ToggleZen:
     """Enter or exit Zen (distraction-free) mode (SPEC §7.5)."""
-

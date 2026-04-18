@@ -19,10 +19,7 @@ _FALLBACK_FONT = "Monospace"
 
 
 def _resolve_terminal_font(size_pt: int = 12) -> Pango.FontDescription:
-    installed = {
-        f.get_name()
-        for f in PangoCairo.FontMap.get_default().list_families()
-    }
+    installed = {f.get_name() for f in PangoCairo.FontMap.get_default().list_families()}
     family = next((f for f in _PREFERRED_FONTS if f in installed), _FALLBACK_FONT)
     return Pango.FontDescription.from_string(f"{family} {size_pt}")
 
@@ -81,6 +78,7 @@ class Terminal:
     def apply_theme(self, theme: object) -> None:
         """Apply VTE colors from theme ansi palette (SPEC §16.5, §20.2)."""
         from oatbrain.core.theme.models import ThemeData
+
         if not isinstance(theme, ThemeData):
             return
         fg_hex = theme.ansi.get("fg", "#ffffff")
@@ -129,10 +127,12 @@ class Terminal:
 
     def _build_env(self) -> list[str]:
         merged = dict(os.environ)
-        merged.update({
-            "OATBRAIN_VAULT": str(self._vault_root),
-            "TERM": "xterm-256color",
-        })
+        merged.update(
+            {
+                "OATBRAIN_VAULT": str(self._vault_root),
+                "TERM": "xterm-256color",
+            }
+        )
         return [f"{k}={v}" for k, v in merged.items()]
 
     def _spawn(self) -> None:

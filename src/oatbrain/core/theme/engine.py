@@ -12,7 +12,8 @@ def generate_gtk_css(theme: ThemeData) -> str:
     # Priority is APPLICATION+1, so these override Adwaita's defaults.
     # color-bg-alt = panel/sidebar color (tree, terminal)
     # color-bg     = content/editor color (slightly lighter/brighter)
-    lines.append("""
+    lines.append(
+        """
 .oatbrain-filetree {
     background-color: var(--color-bg-alt);
     color: var(--color-tree-fg, var(--color-fg));
@@ -54,6 +55,7 @@ textview.oatbrain-editor gutter {
 :backdrop .oatbrain-filetree row {
     background-color: var(--color-bg-alt-bd);
 }
-""")
+"""
+    )
 
     return "\n".join(lines)

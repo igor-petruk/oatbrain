@@ -12,12 +12,12 @@ from oatbrain.core.commands import OpenFile  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 
 # TreeStore column indices for clarity and maintainability
-COL_ICON: Final[int] = 0        # Icon name
-COL_NAME: Final[int] = 1        # The display name of the file or folder
-COL_PATH: Final[int] = 2        # The vault-relative path as a string
-COL_IS_DUMMY: Final[int] = 3    # True if this is a "Loading..." placeholder
-COL_IS_DIR: Final[int] = 4      # True if this entry represents a directory
-COL_IS_DIRTY: Final[int] = 5    # True if file has unsaved changes
+COL_ICON: Final[int] = 0  # Icon name
+COL_NAME: Final[int] = 1  # The display name of the file or folder
+COL_PATH: Final[int] = 2  # The vault-relative path as a string
+COL_IS_DUMMY: Final[int] = 3  # True if this is a "Loading..." placeholder
+COL_IS_DIR: Final[int] = 4  # True if this entry represents a directory
+COL_IS_DIRTY: Final[int] = 5  # True if file has unsaved changes
 
 
 class FileTree(Gtk.Box):  # type: ignore[misc]
@@ -190,9 +190,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                 )
                 if entry.is_dir:
                     # Add a dummy child to folders
-                    self.store.append(
-                        iter_, ["", "Loading...", "", True, False, False]
-                    )
+                    self.store.append(iter_, ["", "Loading...", "", True, False, False])
         except Exception as e:
             print(f"Error loading root: {e}")
 
@@ -247,13 +245,11 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                         path_str = str(entry.path)
                         icon = self._get_icon(entry.is_dir)
                         new_iter = self.store.append(
-                            iter_,
-                            [icon, name, path_str, False, entry.is_dir, False]
+                            iter_, [icon, name, path_str, False, entry.is_dir, False]
                         )
                         if entry.is_dir:
                             self.store.append(
-                                new_iter,
-                                ["", "Loading...", "", True, False, False]
+                                new_iter, ["", "Loading...", "", True, False, False]
                             )
 
                     self.store.remove(child_iter)
