@@ -2,7 +2,8 @@ from typing import Final, Any
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, GLib  # noqa: E402
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gtk, GLib, Gio, Gdk  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
@@ -26,7 +27,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     Implementation details:
     - Uses Gtk.TreeView with a Gtk.TreeStore model.
     - Implements lazy loading: scans directories when they are expanded.
-    - Supports single-click to expand/collapse directories.
+    - Supports single-click to expand/collapse directories and open files.
     """
 
     def __init__(
@@ -51,7 +52,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
 
-        # Enable single-click activation.
+        # Enable single-click activation (SPEC §9.2 updated)
         self.tree_view.set_activate_on_single_click(True)
 
         # Create columns
@@ -80,8 +81,70 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.tree_view.connect("row-expanded", self.on_row_expanded)
         self.tree_view.connect("row-activated", self.on_row_activated)
 
+        # Context Menu (§9.2)
+        self._setup_context_menu()
+
+        # Keyboard shortcuts (§9.2)
+        self._setup_key_controller()
+
         self._populate_root()
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
+
+    def _setup_context_menu(self) -> None:
+        """Sets up the right-click context menu."""
+        self.menu = Gio.Menu()
+        self.menu.append("New Note", "app.new_note")
+        self.menu.append("New Folder", "app.new_folder")
+        self.menu.append("Rename", "app.rename_file")
+        self.menu.append("Delete", "app.delete_file")
+
+        self.popover = Gtk.PopoverMenu.new_from_model(self.menu)
+        self.popover.set_parent(self.tree_view)
+        self.popover.set_has_arrow(False)
+
+        gesture = Gtk.GestureClick.new()
+        gesture.set_button(3)  # Right click
+        gesture.connect("pressed", self._on_right_click)
+        self.tree_view.add_controller(gesture)
+
+    def _setup_key_controller(self) -> None:
+        """Sets up keyboard event handling."""
+        controller = Gtk.EventControllerKey.new()
+        controller.connect("key-pressed", self._on_key_pressed)
+        self.tree_view.add_controller(controller)
+
+    def _on_key_pressed(
+        self,
+        controller: Gtk.EventControllerKey,
+        keyval: int,
+        keycode: int,
+        state: Gdk.ModifierType,
+    ) -> bool:
+        if keyval == Gdk.KEY_Delete:
+            self._on_delete_pressed()
+            return True
+        return False
+
+    def _on_delete_pressed(self) -> None:
+        """Handles the Delete key press."""
+        selection = self.tree_view.get_selection()
+        model, tree_iter = selection.get_selected()
+        if tree_iter:
+            path_str = model.get_value(tree_iter, COL_PATH)
+            # Permanent delete (§22.4) logic will go here
+            print(f"Delete permanently: {path_str}")
+
+    def _on_right_click(
+        self, gesture: Gtk.GestureClick, n_press: int, x: float, y: int
+    ) -> None:
+        """Shows the context menu at the click location."""
+        rect = Gdk.Rectangle()
+        rect.x = int(x)
+        rect.y = int(y)
+        rect.width = 0
+        rect.height = 0
+        self.popover.set_pointing_to(rect)
+        self.popover.popup()
 
     def _render_unsaved_dot(
         self,

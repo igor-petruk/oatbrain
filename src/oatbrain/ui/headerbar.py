@@ -1,4 +1,4 @@
-from gi.repository import Adw, Gtk, GLib
+from gi.repository import Adw, Gtk, GLib, Gio
 from oatbrain.core.events.state import StateUpdated
 from oatbrain.core.bus import EventBus
 
@@ -11,16 +11,22 @@ class HeaderBar:
         # Left: hamburger, tree toggle, new note
         self._hamburger_btn = Gtk.MenuButton(icon_name="open-menu-symbolic")
         self._hamburger_btn.set_tooltip_text("Menu")
+        
+        # Hamburger Menu (§8.5)
+        self.menu = Gio.Menu()
+        self.menu.append("Open config file", "app.open_config")
+        
+        # Theme section in menu
+        theme_section = Gio.Menu()
+        theme_section.append("Light Theme", "app.set_theme_light")
+        theme_section.append("Dark Theme", "app.set_theme_dark")
+        self.menu.append_section("Theme", theme_section)
+        
+        self._hamburger_btn.set_menu_model(self.menu)
 
         self.tree_toggle = Gtk.ToggleButton(icon_name="sidebar-show-symbolic")
         self.tree_toggle.set_active(True)
         self.tree_toggle.set_tooltip_text("Toggle File Tree (Ctrl+B)")
-
-        self.terminal_toggle = Gtk.ToggleButton(
-            icon_name="utilities-terminal-symbolic"
-        )
-        self.terminal_toggle.set_active(True)
-        self.terminal_toggle.set_tooltip_text("Toggle Terminal (Ctrl+`)")
 
         self._new_note_btn = Gtk.Button(icon_name="document-new-symbolic")
         self._new_note_btn.set_tooltip_text("New Note (Ctrl+N)")
@@ -56,15 +62,14 @@ class HeaderBar:
         self._title_box.append(self._readonly_lock)
         self.widget.set_title_widget(self._title_box)
 
-        # Right: theme switcher, terminal toggle
-        self._theme_btn = Gtk.Button(icon_name="display-brightness-symbolic")
-        self._theme_btn.set_tooltip_text("Switch Theme")
+        # Right: terminal toggle
+        self.terminal_toggle = Gtk.ToggleButton(
+            icon_name="utilities-terminal-symbolic"
+        )
+        self.terminal_toggle.set_active(True)
+        self.terminal_toggle.set_tooltip_text("Toggle Terminal (Ctrl+`)")
 
-        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        right_box.append(self._theme_btn)
-        right_box.append(self.terminal_toggle)
-
-        self.widget.pack_end(right_box)
+        self.widget.pack_end(self.terminal_toggle)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
 
