@@ -61,7 +61,7 @@ jobs:
             xvfb \
             make
       - name: Run unit tests
-        run: xvfb-run make test
+        run: make test
 
   test-gui:
     needs: lint
@@ -87,4 +87,4 @@ jobs:
             xvfb \
             make
       - name: Run GUI tests (dummy for now)
-        run: xvfb-run make test
+        run: make test-gui
