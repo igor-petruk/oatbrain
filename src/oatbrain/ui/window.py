@@ -42,7 +42,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         """Updates state when a file is opened."""
         new_editor = replace(self._state.editor, open_file=command.path)
         self._state = replace(
-            self._state, editor=new_editor, status_message=f"Opened {command.path}"
+            self._state,
+            editor=new_editor,
+            status_message=f"Opened {command.path}"
         )
         self._event_bus.publish(StateUpdated(self._state))
 

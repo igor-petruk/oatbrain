@@ -22,7 +22,7 @@ COL_IS_DIRTY: Final[int] = 5    # True if file has unsaved changes
 class FileTree(Gtk.Box):  # type: ignore[misc]
     """
     A hierarchical file tree view for navigating the vault.
-    
+
     Implementation details:
     - Uses Gtk.TreeView with a Gtk.TreeStore model.
     - Implements lazy loading: scans directories when they are expanded.
@@ -40,7 +40,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self._event_bus = event_bus
         self._command_router = command_router
 
-        # Scrolled window provides scrollbars when the tree exceeds the pane size
+        # Scrolled window provides scrollbars
         self.scrolled = Gtk.ScrolledWindow()
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
@@ -50,23 +50,23 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.store = Gtk.TreeStore(str, str, str, bool, bool, bool)
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
-        
+
         # Enable single-click activation.
         self.tree_view.set_activate_on_single_click(True)
 
         # Create columns
         column = Gtk.TreeViewColumn("Name")
-        
+
         # Icon
         icon_renderer = Gtk.CellRendererPixbuf()
         column.pack_start(icon_renderer, False)
         column.add_attribute(icon_renderer, "icon-name", COL_ICON)
-        
+
         # Name
         text_renderer = Gtk.CellRendererText()
         column.pack_start(text_renderer, True)
         column.add_attribute(text_renderer, "text", COL_NAME)
-        
+
         # Unsaved dot
         dot_renderer = Gtk.CellRendererText()
         column.pack_start(dot_renderer, False)
@@ -99,8 +99,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
     def _update_dirty_states(self, event: StateUpdated) -> bool:
         # TODO: Implement deep update of dirty states in tree
-        # For now, we only have one open file, so we could theoretically find it.
-        # But full implementation requires iterating the tree.
         return bool(GLib.SOURCE_REMOVE)
 
     def _get_icon(self, is_dir: bool) -> str:
@@ -121,8 +119,10 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                     None, [icon, name, path_str, False, entry.is_dir, False]
                 )
                 if entry.is_dir:
-                    # Add a dummy child to folders so they are expandable.
-                    self.store.append(iter_, ["", "Loading...", "", True, False, False])
+                    # Add a dummy child to folders
+                    self.store.append(
+                        iter_, ["", "Loading...", "", True, False, False]
+                    )
         except Exception as e:
             print(f"Error loading root: {e}")
 
@@ -132,10 +132,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         path: Gtk.TreePath,
         column: Gtk.TreeViewColumn,
     ) -> None:
-        """
-        Triggered when a row is clicked (single click due to activate-on-single-click).
-        Toggles expansion for directories, opens files.
-        """
+        """Toggles expansion for directories, opens files."""
         tree_iter = self.store.get_iter(path)
         is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
 
@@ -160,17 +157,13 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def on_row_expanded(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
     ) -> None:
-        """
-        Triggered when a directory row is expanded.
-        Loads directory contents if they haven't been loaded yet.
-        """
+        """Loads directory contents if they haven't been loaded yet."""
         self._ensure_dir_loaded(iter_)
 
     def _ensure_dir_loaded(self, iter_: Gtk.TreeIter) -> None:
-        """Checks if a directory is loaded (no dummy child) and loads it if needed."""
+        """Checks if a directory is loaded and loads it if needed."""
         child_iter = self.store.iter_children(iter_)
         if child_iter:
-            # Check if the first child is a dummy placeholder
             is_dummy = self.store.get_value(child_iter, COL_IS_DUMMY)
             if is_dummy:
                 parent_path_str = self.store.get_value(iter_, COL_PATH)
@@ -178,19 +171,21 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                     parent_path = VaultPath.from_str(parent_path_str)
                     entries = self.filestore.list_dir(parent_path)
                     entries.sort(key=lambda e: (not e.is_dir, e.path.path.name))
-                    
+
                     for entry in entries:
                         name = entry.path.path.name
                         path_str = str(entry.path)
                         icon = self._get_icon(entry.is_dir)
                         new_iter = self.store.append(
-                            iter_, [icon, name, path_str, False, entry.is_dir, False]
+                            iter_,
+                            [icon, name, path_str, False, entry.is_dir, False]
                         )
                         if entry.is_dir:
                             self.store.append(
-                                new_iter, ["", "Loading...", "", True, False, False]
+                                new_iter,
+                                ["", "Loading...", "", True, False, False]
                             )
-                    
+
                     self.store.remove(child_iter)
                 except Exception as e:
                     print(f"Error loading dir {parent_path_str}: {e}")
