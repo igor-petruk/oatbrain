@@ -29,6 +29,7 @@ Every task MUST follow this lifecycle:
 
 - **Coverage Floor**: Maintain at least 50% overall coverage. New features MUST include unit tests for core logic.
 - **Fast First**: Prioritize unit tests over GUI/Smoke tests during development.
+- **No App Start**: Do NOT call `app.run()` or start the full application loop during automated tests. Validation should focus on unit logic and widget hierarchy without requiring a running application process. Manual verification of the UI is the responsibility of the user unless explicitly requested otherwise.
 - **Fakes over Mocks**: Prefer `tests/fakes/` (in-memory implementations) over `unittest.mock` ([SPEC §30.3](SPEC.md#303-fakes-vs-mocks)).
 - **Architecture Linting**: Run `tach check` (or the equivalent import check) to ensure boundary integrity.
 

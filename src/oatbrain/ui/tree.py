@@ -7,17 +7,21 @@ from gi.repository import Gtk  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus  # noqa: E402
 
-# TreeStore column indices for clarity
-COL_NAME: Final[int] = 0
-COL_PATH: Final[int] = 1
-COL_IS_DUMMY: Final[int] = 2
-COL_IS_DIR: Final[int] = 3
+# TreeStore column indices for clarity and maintainability
+COL_NAME: Final[int] = 0        # The display name of the file or folder
+COL_PATH: Final[int] = 1        # The vault-relative path as a string
+COL_IS_DUMMY: Final[int] = 2    # True if this is a "Loading..." placeholder
+COL_IS_DIR: Final[int] = 3      # True if this entry represents a directory
 
 
 class FileTree(Gtk.Box):  # type: ignore[misc]
     """
     A hierarchical file tree view for navigating the vault.
-    Uses lazy loading to avoid scanning the entire filesystem at once.
+    
+    Implementation details:
+    - Uses Gtk.TreeView with a Gtk.TreeStore model.
+    - Implements lazy loading: only scans directories when they are expanded.
+    - Supports single-click to expand/collapse directories.
     """
 
     def __init__(self, filestore: FileStore, event_bus: EventBus) -> None:
@@ -31,10 +35,14 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.scrolled.set_hexpand(True)
         self.append(self.scrolled)
 
-        # Gtk.TreeStore(Name: str, Path: str, IsDummy: bool, IsDir: bool)
+        # Model: [Name, Path, IsDummy, IsDir]
         self.store = Gtk.TreeStore(str, str, bool, bool)
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
+        
+        # Enable single-click activation. This causes the 'row-activated' 
+        # signal to be emitted on a single click instead of a double click.
+        self.tree_view.set_activate_on_single_click(True)
 
         # Create a single column to display the file/folder name
         renderer = Gtk.CellRendererText()
@@ -43,13 +51,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         self.scrolled.set_child(self.tree_view)
 
-        # Connect the expansion signal to implement lazy loading of subdirectories
+        # Signals for lazy loading and single-click interaction
         self.tree_view.connect("row-expanded", self.on_row_expanded)
-
-        # Single click to expand/collapse directories
-        self.click_gesture = Gtk.GestureClick()
-        self.click_gesture.connect("released", self.on_click_released)
-        self.tree_view.add_controller(self.click_gesture)
+        self.tree_view.connect("row-activated", self.on_row_activated)
 
         self._populate_root()
 
@@ -66,29 +70,23 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                 iter_ = self.store.append(None, [name, path_str, False, entry.is_dir])
                 if entry.is_dir:
                     # Add a dummy child to folders so they are expandable.
-                    # The actual content will be loaded when the user expands the row.
                     self.store.append(iter_, ["Loading...", "", True, False])
         except Exception as e:
-            # TODO: Propagate this to the UI status bar instead of just printing
+            # TODO: Propagate this to the UI status bar in Phase 3.2
             print(f"Error loading root: {e}")
 
-    def on_click_released(
-        self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float
+    def on_row_activated(
+        self, tree_view: Gtk.TreeView, path: Gtk.TreePath, column: Gtk.TreeViewColumn
     ) -> None:
-        """Handles single clicks on the tree view to toggle expansion of directories."""
-        if n_press != 1:
-            return
-
-        # Identify which row (path) was clicked
-        path_info = self.tree_view.get_path_at_pos(int(x), int(y))
-        if not path_info:
-            return
-
-        path, column, cell_x, cell_y = path_info
+        """
+        Triggered when a row is clicked (single click due to activate-on-single-click).
+        Toggles expansion for directories.
+        """
         tree_iter = self.store.get_iter(path)
         is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
 
         if is_dir:
+            # Toggle expansion state
             if self.tree_view.row_expanded(path):
                 self.tree_view.collapse_row(path)
             else:
@@ -98,16 +96,15 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
     ) -> None:
         """
-        Triggered when a directory row is expanded.
-        If the directory has not been loaded yet (contains a dummy child),
-        it fetches the actual directory contents.
+        Triggered when a directory row is expanded (either via click or expansion
+        arrow). If the directory contains a dummy child, it fetches the actual contents.
         """
         child_iter = self.store.iter_children(iter_)
         if child_iter:
             # Check if the first child is a dummy placeholder
             is_dummy = self.store.get_value(child_iter, COL_IS_DUMMY)
             if is_dummy:
-                # Remove placeholder and load real data
+                # Remove placeholder and load real data from the filestore
                 self.store.remove(child_iter)
                 parent_path_str = self.store.get_value(iter_, COL_PATH)
                 try:
@@ -121,9 +118,10 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                             iter_, [name, path_str, False, entry.is_dir]
                         )
                         if entry.is_dir:
-                            self.store.append(new_iter, ["Loading...", "", True, False])
+                            self.store.append(
+                                new_iter, ["Loading...", "", True, False]
+                            )
                 except Exception as e:
                     print(f"Error loading dir {parent_path_str}: {e}")
-            # Note: If is_dummy is False, the directory has already been loaded.
-            # In this current phase, we don't implement automatic re-scanning
-            # on every expansion to keep it simple and performant.
+            # NOTE: For this phase, we don't implement automatic re-scanning 
+            # of already-loaded directories to maintain performance and simplicity.
