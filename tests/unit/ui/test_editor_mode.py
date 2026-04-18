@@ -189,6 +189,7 @@ def test_window_toggle_mode_flips_read_mode() -> None:
         initial_state=state,
         filestore=filestore,
         state_store=MagicMock(),
+        config=MagicMock(),
         application_id="org.oatbrain.TestToggle",
     )
     app.on_activate(app)
@@ -215,6 +216,7 @@ def test_toggle_mode_publishes_state_updated() -> None:
         initial_state=state,
         filestore=MagicMock(spec=FileStore),
         state_store=MagicMock(),
+        config=MagicMock(),
         application_id="org.oatbrain.TestToggleEvent",
     )
     app.on_activate(app)

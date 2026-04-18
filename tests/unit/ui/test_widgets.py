@@ -113,6 +113,7 @@ def test_app_shell_activation_smoke() -> None:
         initial_state=state,
         filestore=filestore,
         state_store=state_store,
+        config=MagicMock(),
         application_id="org.oatbrain.TestApp",
     )
 
@@ -139,6 +140,7 @@ def test_app_shell_shutdown_saves_state() -> None:
         initial_state=state,
         filestore=filestore,
         state_store=state_store,
+        config=MagicMock(),
         application_id="org.oatbrain.ShutdownTest",
     )
 

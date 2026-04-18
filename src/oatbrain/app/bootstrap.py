@@ -12,7 +12,17 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.adapters.filestore.local import LocalFileStore  # noqa: E402
 from oatbrain.adapters.state.toml_store import TomlStateStore  # noqa: E402
+from oatbrain.adapters.config.toml_store import TomlConfigStore  # noqa: E402
 from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer  # noqa: E402
+
+
+def get_config_path() -> Path:
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    if config_home:
+        base = Path(config_home)
+    else:
+        base = Path.home() / ".config"
+    return base / "oatbrain" / "config.toml"
 
 
 def get_state_path() -> Path:
@@ -27,6 +37,10 @@ def get_state_path() -> Path:
 def build_app(argv: list[str]) -> Adw.Application:
     state_path = get_state_path()
     state_store = TomlStateStore(state_path)
+
+    config_path = get_config_path()
+    config_store = TomlConfigStore(config_path)
+    config = config_store.load()
 
     try:
         initial_state = state_store.load()
@@ -53,6 +67,7 @@ def build_app(argv: list[str]) -> Adw.Application:
         initial_state=initial_state,
         filestore=filestore,
         state_store=state_store,
+        config=config,
         renderer=renderer,
     )
     return app

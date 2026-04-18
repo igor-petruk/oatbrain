@@ -24,6 +24,7 @@ from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
 from oatbrain.adapters.theme.loader import load_theme  # noqa: E402
+from oatbrain.core.ports.config import AppConfig  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
@@ -43,6 +44,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         initial_state: AppState,
         filestore: FileStore,
         state_store: StateStore,
+        config: AppConfig,
         renderer: Optional[Renderer] = None,
         **kwargs: Any,
     ) -> None:
@@ -52,6 +54,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = initial_state
         self._filestore = filestore
         self._state_store = state_store
+        self._config = config
         self._renderer = renderer
         self._active_theme: Optional[ThemeData] = None
         self._theme_css_provider = Gtk.CssProvider()
@@ -527,7 +530,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _shortcut_open_palette(self, *_: Any) -> bool:
         from oatbrain.ui.palette import Palette
 
-        palette = Palette(self._state)
+        palette = Palette(self._state, self._config)
         palette.present(self.main_window)
         return True
 
