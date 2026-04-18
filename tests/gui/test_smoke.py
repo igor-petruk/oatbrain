@@ -55,8 +55,8 @@ def test_widget_hierarchy() -> None:
     editor_widget = right_paned.get_start_child()
     terminal_widget = right_paned.get_end_child()
 
-    # Editor is now an Overlay (for placeholders)
-    assert isinstance(editor_widget, Gtk.Overlay)
+    # Editor outer widget is a Box (overlay + vim command bar row)
+    assert isinstance(editor_widget, Gtk.Box)
     # Terminal is still a Frame placeholder
     assert isinstance(terminal_widget, Gtk.Frame)
 
