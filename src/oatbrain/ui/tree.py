@@ -1,3 +1,4 @@
+from typing import Final
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -6,63 +7,81 @@ from gi.repository import Gtk  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus  # noqa: E402
 
+# TreeStore column indices for clarity
+COL_NAME: Final[int] = 0
+COL_PATH: Final[int] = 1
+COL_IS_DUMMY: Final[int] = 2
+
 
 class FileTree(Gtk.Box):  # type: ignore[misc]
+    """
+    A hierarchical file tree view for navigating the vault.
+    Uses lazy loading to avoid scanning the entire filesystem at once.
+    """
+
     def __init__(self, filestore: FileStore, event_bus: EventBus) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.filestore = filestore
         self._event_bus = event_bus
 
-        # Scrolled window
+        # Scrolled window provides scrollbars when the tree exceeds the pane size
         self.scrolled = Gtk.ScrolledWindow()
         self.scrolled.set_vexpand(True)
         self.scrolled.set_hexpand(True)
         self.append(self.scrolled)
 
-        # Columns: Display Name, VaultPath string, is_dummy
+        # Gtk.TreeStore(Name: str, Path: str, IsDummy: bool)
         self.store = Gtk.TreeStore(str, str, bool)
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
-        
-        # We need a column to render text
+
+        # Create a single column to display the file/folder name
         renderer = Gtk.CellRendererText()
-        column = Gtk.TreeViewColumn("Name", renderer, text=0)
+        column = Gtk.TreeViewColumn("Name", renderer, text=COL_NAME)
         self.tree_view.append_column(column)
 
         self.scrolled.set_child(self.tree_view)
 
-        # Lazy loading
+        # Connect the expansion signal to implement lazy loading of subdirectories
         self.tree_view.connect("row-expanded", self.on_row_expanded)
 
         self._populate_root()
 
     def _populate_root(self) -> None:
+        """Initial population of the tree's root level."""
         root_path = VaultPath.from_str(".")
         try:
             entries = self.filestore.list_dir(root_path)
-            # Sort: dirs first, then files
+            # Sort: directories first, then files alphabetically
             entries.sort(key=lambda e: (not e.is_dir, e.path.path.name))
             for entry in entries:
                 name = entry.path.path.name
                 path_str = str(entry.path)
                 iter_ = self.store.append(None, [name, path_str, False])
                 if entry.is_dir:
-                    # Add dummy child
+                    # Add a dummy child to folders so they are expandable.
+                    # The actual content will be loaded when the user expands the row.
                     self.store.append(iter_, ["Loading...", "", True])
         except Exception as e:
-            # Handle empty/unreadable root
+            # TODO: Propagate this to the UI status bar instead of just printing
             print(f"Error loading root: {e}")
 
     def on_row_expanded(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
     ) -> None:
-        # Check if it has a dummy child
+        """
+        Triggered when a directory row is expanded.
+        If the directory has not been loaded yet (contains a dummy child),
+        it fetches the actual directory contents.
+        """
         child_iter = self.store.iter_children(iter_)
         if child_iter:
-            is_dummy = self.store.get_value(child_iter, 2)
+            # Check if the first child is a dummy placeholder
+            is_dummy = self.store.get_value(child_iter, COL_IS_DUMMY)
             if is_dummy:
+                # Remove placeholder and load real data
                 self.store.remove(child_iter)
-                parent_path_str = self.store.get_value(iter_, 1)
+                parent_path_str = self.store.get_value(iter_, COL_PATH)
                 try:
                     parent_path = VaultPath.from_str(parent_path_str)
                     entries = self.filestore.list_dir(parent_path)
@@ -75,3 +94,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                             self.store.append(new_iter, ["Loading...", "", True])
                 except Exception as e:
                     print(f"Error loading dir {parent_path_str}: {e}")
+            # Note: If is_dummy is False, the directory has already been loaded.
+            # In this current phase, we don't implement automatic re-scanning
+            # on every expansion to keep it simple and performant.
