@@ -59,7 +59,7 @@ Goal: Edit files with syntax highlighting and Vim mode.
     - **Shortcuts (§18.2)**: Implement `Ctrl+B` (Toggle Tree), `` Ctrl+` `` (Toggle Terminal), `Ctrl+1/2/3` (Focus switching).
 - **Verification**: Visual audit against SPEC screenshots/descriptions; Keyboard shortcuts working.
 
-### Step 5.2.1: Final SPEC Alignment (intermediate)
+### Step 5.2.1: Final SPEC Alignment (intermediate) [DONE]
 - **Task**: Address remaining deviations from MVP spec (Persistent state format, Tree interactions).
 - **Action**:
     - Migrate `YamlStateStore` to `TomlStateStore` using TOML format for state per §27.

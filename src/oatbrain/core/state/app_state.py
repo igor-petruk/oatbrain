@@ -22,7 +22,9 @@ class AppState:
     
     # Pane state (§27.2)
     tree_width: int = 180
+    tree_visible: bool = True
     terminal_width: int = 360
+    terminal_visible: bool = True
     
     editor: EditorState = field(default_factory=EditorState)
     status_message: str = "Ready"

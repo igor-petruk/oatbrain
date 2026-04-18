@@ -74,20 +74,29 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         width = self.main_window.get_width()
         height = self.main_window.get_height()
         
-        # Get pane positions
-        tree_width = self.main_paned.get_position()
+        # Get pane visibility
+        tree_visible = self.tree_pane.get_visible()
+        terminal_visible = self.terminal_placeholder.get_visible()
         
-        # Terminal width calculation
-        total_right = self.right_paned.get_width()
-        editor_width = self.right_paned.get_position()
-        terminal_width = total_right - editor_width
+        # Get pane positions (only update if visible, otherwise use last known)
+        tree_width = self._state.tree_width
+        if tree_visible:
+            tree_width = self.main_paned.get_position()
+        
+        terminal_width = self._state.terminal_width
+        if terminal_visible:
+            total_right = self.right_paned.get_width()
+            editor_width = self.right_paned.get_position()
+            terminal_width = total_right - editor_width
 
         self._state = replace(
             self._state,
             window_width=width,
             window_height=height,
             tree_width=tree_width,
+            tree_visible=tree_visible,
             terminal_width=terminal_width,
+            terminal_visible=terminal_visible,
         )
         self._state_store.save(self._state)
 
@@ -129,6 +138,13 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.terminal_placeholder.set_child(
             Gtk.Label(label="[Terminal Placeholder]")
         )
+
+        # Setup visibility and toggles from state
+        self.tree_pane.set_visible(self._state.tree_visible)
+        self.header_bar.tree_toggle.set_active(self._state.tree_visible)
+        
+        self.terminal_placeholder.set_visible(self._state.terminal_visible)
+        self.header_bar.terminal_toggle.set_active(self._state.terminal_visible)
 
         # Setup main_paned (Tree vs Rest)
         self.main_paned.set_start_child(self.tree_pane)
