@@ -4,9 +4,27 @@ from pathlib import Path
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Vte", "3.91")
-from gi.repository import Gtk, Vte, GLib, Pango, Gio  # noqa: E402
+gi.require_version("PangoCairo", "1.0")
+from gi.repository import Gtk, Vte, GLib, Pango, PangoCairo, Gio  # noqa: E402
 
-_TERMINAL_FONT_DESC = "Monospace 12"
+# Same priority list as the editor CSS font-family stack (§19).
+# Pick the first family actually installed on this system.
+_PREFERRED_FONTS = [
+    "Cousine",
+    "JetBrains Mono",
+    "Fira Code",
+    "DejaVu Sans Mono",
+]
+_FALLBACK_FONT = "Monospace"
+
+
+def _resolve_terminal_font(size_pt: int = 12) -> Pango.FontDescription:
+    installed = {
+        f.get_name()
+        for f in PangoCairo.FontMap.get_default().list_families()
+    }
+    family = next((f for f in _PREFERRED_FONTS if f in installed), _FALLBACK_FONT)
+    return Pango.FontDescription.from_string(f"{family} {size_pt}")
 
 
 class Terminal:
@@ -20,8 +38,8 @@ class Terminal:
         self._vte.set_vexpand(True)
         self._vte.set_scrollback_lines(10000)
 
-        # §16.5 Font matching editor
-        self._vte.set_font(Pango.FontDescription.from_string(_TERMINAL_FONT_DESC))
+        # §16.5 Font: first available from the editor's preferred font list (§19)
+        self._vte.set_font(_resolve_terminal_font())
 
         # §16.6 OSC 8 hyperlinks — open in system browser on click
         self._vte.set_allow_hyperlink(True)
