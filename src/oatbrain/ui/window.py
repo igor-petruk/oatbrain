@@ -1,11 +1,10 @@
-from typing import Any, List, Optional
+from typing import Any, List
 from dataclasses import replace
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk, Gdk, Gio  # noqa: E402
+from gi.repository import Adw, Gtk, Gio, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
@@ -22,8 +21,6 @@ from oatbrain.ui.editor import Editor  # noqa: E402
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
     """Main application shell using Libadwaita."""
-
-    _css_provider: Optional[Gtk.CssProvider] = None
 
     def __init__(
         self,
@@ -46,37 +43,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             UpdateWordCount, self._handle_update_word_count
         )
 
-        self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
         self.connect("shutdown", self._on_shutdown)
-
-    def _on_startup(self, app: Adw.Application) -> None:
-        """Called once when the application starts."""
-        self._setup_global_styles()
-
-    def _setup_global_styles(self) -> None:
-        """Loads mandatory CSS styles for the application."""
-        if AdwAppShell._css_provider is not None:
-            return
-
-        fonts = "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace"
-        css = f"""
-            .oatbrain-editor {{
-                font-family: {fonts};
-                font-size: 13pt;
-            }}
-        """
-        AdwAppShell._css_provider = Gtk.CssProvider()
-        css_bytes = css.encode("utf-8")
-        AdwAppShell._css_provider.load_from_data(css_bytes, len(css_bytes))
-
-        display = Gdk.Display.get_default()
-        if display:
-            Gtk.StyleContext.add_provider_for_display(
-                display,
-                AdwAppShell._css_provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            )
 
     def _handle_open_file(self, command: OpenFile) -> None:
         """Updates state when a file is opened."""
@@ -140,104 +108,93 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._save_state()
 
     def on_activate(self, app: Adw.Application) -> None:
+        # 1. Build window
         self.main_window = Adw.ApplicationWindow(application=app)
         self.main_window.set_title("oatbrain")
         self.main_window.set_default_size(
             self._state.window_width, self._state.window_height
         )
 
-        # Main layout using ToolbarView for header/footer support
+        # 2. Build layout components
         self.toolbar_view = Adw.ToolbarView()
-        self.main_window.set_content(self.toolbar_view)
-
-        # Header Bar
         self.header_bar = HeaderBar(self._event_bus)
         self.toolbar_view.add_top_bar(self.header_bar.widget)
 
-        # Three-pane layout using nested Gtk.Paned (SPEC §6.2)
-        # Structure: [ Tree | [ Editor | Terminal ] ]
         self.main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.right_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
 
-        # Placeholders for panes
         self.tree_pane = FileTree(
             self._filestore, self._event_bus, self._command_router
         )
-
         self.editor = Editor(
             self._filestore, self._event_bus, self._command_router
         )
-
         self.terminal_placeholder = Gtk.Frame(label="Terminal")
         self.terminal_placeholder.set_focusable(True)
         self.terminal_placeholder.set_child(
             Gtk.Label(label="[Terminal Placeholder]")
         )
 
-        # Setup visibility and toggles from state
-        self.tree_pane.set_visible(self._state.tree_visible)
-        self.header_bar.tree_toggle.set_active(self._state.tree_visible)
-
-        self.terminal_placeholder.set_visible(self._state.terminal_visible)
-        self.header_bar.terminal_toggle.set_active(self._state.terminal_visible)
-
-        # Setup main_paned (Tree vs Rest)
-        self.main_paned.set_start_child(self.tree_pane)
-        self.main_paned.set_end_child(self.right_paned)
-        self.main_paned.set_position(self._state.tree_width)
-        # Tree width is fixed, Rest (Editor+Terminal) resizes
-        self.main_paned.set_resize_start_child(False)
-        self.main_paned.set_resize_end_child(True)
-
-        # Setup right_paned (Editor vs Terminal)
+        # 3. Assemble hierarchy (Bottom-Up)
         self.right_paned.set_start_child(self.editor.widget)
         self.right_paned.set_end_child(self.terminal_placeholder)
-
-        # Initial position for right_paned
-        self._update_right_paned_position()
-
-        # Editor resizes, Terminal width is fixed (§6.2)
         self.right_paned.set_resize_start_child(True)
         self.right_paned.set_resize_end_child(False)
 
-        self.toolbar_view.set_content(self.main_paned)
+        self.main_paned.set_start_child(self.tree_pane)
+        self.main_paned.set_end_child(self.right_paned)
+        self.main_paned.set_resize_start_child(False)
+        self.main_paned.set_resize_end_child(True)
 
-        # Status Bar
+        self.toolbar_view.set_content(self.main_paned)
         self.status_bar = StatusBar(self._event_bus)
         self.toolbar_view.add_bottom_bar(self.status_bar.widget)
 
-        # Wire Toggles
+        self.main_window.set_content(self.toolbar_view)
+
+        # 4. Initial layout from state
+        self.tree_pane.set_visible(self._state.tree_visible)
+        self.header_bar.tree_toggle.set_active(self._state.tree_visible)
+        self.terminal_placeholder.set_visible(self._state.terminal_visible)
+        self.header_bar.terminal_toggle.set_active(self._state.terminal_visible)
+        self.main_paned.set_position(self._state.tree_width)
+        self._update_right_paned_position()
+
+        # 5. Wire non-critical signals
         self.header_bar.tree_toggle.connect("toggled", self._on_tree_toggled)
         self.header_bar.terminal_toggle.connect(
             "toggled", self._on_terminal_toggled
         )
+        self._setup_actions()
+        self._setup_shortcuts()
 
-        # Wire position changes for proactive saving
+        # 6. Finalize
+        self.main_window.present()
+
+        # 7. Wire proactive saving LATE to avoid construction noise
+        GLib.idle_add(self._connect_late_signals)
+
+        # Emit initial state
+        self._event_bus.publish(StateUpdated(self._state))
+
+    def _connect_late_signals(self) -> bool:
+        """Connects signals that trigger state saving."""
+        if not hasattr(self, "main_window") or not self.main_window.get_realized():
+             return bool(GLib.SOURCE_CONTINUE)
+
         self.main_paned.connect(
             "notify::position", lambda *_: self._save_state()
         )
         self.right_paned.connect(
             "notify::position", lambda *_: self._save_state()
         )
-
-        # Wire window size changes
         self.main_window.connect(
             "notify::default-width", lambda *_: self._save_state()
         )
         self.main_window.connect(
             "notify::default-height", lambda *_: self._save_state()
         )
-
-        # Actions for Menu (§8.5)
-        self._setup_actions()
-
-        # Shortcuts
-        self._setup_shortcuts()
-
-        self.main_window.present()
-
-        # Emit initial state
-        self._event_bus.publish(StateUpdated(self._state))
+        return bool(GLib.SOURCE_REMOVE)
 
     def _update_right_paned_position(self) -> None:
         """Calculates and sets the right paned position."""
