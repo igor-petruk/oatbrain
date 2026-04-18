@@ -27,21 +27,27 @@ class LocalFileStore(FileStore):
         rel = local_path.relative_to(self._root)
         return VaultPath(PurePosixPath(rel))
 
-    def _make_entry(self, local_path: Path) -> FileEntry:
-        stat = local_path.stat()
-        return FileEntry(
-            path=self._from_local(local_path),
-            is_dir=local_path.is_dir(),
-            is_readonly=not os.access(local_path, os.W_OK),
-            size=stat.st_size,
-            mtime=stat.st_mtime,
-        )
+    def _make_entry(self, local_path: Path) -> FileEntry | None:
+        try:
+            stat = local_path.stat()
+            return FileEntry(
+                path=self._from_local(local_path),
+                is_dir=local_path.is_dir(),
+                is_readonly=not os.access(local_path, os.W_OK),
+                size=stat.st_size,
+                mtime=stat.st_mtime,
+            )
+        except (FileNotFoundError, PermissionError):
+            return None
 
     def exists(self, p: VaultPath) -> bool:
         return self._to_local(p).exists()
 
     def stat(self, p: VaultPath) -> FileEntry:
-        return self._make_entry(self._to_local(p))
+        entry = self._make_entry(self._to_local(p))
+        if entry is None:
+            raise FileNotFoundError(f"Path '{p}' not found")
+        return entry
 
     def read_text(self, p: VaultPath) -> str:
         return self._to_local(p).read_text(encoding="utf-8")
@@ -66,7 +72,8 @@ class LocalFileStore(FileStore):
 
     def list_dir(self, p: VaultPath) -> list[FileEntry]:
         local_dir = self._to_local(p)
-        return [self._make_entry(child) for child in local_dir.iterdir()]
+        entries = [self._make_entry(child) for child in local_dir.iterdir()]
+        return [e for e in entries if e is not None]
 
     def rename(self, src: VaultPath, dst: VaultPath) -> None:
         self._to_local(src).rename(self._to_local(dst))
@@ -82,7 +89,12 @@ class LocalFileStore(FileStore):
         local_root = self._to_local(root)
         for dirpath, dirnames, filenames in os.walk(local_root):
             dp = Path(dirpath)
+            # Filter out entries that disappeared
             for d in dirnames:
-                yield self._make_entry(dp / d)
+                entry = self._make_entry(dp / d)
+                if entry:
+                    yield entry
             for f in filenames:
-                yield self._make_entry(dp / f)
+                entry = self._make_entry(dp / f)
+                if entry:
+                    yield entry
