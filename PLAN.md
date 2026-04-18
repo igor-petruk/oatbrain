@@ -145,10 +145,10 @@ Goal: Vault-aware rendering.
 
 ---
 
-## Phase 10: Fuzzy Palette & Commands
+## Phase 10: Fuzzy Palette & Commands [DONE]
 Goal: Global navigation and command execution.
 
-### Step 10.1: Palette UI & Search [IN PROGRESS]
+### Step 10.1: Palette UI & Search [DONE]
 - **Task**: Implement the fuzzy search overlay with prefix-based commands (§17).
 - **Action**:
     - Implement `ui/palette.py` as a centered overlay. [DONE]
