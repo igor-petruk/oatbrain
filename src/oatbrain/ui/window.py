@@ -15,6 +15,7 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
     ToggleMode,
+    ToggleZen,
 )
 from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
@@ -61,7 +62,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         self._command_router.register(SetDirty, self._handle_set_dirty)
         self._command_router.register(ToggleMode, self._handle_toggle_mode)
+        self._command_router.register(ToggleZen, self._handle_toggle_zen)
         self._command_router.register(SetTheme, self._handle_set_theme)
+
+        self._zen_mode: bool = False
+        self._pre_zen_tree_visible: bool = True
+        self._pre_zen_terminal_visible: bool = True
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -88,7 +94,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         css = """
             .oatbrain-editor {
-                font-family: var(--font-mono, 'Cousine', 'JetBrains Mono', 'Fira Code', monospace);
+                font-family: var(
+                    --font-mono, 'Cousine', 'JetBrains Mono', 'Fira Code', monospace
+                );
                 font-size: 12pt;
             }
         """
@@ -131,6 +139,44 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
 
+    def _handle_toggle_zen(self, _command: ToggleZen) -> None:
+        GLib.idle_add(self._apply_zen_toggle)
+
+    def _apply_zen_toggle(self) -> bool:
+        self._zen_mode = not self._zen_mode
+        if self._zen_mode:
+            self._pre_zen_tree_visible = self.tree_pane.get_visible()
+            self._pre_zen_terminal_visible = (
+                self.terminal_placeholder.widget.get_visible()
+            )
+            self.tree_pane.set_visible(False)
+            self.terminal_placeholder.widget.set_visible(False)
+            self.toolbar_view.set_reveal_top_bars(False)
+            self.status_bar.widget.set_visible(False)
+            self.toolbar_view.set_extend_content_to_top_edge(True)
+        else:
+            self.tree_pane.set_visible(self._pre_zen_tree_visible)
+            self.terminal_placeholder.widget.set_visible(self._pre_zen_terminal_visible)
+            self.toolbar_view.set_reveal_top_bars(True)
+            self.status_bar.widget.set_visible(True)
+            self.toolbar_view.set_extend_content_to_top_edge(False)
+        self.editor.set_zen_mode(self._zen_mode)
+        self.header_bar.zen_toggle.handler_block_by_func(self._on_zen_toggled)
+        self.header_bar.zen_toggle.set_active(self._zen_mode)
+        self.header_bar.zen_toggle.handler_unblock_by_func(self._on_zen_toggled)
+        return bool(GLib.SOURCE_REMOVE)
+
+    def _on_mouse_motion(
+        self, ctrl: Gtk.EventControllerMotion, x: float, y: float
+    ) -> None:
+        """Reveal top bar in Zen mode when mouse is near top edge."""
+        if self._zen_mode:
+            if self.toolbar_view.get_reveal_top_bars():
+                if y > 60:
+                    self.toolbar_view.set_reveal_top_bars(False)
+            else:
+                if y < 5:
+                    self.toolbar_view.set_reveal_top_bars(True)
 
     def _save_state(self) -> None:
         """Collects current UI state and persists it via StateStore."""
@@ -231,16 +277,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.header_bar.terminal_toggle.connect(
             "toggled", self._on_terminal_toggled
         )
-        self.main_paned.connect(
-            "notify::position", lambda *_: self._sync_header_widths()
-        )
-        self.right_paned.connect(
-            "notify::position", lambda *_: self._sync_header_widths()
-        )
+        self.header_bar.zen_toggle.connect("toggled", self._on_zen_toggled)
         # Window blur → autosave (§10.3)
         self.main_window.connect("notify::is-active", self._on_window_active_changed)
         self._setup_actions()
         self._setup_shortcuts()
+
+        self.motion_ctrl = Gtk.EventControllerMotion.new()
+        self.motion_ctrl.connect("motion", self._on_mouse_motion)
+        self.main_window.add_controller(self.motion_ctrl)
 
         # 6. Finalize
         self.main_window.present()
@@ -255,15 +300,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # Emit initial state
         self._event_bus.publish(StateUpdated(self._state))
-
-    def _sync_header_widths(self) -> None:
-        """Resize left/right header sections to match pane widths."""
-        tree_width = self.main_paned.get_position()
-        total_right = self.right_paned.get_width()
-        paned_pos = self.right_paned.get_position()
-        terminal_width = total_right - paned_pos if total_right > 0 else self._state.terminal_width
-        if tree_width > 0 or terminal_width > 0:
-            self.header_bar.sync_pane_widths(tree_width, terminal_width)
 
     def _connect_late_signals(self) -> bool:
         """Connects signals that trigger state saving."""
@@ -282,8 +318,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_window.connect(
             "notify::default-height", lambda *_: self._save_state()
         )
-        # Initial header width sync after layout is realized
-        self._sync_header_widths()
         return bool(GLib.SOURCE_REMOVE)
 
     def _update_right_paned_position(self) -> None:
@@ -393,6 +427,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.terminal_placeholder.widget.set_visible(visible)
         self._save_state()
 
+    def _on_zen_toggled(self, _btn: Gtk.ToggleButton) -> None:
+        self._command_router.dispatch(ToggleZen())
+
     def _setup_shortcuts(self) -> None:
         controller = Gtk.ShortcutController.new()
         self.main_window.add_controller(controller)
@@ -451,6 +488,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             action=Gtk.CallbackAction.new(self._shortcut_toggle_mode)
         ))
 
+        # Ctrl+Shift+Z: Toggle Zen mode (§7.5)
+        controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>z"),
+            action=Gtk.CallbackAction.new(self._shortcut_toggle_zen)
+        ))
+
         # Ctrl+Shift+Y: Send current file path to terminal stdin (§16.9)
         controller.add_shortcut(Gtk.Shortcut.new(
             trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>y"),
@@ -469,6 +512,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _shortcut_toggle_mode(self, *_: Any) -> bool:
         self._command_router.dispatch(ToggleMode())
+        return True
+
+    def _shortcut_toggle_zen(self, *_: Any) -> bool:
+        self._command_router.dispatch(ToggleZen())
         return True
 
     def _shortcut_send_file_to_terminal(self, *_: Any) -> bool:
