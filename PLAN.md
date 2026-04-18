@@ -87,13 +87,12 @@ Goal: Build the main window layout with placeholder panes.
 ## Phase 4: File Tree & Navigation
 Goal: Explore the vault.
 
-### Step 4.1: File Tree Component
+### Step 4.1: File Tree Component [DONE]
 - **Task**: Implement the hierarchical tree view.
-- **Action**:
-    - Implement `ui/tree.py` using GTK 4 `Gtk.TreeView` or `Gtk.ColumnView`.
+- **Action**: 
+    - Implement `ui/tree.py` using GTK 4 `Gtk.TreeView`.
     - Populated from `FileStore`.
 - **Verification**: Tree displays files and folders of a test directory.
-
 ### Step 4.2: File Selection & Opening
 - **Task**: Selecting a file updates the app state.
 - **Action**:
