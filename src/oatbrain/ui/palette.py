@@ -1,7 +1,7 @@
-from gi.repository import Gtk, Adw, Gdk
+from gi.repository import Gtk, Adw, Gdk, Gio
 from ..core.ports.state import AppState
 
-class Palette(Adw.Window):
+class Palette(Gtk.Window):
     def __init__(self, state: AppState, parent_window: Gtk.Window):
         super().__init__(
             transient_for=parent_window,
@@ -11,13 +11,22 @@ class Palette(Adw.Window):
         )
         self.set_default_size(600, 400)
         
-        # Explicitly center on parent (GtkWindow method)
-        self.set_transient_for(parent_window)
-        self.set_modal(True)
-        # In Gtk4, set_decorated=True is default, but let's ensure it's not a utility window
+        # Use a shortcut controller in CAPTURE phase to preempt SearchEntry's Esc handling
+        shortcut_controller = Gtk.ShortcutController.new()
+        shortcut_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        shortcut_controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("Escape"),
+            action=Gtk.CallbackAction.new(self._on_escape)
+        ))
+        self.add_controller(shortcut_controller)
         
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.set_content(self.box)
+        # Add some padding
+        self.box.set_margin_top(12)
+        self.box.set_margin_bottom(12)
+        self.box.set_margin_start(12)
+        self.box.set_margin_end(12)
+        self.set_child(self.box)
         
         self.search_entry = Gtk.SearchEntry()
         self.search_entry.connect("search-changed", self._on_search_changed)
@@ -26,17 +35,14 @@ class Palette(Adw.Window):
         self.list_view = Gtk.ListView()
         self.box.append(self.list_view)
         
-        self.key_controller = Gtk.EventControllerKey()
-        self.key_controller.connect("key-pressed", self._on_key_pressed)
-        self.add_controller(self.key_controller)
-        self.search_entry.grab_focus()
+        # Ensure focus is grabbed when the window is shown
+        self.connect("map", lambda *_: self.search_entry.grab_focus())
+
+    def _on_escape(self, widget, variant):
+        self.close()
+        return True
         
     def _on_search_changed(self, entry: Gtk.SearchEntry):
         text = entry.get_text()
         print(f"Searching for: {text}")
-        
-    def _on_key_pressed(self, controller, keyval, keycode, state):
-        if keyval == Gdk.KEY_Escape:
-            self.close()
-            return True
-        return False
+
