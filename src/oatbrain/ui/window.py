@@ -14,6 +14,7 @@ from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
+from oatbrain.ui.editor import Editor  # noqa: E402
 
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
@@ -68,8 +69,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._filestore, self._event_bus, self._command_router
         )
 
-        self.editor_placeholder = Gtk.Frame(label="Editor / Preview")
-        self.editor_placeholder.set_child(Gtk.Label(label="[Editor Placeholder]"))
+        self.editor = Editor(self._filestore, self._event_bus)
 
         self.terminal_placeholder = Gtk.Frame(label="Terminal")
         self.terminal_placeholder.set_child(
@@ -82,7 +82,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_paned.set_position(180)  # ~15% of 1200
 
         # Setup right_paned (Editor vs Terminal)
-        self.right_paned.set_start_child(self.editor_placeholder)
+        self.right_paned.set_start_child(self.editor.widget)
         self.right_paned.set_end_child(self.terminal_placeholder)
         self.right_paned.set_position(660)  # ~30% for terminal in the end
 
