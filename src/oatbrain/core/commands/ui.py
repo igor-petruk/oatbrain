@@ -17,3 +17,11 @@ class ToggleTerminal:
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "ToggleTerminal"]]:
         return [("Toggle Terminal", cls())]
+
+
+@dataclass(frozen=True)
+class SendToTerminal:
+    """Send text to the terminal stdin."""
+
+    text: str
+    execute: bool = False

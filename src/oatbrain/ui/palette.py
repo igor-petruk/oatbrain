@@ -4,7 +4,7 @@ from oatbrain.core.state.app_state import AppState
 from oatbrain.core.ports.config import AppConfig
 from oatbrain.core.ports.filestore import FileStore, VaultPath
 from oatbrain.core.bus import CommandRouter
-from oatbrain.core.commands import OpenFile
+from oatbrain.core.commands import OpenFile, SendToTerminal
 from oatbrain.core.search import AICommandFetcher, filter_and_rank
 
 
@@ -206,12 +206,10 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         self.close()
 
     def _execute_shell(self, command: str) -> None:
-        # For now, we'll just print it.
-        print(f"DEBUG: Executing shell command: {command}")
+        self._command_router.dispatch(SendToTerminal(text=command, execute=True))
 
     def _paste_to_terminal(self, text: str) -> None:
-        # For now, we'll just print it.
-        print(f"DEBUG: Pasting to terminal: {text}")
+        self._command_router.dispatch(SendToTerminal(text=text, execute=False))
 
     def _update_list(self) -> None:
         text = self.search_entry.get_text()
@@ -270,8 +268,8 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             # AI commands
             return self._ai_fetcher.fetch()
         elif prefix == "!":
-            # Shell commands (history deferred, using mocks for now)
-            return ["ls -la", "git status", "make build"]
+            # Shell commands from config
+            return self._config.palette.shell_commands
         elif prefix == "#":
             # Tags using ripgrep
             try:

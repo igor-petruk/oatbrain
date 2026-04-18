@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 class PaletteConfig:
     ai_commands: List[str] = field(default_factory=list)
     ai_commands_fetcher: str = ""
+    shell_commands: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

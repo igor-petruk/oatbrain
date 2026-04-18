@@ -920,11 +920,11 @@ The palette is a modal overlay, centered, ~50% window width. One widget, prefix 
 | First char of query | Mode | Source |
 |---|---|---|
 | (none) | files | fuzzy matching (FZF algorithm) |
-| `#` | tags | tag list |
-| `%` | full text | fuzzy search index |
+| `#` | tags | tag list (via ripgrep) |
+| `%` | full text | fuzzy search index (via ripgrep) |
 | `>` | app commands | registered command list |
 | `/` | AI commands | `config.toml` list or dynamic command |
-| `!` | shell commands | ad-hoc execution |
+| `!` | shell commands | `config.toml` list or ad-hoc execution |
 
 Backspacing past the prefix reverts to files.
 

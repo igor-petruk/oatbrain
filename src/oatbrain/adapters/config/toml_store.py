@@ -18,6 +18,7 @@ class TomlConfigStore:
         palette = PaletteConfig(
             ai_commands=palette_data.get("ai_commands", []),
             ai_commands_fetcher=palette_data.get("ai_commands_fetcher", ""),
+            shell_commands=palette_data.get("shell_commands", []),
         )
 
         return AppConfig(palette=palette)
