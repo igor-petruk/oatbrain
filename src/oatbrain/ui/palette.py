@@ -1,29 +1,35 @@
-from typing import Any, Dict, List
+from typing import Any, List
 from gi.repository import Gtk, Adw, Gdk
 from oatbrain.core.state.app_state import AppState
-
-
 from oatbrain.core.ports.config import AppConfig
+from oatbrain.core.ports.filestore import FileStore, VaultPath
+from oatbrain.core.bus import CommandRouter
+from oatbrain.core.commands import OpenFile
 from oatbrain.core.search import AICommandFetcher, filter_and_rank
 
 
 class Palette(Adw.Dialog):  # type: ignore[misc]
-    def __init__(self, state: AppState, config: AppConfig):
+    def __init__(
+        self,
+        state: AppState,
+        config: AppConfig,
+        filestore: FileStore,
+        command_router: CommandRouter,
+        initial_text: str = "",
+    ):
         super().__init__()
         self.set_title("Palette")
         self.set_content_width(600)
         self.set_content_height(400)
 
+        self._state = state
+        self._config = config
+        self._filestore = filestore
+        self._command_router = command_router
         self._ai_fetcher = AICommandFetcher(config.palette)
-        self._mock_data: Dict[str, List[str]] = {
-            "": ["README.md", "PLAN.md", "SPEC.md", "src/main.py"],
-            "#": ["#todo", "#work", "#personal", "#idea"],
-            "%": ["Search result 1", "Search result 2", "Search result 3"],
-            ">": ["Toggle Tree", "Toggle Terminal", "Set Theme: Dark", "New Note"],
-            "/": self._ai_fetcher.fetch(),
-            "!": ["ls -la", "git status", "make build"],
-        }
+
         self._current_prefix = ""
+        self._items: List[str] = []
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.box.set_margin_top(12)
@@ -37,6 +43,7 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             "Search files or type: # tags, % text, > commands, / AI command, ! shell"
         )
         self.search_entry.connect("search-changed", self._on_search_changed)
+        self.search_entry.connect("activate", self._on_execute)
         self.box.append(self.search_entry)
 
         # Search entry key handling for navigation
@@ -49,6 +56,7 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         self.selection_model = Gtk.SingleSelection.new(self.model)
         self.list_view = Gtk.ListView()
         self.list_view.set_model(self.selection_model)
+        self.list_view.connect("activate", self._on_execute)
 
         # Redirect typing from list back to search entry
         self.list_key_controller = Gtk.EventControllerKey()
@@ -77,8 +85,11 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         )
         self.add_controller(shortcut_controller)
 
+        if initial_text:
+            self.search_entry.set_text(initial_text)
+
         # Initial data
-        self._update_list("", "")
+        self._update_list()
 
         # Grabbing focus on search entry
         self.connect("map", lambda *_: self.search_entry.grab_focus())
@@ -157,7 +168,51 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         return False
 
     def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
-        text = entry.get_text()
+        self._update_list()
+
+    def _on_execute(self, *_: Any) -> None:
+        selected_idx = self.selection_model.get_selected()
+        if selected_idx == Gtk.INVALID_LIST_POSITION:
+            # Maybe try to execute the query as shell command if in shell mode?
+            text = self.search_entry.get_text()
+            if text.startswith("!"):
+                self._execute_shell(text[1:])
+                self.close()
+            return
+
+        item = self.model.get_item(selected_idx)
+        if not isinstance(item, Gtk.StringObject):
+            return
+
+        text = item.get_string()
+        prefix = self._current_prefix
+
+        if prefix == "":
+            self._command_router.dispatch(OpenFile(VaultPath.from_str(text)))
+        elif prefix == ">":
+            # Execute app command
+            for cmd_type, name in self._command_router.list_commands():
+                if name == text:
+                    self._command_router.dispatch(cmd_type())
+                    break
+        elif prefix == "/":
+            self._paste_to_terminal(text)
+        elif prefix == "!":
+            self._execute_shell(text)
+
+        self.close()
+
+    def _execute_shell(self, command: str) -> None:
+        # Punting to Terminal widget.
+        # For MVP, we'll just print it.
+        print(f"DEBUG: Pasting to terminal: {command}")
+
+    def _paste_to_terminal(self, text: str) -> None:
+        # For MVP, we'll just print it.
+        print(f"DEBUG: Pasting to terminal: {text}")
+
+    def _update_list(self) -> None:
+        text = self.search_entry.get_text()
         prefix = ""
         if text.startswith(("#", "%", ">", "/", "!")):
             prefix = text[0]
@@ -165,14 +220,11 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         else:
             query = text
 
-        if prefix != self._current_prefix:
+        if prefix != self._current_prefix or not self._items:
             self._current_prefix = prefix
+            self._items = self._fetch_data(prefix)
 
-        self._update_list(prefix, query)
-
-    def _update_list(self, prefix: str, query: str) -> None:
-        items = self._mock_data.get(prefix, [])
-        filtered_items = filter_and_rank(query, items)
+        filtered_items = filter_and_rank(query, self._items)
 
         # Clear model
         while self.model.get_n_items() > 0:
@@ -184,3 +236,33 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         # Auto-select first item
         if self.model.get_n_items() > 0:
             self.selection_model.set_selected(0)
+
+    def _fetch_data(self, prefix: str) -> List[str]:
+        if prefix == "":
+            # Files mode
+            if not self.search_entry.get_text():
+                # MRU
+                return self._state.editor.mru
+            else:
+                # All files
+                files = [
+                    str(f.path) for f in self._filestore.walk(VaultPath.from_str(""))
+                ]
+                return files
+        elif prefix == ">":
+            # App commands
+            return [name for _, name in self._command_router.list_commands()]
+        elif prefix == "/":
+            # AI commands
+            return self._ai_fetcher.fetch()
+        elif prefix == "!":
+            # Shell commands (history deferred, using mocks for now)
+            return ["ls -la", "git status", "make build"]
+        elif prefix == "#":
+            # Tags (deferred)
+            return ["#todo", "#work", "#personal"]
+        elif prefix == "%":
+            # Full text (deferred)
+            return ["(Full text search not yet implemented)"]
+
+        return []

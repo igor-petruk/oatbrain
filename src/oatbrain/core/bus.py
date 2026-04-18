@@ -26,9 +26,13 @@ class CommandRouter:
 
     def __init__(self) -> None:
         self._handlers: dict[type[Any], Callable[[Any], None]] = {}
+        self._command_names: dict[type[Any], str] = {}
 
-    def register(self, command_type: type[T], handler: Callable[[T], None]) -> None:
+    def register(
+        self, command_type: type[T], handler: Callable[[T], None], name: str = ""
+    ) -> None:
         self._handlers[command_type] = handler
+        self._command_names[command_type] = name or command_type.__name__
 
     def dispatch(self, command: Any) -> None:
         command_type = type(command)
@@ -37,3 +41,7 @@ class CommandRouter:
             handler(command)
         else:
             raise ValueError(f"No handler for command {command_type}")
+
+    def list_commands(self) -> list[tuple[type[Any], str]]:
+        """Returns a list of (command_type, human_name) for registered commands."""
+        return list(self._command_names.items())
