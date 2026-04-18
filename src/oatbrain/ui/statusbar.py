@@ -24,9 +24,6 @@ class StatusBar:
         self._readonly_lock.set_visible(False)
         
         self._word_count_label = Gtk.Label(label="0 words")
-        
-        self._vim_mode_label = Gtk.Label(label="NORMAL")
-        self._vim_mode_label.add_css_class("dim-label")
 
         self._theme_label = Gtk.Label(label="Solarized Light")
         self._theme_label.add_css_class("dim-label")
@@ -35,7 +32,6 @@ class StatusBar:
         self.widget.append(self._unsaved_dot)
         self.widget.append(self._readonly_lock)
         self.widget.append(self._word_count_label)
-        self.widget.append(self._vim_mode_label)
         self.widget.append(self._theme_label)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
@@ -46,19 +42,15 @@ class StatusBar:
 
     def _update_ui(self, event: StateUpdated) -> bool:
         state = event.state
-        
-        # Update Path
+
         if state.editor.open_file:
-            path_str = str(state.editor.open_file)
-            self._path_label.set_text(path_str)
+            self._path_label.set_text(str(state.editor.open_file))
             self._unsaved_dot.set_visible(state.editor.is_dirty)
-            # Readonly check would go here
         else:
             self._path_label.set_text("No file open")
             self._unsaved_dot.set_visible(False)
             self._readonly_lock.set_visible(False)
 
-        # Update Status Message
         self._word_count_label.set_text(f"{state.editor.word_count} words")
-        
+
         return bool(GLib.SOURCE_REMOVE)

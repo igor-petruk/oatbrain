@@ -69,6 +69,20 @@ def test_symlink_name_preservation(tmp_path: Path) -> None:
     link_entry = next(e for e in entries if e.path.path.name == "link.md")
     assert str(link_entry.path) == "link.md"
 
+def test_write_text_is_atomic(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    store = LocalFileStore(vault_root)
+
+    p = VaultPath.from_str("atomic.md")
+    store.write_text(p, "content")
+
+    # No leftover .tmp file
+    tmp_file = vault_root / "atomic.md.tmp"
+    assert not tmp_file.exists()
+    assert store.read_text(p) == "content"
+
+
 def test_sandboxing(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()

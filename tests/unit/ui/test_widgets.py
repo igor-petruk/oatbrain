@@ -39,8 +39,53 @@ def test_editor_instantiation() -> None:
     event_bus = EventBus()
     command_router = CommandRouter()
     editor = Editor(filestore, event_bus, command_router)
-    assert isinstance(editor.widget, Gtk.Overlay)
+    assert isinstance(editor.widget, Gtk.Box)
     assert isinstance(editor.view, GtkSource.View)
+    assert isinstance(editor.overlay, Gtk.Overlay)
+
+
+def test_editor_vim_context_enabled() -> None:
+    filestore = MagicMock(spec=FileStore)
+    event_bus = EventBus()
+    command_router = CommandRouter()
+    editor = Editor(filestore, event_bus, command_router, vim_enabled=True)
+    assert editor._vim_context is not None
+    assert isinstance(editor._vim_context, GtkSource.VimIMContext)
+    # Key controller must be wired with set_im_context (canonical setup)
+    assert editor._vim_key_ctrl is not None
+    assert isinstance(editor._vim_key_ctrl, Gtk.EventControllerKey)
+
+
+def test_editor_vim_context_disabled() -> None:
+    filestore = MagicMock(spec=FileStore)
+    event_bus = EventBus()
+    command_router = CommandRouter()
+    editor = Editor(filestore, event_bus, command_router, vim_enabled=False)
+    assert editor._vim_context is None
+    assert editor._vim_key_ctrl is None
+
+
+def test_editor_save_dispatches_set_dirty() -> None:
+    from oatbrain.core.ports.filestore import VaultPath
+    from oatbrain.core.commands.editor import SetDirty
+
+    filestore = MagicMock(spec=FileStore)
+    event_bus = EventBus()
+    dispatched = []
+    command_router = CommandRouter()
+    # Register a capture handler
+    from oatbrain.core.commands.editor import UpdateWordCount
+    command_router.register(UpdateWordCount, lambda c: dispatched.append(c))
+    command_router.register(SetDirty, lambda c: dispatched.append(c))
+
+    editor = Editor(filestore, event_bus, command_router, vim_enabled=False)
+    editor._current_path = VaultPath.from_str("test.md")
+
+    editor._save()
+
+    filestore.write_text.assert_called_once()
+    set_dirty_calls = [c for c in dispatched if isinstance(c, SetDirty)]
+    assert any(not c.dirty for c in set_dirty_calls)
 
 def test_app_shell_activation_smoke() -> None:
     """
