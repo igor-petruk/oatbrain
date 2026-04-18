@@ -96,35 +96,17 @@ Goal: Render Markdown to HTML.
 
 ---
 
-## Phase 7: Advanced Markdown & Wikilinks
-Goal: Vault-aware rendering.
-
-### Step 7.1: Wikilink Resolution
-- **Task**: Parse and resolve `[[Name]]` (§13).
-- **Action**:
-    - Implement `core/wikilink/` logic to find targets in `FileStore`.
-    - Update Renderer to use the resolver.
-- **Verification**: Unit tests with various vault structures; Preview shows links.
-
-### Step 7.2: Transclusion
-- **Task**: Implement `![[Name]]` (§14).
-- **Action**:
-    - Update Renderer to resolve transclusions by reading via `FileStore`.
-- **Verification**: Preview shows content of embedded notes.
-
----
-
-## Phase 8: Terminal Integration
+## Phase 7: Terminal Integration
 Goal: The built-in terminal.
 
-### Step 8.1: VTE Integration
+### Step 7.1: VTE Integration
 - **Task**: Embed VTE terminal (§16.1).
 - **Action**:
     - Implement `ui/terminal.py` wrapping `Vte.Terminal`.
     - Set CWD to vault root.
 - **Verification**: Terminal pane opens and runs `$SHELL`.
 
-### Step 8.2: Terminal Context (OATBRAIN_*)
+### Step 7.2: Terminal Context (OATBRAIN_*)
 - **Task**: Inject environment variables (§16.3).
 - **Action**:
     - Implement environment injection (VAULT, CURRENT_FILE, etc.).
@@ -133,27 +115,45 @@ Goal: The built-in terminal.
 
 ---
 
-## Phase 9: Fuzzy Palette & Commands
-Goal: Global navigation and command execution.
-
-### Step 9.1: Palette UI & Search
-- **Task**: Implement the fuzzy search overlay (§17).
-- **Action**:
-    - Implement `ui/palette.py` as a centered overlay.
-    - Implement `Ctrl+P` (files) and `Ctrl+Shift+P` (commands).
-- **Verification**: `Ctrl+P` opens palette; typing filters vault files.
-
----
-
-## Phase 10: Themes & Polish
+## Phase 8: Themes & Polish
 Goal: Visual identity and final touches.
 
-### Step 10.1: Theme Engine
+### Step 8.1: Theme Engine
 - **Task**: Implement TOML themes and CSS generation (§20).
 - **Action**:
     - Implement `core/theme/` token resolution.
     - Load and apply theme CSS to both GTK and WebKit.
 - **Verification**: Switching theme in header bar updates app styles.
+
+---
+
+## Phase 9: Advanced Markdown & Wikilinks
+Goal: Vault-aware rendering.
+
+### Step 9.1: Wikilink Resolution
+- **Task**: Parse and resolve `[[Name]]` (§13).
+- **Action**:
+    - Implement `core/wikilink/` logic to find targets in `FileStore`.
+    - Update Renderer to use the resolver.
+- **Verification**: Unit tests with various vault structures; Preview shows links.
+
+### Step 9.2: Transclusion
+- **Task**: Implement `![[Name]]` (§14).
+- **Action**:
+    - Update Renderer to resolve transclusions by reading via `FileStore`.
+- **Verification**: Preview shows content of embedded notes.
+
+---
+
+## Phase 10: Fuzzy Palette & Commands
+Goal: Global navigation and command execution.
+
+### Step 10.1: Palette UI & Search
+- **Task**: Implement the fuzzy search overlay (§17).
+- **Action**:
+    - Implement `ui/palette.py` as a centered overlay.
+    - Implement `Ctrl+P` (files) and `Ctrl+Shift+P` (commands).
+- **Verification**: `Ctrl+P` opens palette; typing filters vault files.
 
 ---
 

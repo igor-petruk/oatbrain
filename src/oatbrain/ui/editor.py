@@ -8,27 +8,38 @@ from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
-from oatbrain.core.commands.editor import UpdateWordCount, SetDirty  # noqa: E402
+from oatbrain.core.ports.renderer import Renderer  # noqa: E402
+from oatbrain.core.commands.editor import (  # noqa: E402
+    UpdateWordCount,
+    SetDirty,
+    ToggleMode,
+)
 
 
 class Editor:
-    """Markdown editor wrapping GtkSourceView with Vim mode and autosave."""
+    """Markdown editor/preview pane with Vim mode and autosave (SPEC §10, §11)."""
 
     def __init__(
         self,
         filestore: FileStore,
         event_bus: EventBus,
         command_router: CommandRouter,
+        renderer: Optional[Renderer] = None,
         vim_enabled: bool = True,
     ) -> None:
         self._filestore = filestore
         self._event_bus = event_bus
         self._command_router = command_router
+        self._renderer = renderer
         self._current_path: Optional[VaultPath] = None
         self._autosave_timer: Optional[int] = None
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
         self._loading = False
+        self._read_mode = False
+        self._current_content: str = ""
+        self._scroll_fraction: float = 0.0
 
+        # --- Source view ---
         self.buffer = GtkSource.Buffer()
         self._language_manager = GtkSource.LanguageManager.get_default()
 
@@ -42,16 +53,12 @@ class Editor:
             self._vim_context: Optional[GtkSource.VimIMContext] = (
                 GtkSource.VimIMContext.new()
             )
-            # Canonical setup per GtkSourceVimIMContext docs:
-            # EventControllerKey routes capture-phase key events through the IM context.
             self._vim_key_ctrl = Gtk.EventControllerKey.new()
             self._vim_key_ctrl.set_im_context(self._vim_context)
             self._vim_key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             self.view.add_controller(self._vim_key_ctrl)
             self._vim_context.set_client_widget(self.view)
             self._vim_context.connect("write", self._on_vim_write)
-            # Both command-text (mode: "-- INSERT --") and command-bar-text (":w")
-            # drive the single command-bar label at the bottom of the editor pane.
             self._vim_context.connect(
                 "notify::command-text", self._on_vim_label_changed
             )
@@ -62,12 +69,19 @@ class Editor:
             self._vim_context = None
             self._vim_key_ctrl = None
 
-        self.scrolled = Gtk.ScrolledWindow()
-        self.scrolled.set_child(self.view)
-        self.scrolled.set_hexpand(True)
-        self.scrolled.set_vexpand(True)
+        self._source_scroll = Gtk.ScrolledWindow()
+        self._source_scroll.set_child(self.view)
+        self._source_scroll.set_hexpand(True)
+        self._source_scroll.set_vexpand(True)
 
-        # Empty-pane placeholder (§7.4)
+        # --- Preview view ---
+        if renderer is not None:
+            from oatbrain.ui.preview import Preview  # local import avoids circular dep
+            self._preview: Optional["Preview"] = Preview(renderer)
+        else:
+            self._preview = None
+
+        # --- Empty-pane placeholder (§7.4) ---
         self.placeholder = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=12
@@ -85,11 +99,44 @@ class Editor:
         hint_label.set_justify(Gtk.Justification.CENTER)
         self.placeholder.append(hint_label)
 
-        self.overlay = Gtk.Overlay()
-        self.overlay.set_child(self.scrolled)
-        self.overlay.add_overlay(self.placeholder)
+        # --- Content stack: placeholder / source / preview ---
+        self._stack = Gtk.Stack()
+        self._stack.set_hexpand(True)
+        self._stack.set_vexpand(True)
+        self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._stack.set_transition_duration(120)
+        self._stack.add_named(self.placeholder, "placeholder")
+        self._stack.add_named(self._source_scroll, "source")
+        if self._preview is not None:
+            self._stack.add_named(self._preview.widget, "preview")
 
-        # Vim command-line bar shown at bottom of editor pane (like Vim's last line)
+        # --- Mode toggle buttons (SPEC §8.1: float in pane top-right) ---
+        self._btn_source = Gtk.ToggleButton()
+        self._btn_source.set_icon_name("text-editor-symbolic")
+        self._btn_source.set_tooltip_text("Edit (source)")
+        self._btn_source.set_active(True)
+
+        self._btn_read = Gtk.ToggleButton()
+        self._btn_read.set_icon_name("accessories-dictionary-symbolic")
+        self._btn_read.set_tooltip_text("Read (preview)")
+        self._btn_read.set_group(self._btn_source)
+
+        self._toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        self._toggle_box.append(self._btn_source)
+        self._toggle_box.append(self._btn_read)
+        self._toggle_box.set_halign(Gtk.Align.END)
+        self._toggle_box.set_valign(Gtk.Align.START)
+        self._toggle_box.set_margin_top(6)
+        self._toggle_box.set_margin_end(6)
+        self._toggle_box.add_css_class("linked")
+        self._toggle_box.set_visible(False)
+
+        self.overlay = Gtk.Overlay()
+        self.overlay.set_child(self._stack)
+        self.overlay.add_overlay(self._toggle_box)
+        self.overlay.set_clip_overlay(self._toggle_box, True)
+
+        # --- Vim command-line bar ---
         self._cmd_bar_label = Gtk.Label(label="")
         self._cmd_bar_label.set_halign(Gtk.Align.START)
         self._cmd_bar_label.set_hexpand(True)
@@ -108,14 +155,52 @@ class Editor:
 
         self.widget = self._main_box
 
+        # --- Signals ---
         self.buffer.connect("changed", self._on_buffer_changed)
 
-        # Focus-out triggers autosave (§10.3)
         focus_ctrl = Gtk.EventControllerFocus.new()
         focus_ctrl.connect("leave", self._on_focus_leave)
         self.view.add_controller(focus_ctrl)
 
+        self._btn_source.connect("toggled", self._on_source_toggled)
+        self._btn_read.connect("toggled", self._on_read_toggled)
+
         event_bus.subscribe(StateUpdated, self._on_state_updated)
+
+    # ------------------------------------------------------------------
+    # Mode toggle
+    # ------------------------------------------------------------------
+
+    def toggle_mode(self) -> None:
+        """Flip between source and read mode (Ctrl+E / SPEC §10.2)."""
+        self._command_router.dispatch(ToggleMode())
+
+    def _apply_fraction_to_source(self, fraction: float) -> None:
+        """Apply scroll fraction to the source view (called async from preview)."""
+        self._scroll_fraction = fraction
+        adj = self._source_scroll.get_vadjustment()
+        upper = adj.get_upper() - adj.get_page_size()
+        if upper > 0:
+            adj.set_value(fraction * upper)
+
+    def _set_read_mode(self, read: bool) -> None:
+        self._read_mode = read
+        if self._current_path is None:
+            return
+        if read:
+            if self._preview is not None:
+                self._preview.render(self._current_content)
+                self._stack.set_visible_child_name("preview")
+        else:
+            self._stack.set_visible_child_name("source")
+
+    def _on_source_toggled(self, btn: Gtk.ToggleButton) -> None:
+        if btn.get_active():
+            self._command_router.dispatch(ToggleMode())
+
+    def _on_read_toggled(self, btn: Gtk.ToggleButton) -> None:
+        if btn.get_active():
+            self._command_router.dispatch(ToggleMode())
 
     # ------------------------------------------------------------------
     # Vim IM context callbacks
@@ -127,7 +212,6 @@ class Editor:
         self._save()
 
     def _on_vim_label_changed(self, *_: object) -> None:
-        """Update command-bar label: command-bar-text (priority) or command-text."""
         if self._vim_context is None:
             return
         bar = self._vim_context.get_property("command-bar-text") or ""
@@ -153,6 +237,9 @@ class Editor:
     def _on_buffer_changed(self, _buffer: GtkSource.Buffer) -> None:
         if self._loading:
             return
+        start = self.buffer.get_start_iter()
+        end = self.buffer.get_end_iter()
+        self._current_content = self.buffer.get_text(start, end, True)
         self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
         self._command_router.dispatch(SetDirty(dirty=True))
 
@@ -193,8 +280,13 @@ class Editor:
 
     def _update_ui(self, event: StateUpdated) -> bool:
         new_path = event.state.editor.open_file
+        new_read_mode = event.state.editor.read_mode
+
         self.placeholder.set_visible(new_path is None)
-        self.scrolled.set_visible(new_path is not None)
+        is_markdown = new_path is not None and str(new_path).endswith(
+            (".md", ".markdown")
+        )
+        self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
         if new_path != self._current_path:
             self._cancel_autosave()
@@ -204,18 +296,62 @@ class Editor:
                     self._update_language(new_path)
                     self._loading = True
                     content = self._filestore.read_text(new_path)
+                    self._current_content = content
                     self.buffer.set_text(content)
                     self._loading = False
-                    # Initial word count: buffer-changed is suppressed during load
                     self._command_router.dispatch(
                         UpdateWordCount(count=self._count_words())
                     )
                     self._command_router.dispatch(SetDirty(dirty=False))
                 except Exception as e:
                     self._loading = False
+                    self._current_content = ""
                     self.buffer.set_text(f"Error loading file: {e}")
             else:
+                self._current_content = ""
                 self.buffer.set_text("")
                 self.buffer.set_language(None)
                 self._command_router.dispatch(UpdateWordCount(count=0))
+
+            # If the new file isn't Markdown, drop out of read mode
+            if not is_markdown and self._read_mode:
+                self._command_router.dispatch(ToggleMode())
+
+        # Sync mode (may change independently of file)
+        mode_changed = new_read_mode != self._read_mode
+        if mode_changed:
+            if self._read_mode:
+                # Leaving preview → capture scroll fraction asynchronously;
+                # apply it to the source view once the value arrives.
+                if self._preview is not None:
+                    self._preview.get_scroll_fraction(self._apply_fraction_to_source)
+            else:
+                # Leaving source → capture fraction synchronously from vadjustment.
+                adj = self._source_scroll.get_vadjustment()
+                upper = adj.get_upper() - adj.get_page_size()
+                self._scroll_fraction = (
+                    adj.get_value() / upper if upper > 0 else 0.0
+                )
+
+            self._read_mode = new_read_mode
+            self._btn_read.handler_block_by_func(self._on_read_toggled)
+            self._btn_source.handler_block_by_func(self._on_source_toggled)
+            self._btn_read.set_active(new_read_mode)
+            self._btn_source.set_active(not new_read_mode)
+            self._btn_read.handler_unblock_by_func(self._on_read_toggled)
+            self._btn_source.handler_unblock_by_func(self._on_source_toggled)
+
+        if new_path is None:
+            self._stack.set_visible_child_name("placeholder")
+        elif new_read_mode:
+            if self._preview is not None:
+                self._preview.render(
+                    self._current_content, scroll_to=self._scroll_fraction
+                )
+                self._stack.set_visible_child_name("preview")
+            else:
+                self._stack.set_visible_child_name("source")
+        else:
+            self._stack.set_visible_child_name("source")
+
         return bool(GLib.SOURCE_REMOVE)

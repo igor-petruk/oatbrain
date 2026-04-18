@@ -12,6 +12,7 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.adapters.filestore.local import LocalFileStore  # noqa: E402
 from oatbrain.adapters.state.toml_store import TomlStateStore  # noqa: E402
+from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer  # noqa: E402
 
 
 def get_state_path() -> Path:
@@ -42,6 +43,7 @@ def build_app(argv: list[str]) -> Adw.Application:
     event_bus = EventBus()
     command_router = CommandRouter()
     filestore = LocalFileStore(initial_state.vault_root)
+    renderer = MarkdownItRenderer()
 
     app = AdwAppShell(
         application_id="app.oatbrain.App",
@@ -51,5 +53,6 @@ def build_app(argv: list[str]) -> Adw.Application:
         initial_state=initial_state,
         filestore=filestore,
         state_store=state_store,
+        renderer=renderer,
     )
     return app
