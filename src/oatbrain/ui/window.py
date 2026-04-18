@@ -97,8 +97,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             }}
         """
         AdwAppShell._css_provider = Gtk.CssProvider()
-        css_bytes = css.encode("utf-8")
-        AdwAppShell._css_provider.load_from_data(css_bytes, len(css_bytes))
+        AdwAppShell._css_provider.load_from_string(css)
 
         if display:
             Gtk.StyleContext.add_provider_for_display(
@@ -244,7 +243,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # 6. Finalize
         self.main_window.present()
 
-        # 7. Wire proactive saving LATE to avoid construction noise
+        # 7. Apply theme now that all sub-widgets (editor, terminal) exist.
+        # _on_startup applied AdwStyleManager early, but editor/terminal are
+        # only wired up after activate, so we must call this again here.
+        self._load_and_apply_theme(self._state.theme_id)
+
+        # 8. Wire proactive saving LATE to avoid construction noise
         GLib.idle_add(self._connect_late_signals)
 
         # Emit initial state
@@ -314,8 +318,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # Inject CSS custom-property tokens for our own widgets (preview, etc.)
         css = generate_gtk_css(theme)
-        css_bytes = css.encode("utf-8")
-        self._theme_css_provider.load_from_data(css_bytes, len(css_bytes))
+        self._theme_css_provider.load_from_string(css)
 
         # GtkSourceView style scheme (§20.9)
         if hasattr(self, "editor"):

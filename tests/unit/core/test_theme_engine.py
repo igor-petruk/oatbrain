@@ -17,8 +17,8 @@ def _make_theme(**kwargs: object) -> ThemeData:
 
 def test_generate_css_produces_root_block() -> None:
     css = generate_gtk_css(_make_theme())
-    assert css.startswith(":root {")
-    assert css.endswith("}")
+    assert ":root {" in css
+    assert ".oatbrain-filetree" in css
 
 
 def test_generate_css_includes_token_as_custom_property() -> None:
