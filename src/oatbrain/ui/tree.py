@@ -20,7 +20,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     
     Implementation details:
     - Uses Gtk.TreeView with a Gtk.TreeStore model.
-    - Implements lazy loading: only scans directories when they are about to expand.
+    - Implements lazy loading: scans directories when they are expanded.
     - Supports single-click to expand/collapse directories.
     """
 
@@ -52,8 +52,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.scrolled.set_child(self.tree_view)
 
         # Signals for lazy loading and single-click interaction
-        # We use test-expand to load data BEFORE the expansion animation starts.
-        self.tree_view.connect("test-expand", self.on_test_expand)
+        self.tree_view.connect("row-expanded", self.on_row_expanded)
         self.tree_view.connect("row-activated", self.on_row_activated)
 
         self._populate_root()
@@ -98,15 +97,14 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             else:
                 self.tree_view.expand_row(path, False)
 
-    def on_test_expand(
+    def on_row_expanded(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
-    ) -> bool:
+    ) -> None:
         """
-        Called before a row expands. Returns False to allow expansion.
+        Triggered when a directory row is expanded.
         Loads directory contents if they haven't been loaded yet.
         """
         self._ensure_dir_loaded(iter_)
-        return False  # Return False to allow expansion
 
     def _ensure_dir_loaded(self, iter_: Gtk.TreeIter) -> None:
         """Checks if a directory is loaded (no dummy child) and loads it if needed."""
