@@ -1,27 +1,14 @@
 from gi.repository import Gtk, Adw, Gdk, Gio
 from ..core.ports.state import AppState
 
-class Palette(Gtk.Window):
-    def __init__(self, state: AppState, parent_window: Gtk.Window):
-        super().__init__(
-            transient_for=parent_window,
-            modal=True,
-            destroy_with_parent=True,
-            title="Palette"
-        )
-        self.set_default_size(600, 400)
-        
-        # Use a shortcut controller in CAPTURE phase to preempt SearchEntry's Esc handling
-        shortcut_controller = Gtk.ShortcutController.new()
-        shortcut_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        shortcut_controller.add_shortcut(Gtk.Shortcut.new(
-            trigger=Gtk.ShortcutTrigger.parse_string("Escape"),
-            action=Gtk.CallbackAction.new(self._on_escape)
-        ))
-        self.add_controller(shortcut_controller)
+class Palette(Adw.Dialog):
+    def __init__(self, state: AppState):
+        super().__init__()
+        self.set_title("Palette")
+        self.set_content_width(600)
+        self.set_content_height(400)
         
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        # Add some padding
         self.box.set_margin_top(12)
         self.box.set_margin_bottom(12)
         self.box.set_margin_start(12)
@@ -35,7 +22,18 @@ class Palette(Gtk.Window):
         self.list_view = Gtk.ListView()
         self.box.append(self.list_view)
         
-        # Ensure focus is grabbed when the window is shown
+        # In Adw.Dialog, we might still need to capture Escape if we want custom behavior,
+        # but Adw.Dialog usually handles it. Let's see if it works out of the box.
+        # However, SearchEntry might still swallow it.
+        shortcut_controller = Gtk.ShortcutController.new()
+        shortcut_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        shortcut_controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("Escape"),
+            action=Gtk.CallbackAction.new(self._on_escape)
+        ))
+        self.add_controller(shortcut_controller)
+        
+        # Grabbing focus on search entry
         self.connect("map", lambda *_: self.search_entry.grab_focus())
 
     def _on_escape(self, widget, variant):
@@ -45,4 +43,3 @@ class Palette(Gtk.Window):
     def _on_search_changed(self, entry: Gtk.SearchEntry):
         text = entry.get_text()
         print(f"Searching for: {text}")
-

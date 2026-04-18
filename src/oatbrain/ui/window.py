@@ -514,8 +514,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _shortcut_open_palette(self, *_: Any) -> bool:
         from oatbrain.ui.palette import Palette
-        palette = Palette(self._state, self.main_window)
-        palette.present()
+        palette = Palette(self._state)
+        palette.present(self.main_window)
         return True
 
     def _shortcut_save(self, *_: Any) -> bool:
