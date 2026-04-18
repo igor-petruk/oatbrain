@@ -10,7 +10,12 @@ from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
-from oatbrain.core.commands import OpenFile, ToggleTree, ToggleTerminal  # noqa: E402
+from oatbrain.core.commands import (  # noqa: E402
+    OpenFile,
+    ToggleTree,
+    ToggleTerminal,
+    SendToTerminal,
+)
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
@@ -78,6 +83,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         self._command_router.register(
             ToggleTerminal, self._handle_toggle_terminal, "Toggle Terminal"
+        )
+        self._command_router.register(
+            SendToTerminal, self._handle_send_to_terminal, visible=False
         )
 
         self._zen_mode: bool = False
@@ -162,7 +170,21 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = replace(self._state, terminal_visible=visible)
         self._save_state()
 
+    def _handle_send_to_terminal(self, command: SendToTerminal) -> None:
+        if not self.terminal_placeholder.widget.get_visible():
+            self.terminal_placeholder.widget.set_visible(True)
+            self._state = replace(self._state, terminal_visible=True)
+            self._save_state()
+            # Sync the toggle button in the header bar
+            self.header_bar.terminal_toggle.set_active(True)
+
+        text = command.text
+        if command.execute:
+            text += "\n"
+        self.terminal_placeholder.send_text(text)
+
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
+
         GLib.idle_add(self._apply_zen_toggle)
 
     def _apply_zen_toggle(self) -> bool:
