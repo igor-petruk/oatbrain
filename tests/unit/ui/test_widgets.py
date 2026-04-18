@@ -21,6 +21,9 @@ def test_headerbar_instantiation() -> None:
     event_bus = EventBus()
     header = HeaderBar(event_bus)
     assert isinstance(header.widget, Adw.HeaderBar)
+    assert hasattr(header, "tree_toggle")
+    assert hasattr(header, "terminal_toggle")
+    assert hasattr(header, "zen_toggle")
 
 def test_statusbar_instantiation() -> None:
     event_bus = EventBus()

@@ -15,3 +15,8 @@ class SetDirty:
 class ToggleMode:
     """Flip between source and read (preview) mode (SPEC §10.2)."""
 
+
+@dataclass(frozen=True)
+class ToggleZen:
+    """Enter or exit Zen (distraction-free) mode (SPEC §7.5)."""
+

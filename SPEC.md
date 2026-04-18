@@ -105,6 +105,9 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
   widget in a different prefix mode.
 - Three built-in themes: Solarized Light, Monokai Dark, high-contrast dark.
   System light/dark preference picks between the first two.
+- Zen mode (`Ctrl+Shift+Z`): collapses tree and terminal, widens editor margins
+  for distraction-free writing. Toggle button in the header bar restores previous
+  layout on exit. Zen mode is not persisted across sessions.
 - Config in `$XDG_CONFIG_HOME/oatbrain/config.toml`. Session state persisted
   separately in `$XDG_STATE_HOME/oatbrain/state.toml`.
 
@@ -129,7 +132,7 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Zettelkasten timestamp IDs.
 - Auto-enable privacy mode on screen-share detection.
 - Terminal scrollback search.
-- Pane zoom / focus mode beyond tree+terminal toggle.
+- Pane zoom / per-pane maximize.
 - Ligature opt-out / per-language fonts.
 
 ### 1.3 Out of scope forever
@@ -426,6 +429,21 @@ When Editor/Preview has no open file, show a short keyboard-shortcut hint
 block (e.g., "`Ctrl+P` — find file · `Ctrl+N` — new note") centered in the
 pane.
 
+### 7.5 Zen Mode
+
+A distraction-free writing mode toggled by `Ctrl+Shift+Z` or the zen button
+in the header bar.
+
+- **Entering Zen**: hides the file tree and terminal pane; expands the editor's
+  left/right margins to ~80 px and hides line numbers, centering prose in a
+  comfortable column.
+- **Exiting Zen**: restores tree and terminal to their pre-zen visibility; resets
+  margins and line-number display.
+- Pre-zen layout is held in memory only; Zen mode is never persisted across
+  sessions (the session always opens in normal layout).
+- The header bar zen toggle reflects current state and can activate or
+  deactivate Zen mode independently of the keyboard shortcut.
+
 ### 7.5 Pane zoom / maximize
 
 Deferred beyond MVP.
@@ -438,8 +456,8 @@ Deferred beyond MVP.
 
 - **Left**: hamburger (app menu) · toggle-tree · new-note.
 - **Centre (title area)**: current filename · unsaved dot · read-only lock
-  (conditional).
-- **Right**: theme switcher · toggle-terminal · window controls.
+  (conditional). Right edge of centre bar: zen-toggle · toggle-terminal.
+- **Right**: window controls.
 
 The **edit/read toggle** MUST NOT live in the header. Two small buttons float
 in the top-right corner of the Editor/Preview pane body itself.
@@ -989,6 +1007,7 @@ results.
 | `Escape` | editor | Leave insert mode (vim) |
 | `Ctrl+Shift+Y` | app | Send current file path to terminal stdin |
 | `Ctrl+Shift+U` | app | Send editor selection to terminal stdin |
+| `Ctrl+Shift+Z` | app | Toggle Zen mode (§7.5) |
 
 Focus targets above are `tree`, `editor/preview` (same slot, whichever mode),
 `terminal`. There is no fourth focusable zone in steady state; the palette

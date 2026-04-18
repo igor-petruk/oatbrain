@@ -130,8 +130,8 @@ class Editor:
         self._toggle_box.append(self._btn_read)
         self._toggle_box.set_halign(Gtk.Align.END)
         self._toggle_box.set_valign(Gtk.Align.START)
-        self._toggle_box.set_margin_top(6)
-        self._toggle_box.set_margin_end(6)
+        self._toggle_box.set_margin_top(8)
+        self._toggle_box.set_margin_end(8)
         self._toggle_box.add_css_class("linked")
         self._toggle_box.set_visible(False)
 
@@ -191,6 +191,17 @@ class Editor:
                 scroll_to=self._scroll_fraction,
                 theme_css=css,
             )
+
+    def set_zen_mode(self, enabled: bool) -> None:
+        """Adjust editor margins and line numbers for Zen mode (SPEC §7.5)."""
+        if enabled:
+            self.view.set_left_margin(80)
+            self.view.set_right_margin(80)
+            self.view.set_show_line_numbers(False)
+        else:
+            self.view.set_left_margin(12)
+            self.view.set_right_margin(12)
+            self.view.set_show_line_numbers(True)
 
     # ------------------------------------------------------------------
     # Mode toggle

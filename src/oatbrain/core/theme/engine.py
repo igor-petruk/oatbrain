@@ -15,16 +15,16 @@ def generate_gtk_css(theme: ThemeData) -> str:
     lines.append("""
 .oatbrain-filetree {
     background-color: var(--color-bg-alt);
-    color: var(--color-fg);
+    color: var(--color-tree-fg, var(--color-fg));
     font-family: var(--font-ui);
 }
 .oatbrain-filetree row {
     background-color: var(--color-bg-alt);
-    color: var(--color-fg);
+    color: var(--color-tree-fg, var(--color-fg));
 }
 .oatbrain-filetree row:selected {
     background-color: var(--color-selection);
-    color: var(--color-fg);
+    color: var(--color-tree-fg, var(--color-fg));
 }
 .oatbrain-filetree row:hover:not(:selected) {
     background-color: var(--color-border);
@@ -37,6 +37,11 @@ def generate_gtk_css(theme: ThemeData) -> str:
 .oatbrain-editor text {
     background-color: var(--color-bg);
     color: var(--color-fg);
+}
+textview.oatbrain-editor border,
+textview.oatbrain-editor gutter {
+    background-color: var(--color-gutter-bg, var(--color-bg));
+    color: var(--color-gutter-fg, var(--color-fg-muted));
 }
 .oatbrain-headerbar {
     background-color: var(--color-bg-alt);
