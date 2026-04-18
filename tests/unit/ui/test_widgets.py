@@ -50,6 +50,9 @@ def test_editor_vim_context_enabled() -> None:
     editor = Editor(filestore, event_bus, command_router, vim_enabled=True)
     assert editor._vim_context is not None
     assert isinstance(editor._vim_context, GtkSource.VimIMContext)
+    # Key controller must be wired with set_im_context (canonical setup)
+    assert editor._vim_key_ctrl is not None
+    assert isinstance(editor._vim_key_ctrl, Gtk.EventControllerKey)
 
 
 def test_editor_vim_context_disabled() -> None:
@@ -58,6 +61,7 @@ def test_editor_vim_context_disabled() -> None:
     command_router = CommandRouter()
     editor = Editor(filestore, event_bus, command_router, vim_enabled=False)
     assert editor._vim_context is None
+    assert editor._vim_key_ctrl is None
 
 
 def test_editor_save_dispatches_set_dirty() -> None:

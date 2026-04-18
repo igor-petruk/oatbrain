@@ -32,6 +32,7 @@ class Editor:
         self._command_router = command_router
         self._current_path: Optional[VaultPath] = None
         self._autosave_timer: Optional[int] = None
+        self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
         self._loading = False
 
         self.buffer = GtkSource.Buffer()
@@ -47,6 +48,13 @@ class Editor:
             self._vim_context: Optional[GtkSource.VimIMContext] = (
                 GtkSource.VimIMContext.new()
             )
+            # Canonical setup per GtkSourceVimIMContext docs:
+            # EventControllerKey routes capture-phase key events through the IM context.
+            # Without set_im_context(), key events never reach VimIMContext.
+            self._vim_key_ctrl = Gtk.EventControllerKey.new()
+            self._vim_key_ctrl.set_im_context(self._vim_context)
+            self._vim_key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            self.view.add_controller(self._vim_key_ctrl)
             self._vim_context.set_client_widget(self.view)
             self._vim_context.connect("write", self._on_vim_write)
             self._vim_context.connect(
@@ -54,6 +62,7 @@ class Editor:
             )
         else:
             self._vim_context = None
+            self._vim_key_ctrl = None
 
         self.scrolled = Gtk.ScrolledWindow()
         self.scrolled.set_child(self.view)
