@@ -921,6 +921,7 @@ The palette is a modal overlay, centered, ~50% window width. One widget, prefix 
 | `%` | full text | fuzzy search index |
 | `>` | app commands | registered command list |
 | `/` | AI commands | `config.toml` list or dynamic command |
+| `!` | shell commands | ad-hoc execution |
 
 Backspacing past the prefix reverts to files.
 
