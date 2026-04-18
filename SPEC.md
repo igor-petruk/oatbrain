@@ -435,10 +435,10 @@ Deferred beyond MVP.
 
 ### 8.1 Layout (AdwHeaderBar)
 
-- **Left**: hamburger (app menu) · toggle-tree · toggle-terminal · new-note.
+- **Left**: hamburger (app menu) · toggle-tree · new-note.
 - **Centre (title area)**: current filename · unsaved dot · read-only lock
   (conditional).
-- **Right**: theme switcher · window controls.
+- **Right**: theme switcher · toggle-terminal · window controls.
 
 The **edit/read toggle** MUST NOT live in the header. Two small buttons float
 in the top-right corner of the Editor/Preview pane body itself.

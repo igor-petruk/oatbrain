@@ -22,6 +22,7 @@ jobs:
             gir1.2-vte-3.91 \
             gir1.2-webkit-6.0 \
             gir1.2-gtksource-5 \
+            gir1.2-pango-1.0 \
             python3-markdown-it \
             python3-mdit-py-plugins \
             python3-yaml \
@@ -38,7 +39,6 @@ jobs:
           make lint
 
   test-unit:
-    needs: lint
     runs-on: ubuntu-latest
     container: debian:unstable
     steps:
@@ -53,6 +53,7 @@ jobs:
             gir1.2-vte-3.91 \
             gir1.2-webkit-6.0 \
             gir1.2-gtksource-5 \
+            gir1.2-pango-1.0 \
             python3-markdown-it \
             python3-mdit-py-plugins \
             python3-yaml \
@@ -61,10 +62,9 @@ jobs:
             xvfb \
             make
       - name: Run unit tests
-        run: xvfb-run make test
+        run: make test
 
   test-gui:
-    needs: lint
     runs-on: ubuntu-latest
     container: debian:unstable
     steps:
@@ -79,6 +79,7 @@ jobs:
             gir1.2-vte-3.91 \
             gir1.2-webkit-6.0 \
             gir1.2-gtksource-5 \
+            gir1.2-pango-1.0 \
             python3-markdown-it \
             python3-mdit-py-plugins \
             python3-yaml \
@@ -87,4 +88,4 @@ jobs:
             xvfb \
             make
       - name: Run GUI tests (dummy for now)
-        run: xvfb-run make test
+        run: make test-gui

@@ -8,6 +8,7 @@ class EditorState:
     open_file: Optional[VaultPath] = None
     is_dirty: bool = False
     read_mode: bool = False
+    word_count: int = 0
 
 @dataclass(frozen=True)
 class AppState:
