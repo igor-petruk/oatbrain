@@ -9,7 +9,6 @@ class EditorState:
     is_dirty: bool = False
     read_mode: bool = False
     word_count: int = 0
-    vim_mode: str = "NORMAL"
     mru: List[str] = field(default_factory=list)
 
 @dataclass(frozen=True)

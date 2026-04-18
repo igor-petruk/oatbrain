@@ -14,7 +14,6 @@ from oatbrain.core.commands import OpenFile  # noqa: E402
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
-    UpdateVimMode,
 )
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
@@ -50,7 +49,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             UpdateWordCount, self._handle_update_word_count
         )
         self._command_router.register(SetDirty, self._handle_set_dirty)
-        self._command_router.register(UpdateVimMode, self._handle_update_vim_mode)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -110,10 +108,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
 
-    def _handle_update_vim_mode(self, command: UpdateVimMode) -> None:
-        new_editor = replace(self._state.editor, vim_mode=command.mode)
-        self._state = replace(self._state, editor=new_editor)
-        self._event_bus.publish(StateUpdated(self._state))
 
     def _save_state(self) -> None:
         """Collects current UI state and persists it via StateStore."""

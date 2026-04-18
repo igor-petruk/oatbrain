@@ -24,9 +24,6 @@ class StatusBar:
         self._readonly_lock.set_visible(False)
         
         self._word_count_label = Gtk.Label(label="0 words")
-        
-        self._vim_mode_label = Gtk.Label(label="NORMAL")
-        self._vim_mode_label.add_css_class("dim-label")
 
         self._theme_label = Gtk.Label(label="Solarized Light")
         self._theme_label.add_css_class("dim-label")
@@ -35,7 +32,6 @@ class StatusBar:
         self.widget.append(self._unsaved_dot)
         self.widget.append(self._readonly_lock)
         self.widget.append(self._word_count_label)
-        self.widget.append(self._vim_mode_label)
         self.widget.append(self._theme_label)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
@@ -56,6 +52,5 @@ class StatusBar:
             self._readonly_lock.set_visible(False)
 
         self._word_count_label.set_text(f"{state.editor.word_count} words")
-        self._vim_mode_label.set_text(state.editor.vim_mode)
 
         return bool(GLib.SOURCE_REMOVE)

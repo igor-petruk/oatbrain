@@ -10,7 +10,3 @@ class SetDirty:
     """Command to mark the editor buffer as dirty or clean."""
     dirty: bool
 
-@dataclass(frozen=True)
-class UpdateVimMode:
-    """Command to update the active vim mode label."""
-    mode: str

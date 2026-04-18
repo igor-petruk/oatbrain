@@ -8,11 +8,7 @@ from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
-from oatbrain.core.commands.editor import (  # noqa: E402
-    UpdateWordCount,
-    SetDirty,
-    UpdateVimMode,
-)
+from oatbrain.core.commands.editor import UpdateWordCount, SetDirty  # noqa: E402
 
 _AUTOSAVE_DELAY_MS = 5000
 
@@ -56,17 +52,14 @@ class Editor:
             self.view.add_controller(self._vim_key_ctrl)
             self._vim_context.set_client_widget(self.view)
             self._vim_context.connect("write", self._on_vim_write)
-            # Mode is tracked via three complementary signals:
-            # 1. notify::overwrite on view  → INSERT vs NORMAL (most reliable)
-            # 2. notify::command-text       → VISUAL / REPLACE hints
-            # 3. notify::command-bar-text   → COMMAND mode + command-line label
+            # Both command-text (mode: "-- INSERT --") and command-bar-text (":w")
+            # drive the single command-bar label at the bottom of the editor pane.
             self._vim_context.connect(
-                "notify::command-text", self._on_vim_state_changed
+                "notify::command-text", self._on_vim_label_changed
             )
             self._vim_context.connect(
-                "notify::command-bar-text", self._on_vim_command_bar_changed
+                "notify::command-bar-text", self._on_vim_label_changed
             )
-            self.view.connect("notify::overwrite", self._on_vim_state_changed)
         else:
             self._vim_context = None
             self._vim_key_ctrl = None
@@ -135,36 +128,16 @@ class Editor:
     ) -> None:
         self._save()
 
-    def _compute_vim_mode(self) -> str:
-        """Determine current Vim mode from all available signals."""
+    def _on_vim_label_changed(self, *_: object) -> None:
+        """Update command-bar label: command-bar-text (priority) or command-text."""
         if self._vim_context is None:
-            return "NORMAL"
+            return
         bar = self._vim_context.get_property("command-bar-text") or ""
-        if bar:
-            return "COMMAND"
         cmd = self._vim_context.get_property("command-text") or ""
-        upper = cmd.upper()
-        if "VISUAL" in upper:
-            return "VISUAL"
-        if "REPLACE" in upper:
-            return "REPLACE"
-        # Overwrite=False is the most reliable INSERT indicator (set by VimIMContext)
-        if not self.view.get_overwrite():
-            return "INSERT"
-        return "NORMAL"
+        display = bar if bar else cmd
+        GLib.idle_add(self._apply_cmd_bar_label, display)
 
-    def _on_vim_state_changed(self, *_: object) -> None:
-        mode = self._compute_vim_mode()
-        self._command_router.dispatch(UpdateVimMode(mode=mode))
-
-    def _on_vim_command_bar_changed(
-        self, ctx: GtkSource.VimIMContext, _pspec: object
-    ) -> None:
-        bar = ctx.get_property("command-bar-text") or ""
-        GLib.idle_add(self._update_cmd_bar_label, bar)
-        self._on_vim_state_changed()
-
-    def _update_cmd_bar_label(self, text: str) -> bool:
+    def _apply_cmd_bar_label(self, text: str) -> bool:
         self._cmd_bar_label.set_text(text)
         self._cmd_bar_row.set_visible(bool(text))
         return bool(GLib.SOURCE_REMOVE)

@@ -74,10 +74,9 @@ def test_editor_save_dispatches_set_dirty() -> None:
     dispatched = []
     command_router = CommandRouter()
     # Register a capture handler
-    from oatbrain.core.commands.editor import UpdateWordCount, UpdateVimMode
+    from oatbrain.core.commands.editor import UpdateWordCount
     command_router.register(UpdateWordCount, lambda c: dispatched.append(c))
     command_router.register(SetDirty, lambda c: dispatched.append(c))
-    command_router.register(UpdateVimMode, lambda c: dispatched.append(c))
 
     editor = Editor(filestore, event_bus, command_router, vim_enabled=False)
     editor._current_path = VaultPath.from_str("test.md")
