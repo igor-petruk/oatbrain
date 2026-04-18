@@ -14,7 +14,9 @@ from oatbrain.core.commands import OpenFile  # noqa: E402
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
+    ToggleMode,
 )
+from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
@@ -35,6 +37,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         initial_state: AppState,
         filestore: FileStore,
         state_store: StateStore,
+        renderer: Optional[Renderer] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -43,12 +46,14 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = initial_state
         self._filestore = filestore
         self._state_store = state_store
+        self._renderer = renderer
 
         self._command_router.register(OpenFile, self._handle_open_file)
         self._command_router.register(
             UpdateWordCount, self._handle_update_word_count
         )
         self._command_router.register(SetDirty, self._handle_set_dirty)
+        self._command_router.register(ToggleMode, self._handle_toggle_mode)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -105,6 +110,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _handle_set_dirty(self, command: SetDirty) -> None:
         new_editor = replace(self._state.editor, is_dirty=command.dirty)
+        self._state = replace(self._state, editor=new_editor)
+        self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_toggle_mode(self, _command: ToggleMode) -> None:
+        new_read_mode = not self._state.editor.read_mode
+        new_editor = replace(self._state.editor, read_mode=new_read_mode)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
 
@@ -171,7 +182,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._filestore, self._event_bus, self._command_router
         )
         self.editor = Editor(
-            self._filestore, self._event_bus, self._command_router
+            self._filestore,
+            self._event_bus,
+            self._command_router,
+            renderer=self._renderer,
         )
         self.terminal_placeholder = Gtk.Frame(label="Terminal")
         self.terminal_placeholder.set_focusable(True)
@@ -355,8 +369,18 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             action=Gtk.CallbackAction.new(self._shortcut_save)
         ))
 
+        # Ctrl+E: Toggle edit/read mode (§10.2, §18.2)
+        controller.add_shortcut(Gtk.Shortcut.new(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control>e"),
+            action=Gtk.CallbackAction.new(self._shortcut_toggle_mode)
+        ))
+
     def _shortcut_save(self, *_: Any) -> bool:
         self.editor._save()
+        return True
+
+    def _shortcut_toggle_mode(self, *_: Any) -> bool:
+        self._command_router.dispatch(ToggleMode())
         return True
 
     def _shortcut_toggle_tree(self, *_: Any) -> bool:
