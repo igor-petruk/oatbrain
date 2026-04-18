@@ -73,7 +73,7 @@ def test_app_shutdown_saves_state(tmp_path: Path) -> None:
     app.emit("shutdown")
 
 
-def test_no_gtk_log_output(capfd: Any) -> None:  # type: ignore
+def test_no_gtk_log_output(capfd: Any) -> None:
     """Ensure no Gtk-CRITICAL or Gtk-WARNING output in stderr during startup."""
     app = build_app([])
     app.set_application_id("app.oatbrain.CleanOutput")
@@ -95,21 +95,5 @@ def test_no_gtk_log_output(capfd: Any) -> None:  # type: ignore
 
     out, err = capfd.readouterr()
 
-    # Filter out known library-level bug in GtkSourceView/AdwToolbarView interaction
-    # if it's proven unavoidable in this environment.
-    lines = err.splitlines()
-    filtered_lines = [
-        line
-        for line in lines
-        if "gtk_css_node_insert_after" not in line
-        and ("Gtk-CRITICAL" in line or "Gtk-WARNING" in line)
-    ]
-
-    # We report the suppressed warning but don't fail the test on it if it's only that.
-    suppressed = [line for line in lines if "gtk_css_node_insert_after" in line]
-    if suppressed:
-        print(f"\nNOTE: Suppressed known external library bug: {suppressed[0]}")
-
-    assert (
-        not filtered_lines
-    ), f"Captured unexpected GTK logs: {filtered_lines}"
+    assert "CRITICAL" not in err, f"Captured GTK Criticals: {err}"
+    assert "WARNING" not in err, f"Captured GTK Warnings: {err}"

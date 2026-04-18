@@ -99,7 +99,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.menu.append("Delete", "app.delete_file")
 
         self.popover = Gtk.PopoverMenu.new_from_model(self.menu)
-        self.popover.set_parent(self.tree_view)
+        self.popover.set_parent(self)
         self.popover.set_has_arrow(False)
 
         gesture = Gtk.GestureClick.new()

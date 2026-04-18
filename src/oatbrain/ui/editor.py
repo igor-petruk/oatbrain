@@ -2,7 +2,6 @@ import gi
 from typing import Optional
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gdk", "4.0")
 gi.require_version("GtkSource", "5")
 from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
 
@@ -14,8 +13,6 @@ from oatbrain.core.commands.editor import UpdateWordCount  # noqa: E402
 
 class Editor:
     """Markdown editor wrapping GtkSourceView."""
-
-    _css_provider: Optional[Gtk.CssProvider] = None
 
     def __init__(
         self,
@@ -35,9 +32,7 @@ class Editor:
         self.view.set_show_line_numbers(True)
         self.view.set_monospace(True)
         self.view.set_wrap_mode(Gtk.WrapMode.WORD)
-        
-        # Typography (§19) - Set surgically to avoid global node corruption
-        self._setup_styling()
+        self.view.add_css_class("oatbrain-editor")
 
         self.scrolled = Gtk.ScrolledWindow()
         self.scrolled.set_child(self.view)
@@ -72,28 +67,6 @@ class Editor:
         self.buffer.connect("changed", self._on_buffer_changed)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
-
-    def _setup_styling(self) -> None:
-        """Apply typography defaults from SPEC §19 to this widget only."""
-        if Editor._css_provider is None:
-            fonts = "'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', monospace"
-            css = f"""
-                textview {{
-                    font-family: {fonts};
-                    font-size: 13pt;
-                }}
-            """
-            Editor._css_provider = Gtk.CssProvider()
-            css_bytes = css.encode("utf-8")
-            Editor._css_provider.load_from_data(css_bytes, len(css_bytes))
-
-        # Use the widget's style context instead of the display
-        # This is more stable for complex widgets like GtkSourceView
-        context = self.view.get_style_context()
-        context.add_provider(
-            Editor._css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
 
     def _on_buffer_changed(self, buffer: GtkSource.Buffer) -> None:
         """Calculate word count on change."""
