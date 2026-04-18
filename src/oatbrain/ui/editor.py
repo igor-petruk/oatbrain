@@ -18,10 +18,7 @@ class Editor:
         self._current_path: Optional[VaultPath] = None
 
         self.buffer = GtkSource.Buffer()
-        lm = GtkSource.LanguageManager.get_default()
-        lang = lm.get_language("markdown")
-        if lang:
-            self.buffer.set_language(lang)
+        self._language_manager = GtkSource.LanguageManager.get_default()
 
         self.view = GtkSource.View.new_with_buffer(self.buffer)
         self.view.set_show_line_numbers(True)
@@ -40,16 +37,23 @@ class Editor:
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)
 
+    def _update_language(self, path: VaultPath) -> None:
+        """Detect and set language based on filename."""
+        lang = self._language_manager.guess_language(str(path), None)
+        self.buffer.set_language(lang)
+
     def _update_ui(self, event: StateUpdated) -> bool:
         new_path = event.state.editor.open_file
         if new_path != self._current_path:
             self._current_path = new_path
             if new_path:
                 try:
+                    self._update_language(new_path)
                     content = self._filestore.read_text(new_path)
                     self.buffer.set_text(content)
                 except Exception as e:
                     self.buffer.set_text(f"Error loading file: {e}")
             else:
                 self.buffer.set_text("")
+                self.buffer.set_language(None)
         return bool(GLib.SOURCE_REMOVE)
