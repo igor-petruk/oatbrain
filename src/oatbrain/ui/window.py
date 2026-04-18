@@ -1,4 +1,5 @@
 from typing import Any
+from dataclasses import replace
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -8,6 +9,7 @@ from gi.repository import Adw, Gtk  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
+from oatbrain.core.commands import OpenFile  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
@@ -30,7 +32,18 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router = command_router
         self._state = initial_state
         self._filestore = filestore
+
+        self._command_router.register(OpenFile, self._handle_open_file)
+
         self.connect("activate", self.on_activate)
+
+    def _handle_open_file(self, command: OpenFile) -> None:
+        """Updates state when a file is opened."""
+        new_editor = replace(self._state.editor, open_file=command.path)
+        self._state = replace(
+            self._state, editor=new_editor, status_message=f"Opened {command.path}"
+        )
+        self._event_bus.publish(StateUpdated(self._state))
 
     def on_activate(self, app: Adw.Application) -> None:
         self.main_window = Adw.ApplicationWindow(application=app)
@@ -51,13 +64,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.right_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
 
         # Placeholders for panes
-        self.tree_pane = FileTree(self._filestore, self._event_bus)
+        self.tree_pane = FileTree(
+            self._filestore, self._event_bus, self._command_router
+        )
 
         self.editor_placeholder = Gtk.Frame(label="Editor / Preview")
         self.editor_placeholder.set_child(Gtk.Label(label="[Editor Placeholder]"))
 
         self.terminal_placeholder = Gtk.Frame(label="Terminal")
-        self.terminal_placeholder.set_child(Gtk.Label(label="[Terminal Placeholder]"))
+        self.terminal_placeholder.set_child(
+            Gtk.Label(label="[Terminal Placeholder]")
+        )
 
         # Setup main_paned (Tree vs Rest)
         self.main_paned.set_start_child(self.tree_pane)

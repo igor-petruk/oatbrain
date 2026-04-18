@@ -5,7 +5,8 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, GLib  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
-from oatbrain.core.bus import EventBus  # noqa: E402
+from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
+from oatbrain.core.commands import OpenFile  # noqa: E402
 
 # TreeStore column indices for clarity and maintainability
 COL_NAME: Final[int] = 0        # The display name of the file or folder
@@ -24,10 +25,16 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     - Supports single-click to expand/collapse directories.
     """
 
-    def __init__(self, filestore: FileStore, event_bus: EventBus) -> None:
+    def __init__(
+        self,
+        filestore: FileStore,
+        event_bus: EventBus,
+        command_router: CommandRouter,
+    ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.filestore = filestore
         self._event_bus = event_bus
+        self._command_router = command_router
 
         # Scrolled window provides scrollbars when the tree exceeds the pane size
         self.scrolled = Gtk.ScrolledWindow()
@@ -76,15 +83,26 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             print(f"Error loading root: {e}")
 
     def on_row_activated(
-        self, tree_view: Gtk.TreeView, path: Gtk.TreePath, column: Gtk.TreeViewColumn
+        self,
+        tree_view: Gtk.TreeView,
+        path: Gtk.TreePath,
+        column: Gtk.TreeViewColumn,
     ) -> None:
         """
         Triggered when a row is clicked (single click due to activate-on-single-click).
-        Toggles expansion for directories.
+        Toggles expansion for directories, opens files.
         """
-        # Use idle_add to ensure we don't interfere with the current signal emission.
-        # This prevents "double-toggle" or flickering issues.
-        GLib.idle_add(self._toggle_row_expansion, path)
+        tree_iter = self.store.get_iter(path)
+        is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
+
+        if is_dir:
+            # Use idle_add to ensure we don't interfere with the current signal
+            # emission. This prevents "double-toggle" or flickering issues.
+            GLib.idle_add(self._toggle_row_expansion, path)
+        else:
+            path_str = self.store.get_value(tree_iter, COL_PATH)
+            vault_path = VaultPath.from_str(path_str)
+            self._command_router.dispatch(OpenFile(path=vault_path))
 
     def _toggle_row_expansion(self, path: Gtk.TreePath) -> None:
         """Helper to toggle the expansion state of a row."""
