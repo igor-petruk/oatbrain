@@ -43,8 +43,10 @@ class Terminal:
 
         # §16.6 Hyperlinks: OSC 8 (app-emitted) + plain URL regex detection
         self._vte.set_allow_hyperlink(True)
+        # PCRE2_MULTILINE is required by VTE's match_add_regex
+        _PCRE2_MULTILINE = 0x00000400
         url_re = Vte.Regex.new_for_match(
-            r"https?://[^\s\]>\"')\}]+", -1, 0
+            r"https?://[^\s\]>\"')\}]+", -1, _PCRE2_MULTILINE
         )
         self._url_tag = self._vte.match_add_regex(url_re, 0)
         self._vte.match_set_cursor_name(self._url_tag, "pointer")
