@@ -99,7 +99,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
     def grab_focus(self) -> bool:
         """Override to focus the internal TreeView."""
-        return self.tree_view.grab_focus()
+        return bool(self.tree_view.grab_focus())
 
     def _update_dirty_states(self, event: StateUpdated) -> bool:
         # TODO: Implement deep update of dirty states in tree
