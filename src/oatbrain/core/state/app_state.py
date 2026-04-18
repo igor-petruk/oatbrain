@@ -29,3 +29,4 @@ class AppState:
     editor: EditorState = field(default_factory=EditorState)
     status_message: str = "Ready"
     theme_name: str = "Solarized Light"
+    theme_id: str = "solarized-light"

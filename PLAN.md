@@ -99,14 +99,14 @@ Goal: Render Markdown to HTML.
 ## Phase 7: Terminal Integration
 Goal: The built-in terminal.
 
-### Step 7.1: VTE Integration
+### Step 7.1: VTE Integration [DONE]
 - **Task**: Embed VTE terminal (§16.1).
 - **Action**:
     - Implement `ui/terminal.py` wrapping `Vte.Terminal`.
     - Set CWD to vault root.
 - **Verification**: Terminal pane opens and runs `$SHELL`.
 
-### Step 7.2: Terminal Context (OATBRAIN_*)
+### Step 7.2: Terminal Context (OATBRAIN_*) [DONE]
 - **Task**: Inject environment variables (§16.3).
 - **Action**:
     - Implement environment injection (VAULT, CURRENT_FILE, etc.).
