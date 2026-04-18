@@ -43,3 +43,16 @@ def test_toml_store_load_missing_file(tmp_path: Path) -> None:
     store = TomlStateStore(state_file)
     with pytest.raises(FileNotFoundError):
         store.load()
+
+def test_toml_store_roundtrip_no_file(tmp_path: Path) -> None:
+    state_file = tmp_path / "state_no_file.toml"
+    store = TomlStateStore(state_file)
+    
+    state = AppState(
+        vault_root=Path("/vault"),
+        editor=EditorState(open_file=None)
+    )
+    
+    store.save(state)
+    loaded = store.load()
+    assert loaded.editor.open_file is None

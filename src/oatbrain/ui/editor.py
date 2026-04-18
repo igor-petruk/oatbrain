@@ -2,8 +2,9 @@ import gi
 from typing import Optional
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("GtkSource", "5")
-from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
+from gi.repository import Gtk, Gdk, GtkSource, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
@@ -90,10 +91,12 @@ class Editor:
         provider = Gtk.CssProvider()
         css_bytes = css.encode("utf-8")
         provider.load_from_data(css_bytes, len(css_bytes))
-        # Note: Gtk.Widget.get_style_context() is available but
-        # deprecated in GTK 4.10.
-        context = self.view.get_style_context()
-        context.add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+        display = Gdk.Display.get_default()
+        if display:
+            Gtk.StyleContext.add_provider_for_display(
+                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)

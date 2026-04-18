@@ -25,13 +25,13 @@ class TomlStateStore:
                 "terminal_width": state.terminal_width,
             },
             "editor": {
-                "open_file": (
-                    str(state.editor.open_file) if state.editor.open_file else None
-                ),
                 "read_mode": state.editor.read_mode,
                 "mru": state.editor.mru,
             },
         }
+        if state.editor.open_file:
+            data["editor"]["open_file"] = str(state.editor.open_file) # type: ignore
+        
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with open(self._path, "wb") as f:
             tomli_w.dump(data, f)
