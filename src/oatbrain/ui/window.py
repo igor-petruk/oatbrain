@@ -178,14 +178,31 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             # Sync the toggle button in the header bar
             self.header_bar.terminal_toggle.set_active(True)
 
-        self.terminal_placeholder.grab_focus()
+        def _do_send() -> bool:
+            self.terminal_placeholder.grab_focus()
+            text = command.text
+            
+            # Ensure a space before return if execution requested.
+            # Workaround for some CLI prompt-submission bugs.
+            if command.execute:
+                # Strip existing \r or \n to clean up
+                clean_text = text.rstrip("\r\n")
+                if not clean_text.endswith(" "):
+                    text = clean_text + " \r"
+                elif not text.endswith("\r"):
+                    text = clean_text + "\r"
+            elif not (text.endswith("\r") or text.endswith("\n")):
+                # For non-execute, we still might want to ensure a \r if intended
+                # but let's stick to literal for now as per user instruction.
+                pass
 
-        text = command.text
-        if command.execute and not (text.endswith("\r") or text.endswith("\n")):
-            text += "\r"
+            # Send Ctrl+U (\x15) to clear the line before typing.
+            self.terminal_placeholder.send_text_throttled("\x15" + text)
+            return False
 
-        # Send Ctrl+U (\x15) to clear the line before typing.
-        self.terminal_placeholder.send_text_throttled("\x15" + text)
+        # Run on idle to ensure the palette dialog has closed and
+        # focus restoration has finished before we steal it.
+        GLib.idle_add(_do_send)
 
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
 

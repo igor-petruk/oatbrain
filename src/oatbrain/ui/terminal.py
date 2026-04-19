@@ -82,6 +82,7 @@ class Terminal:
 
     def send_text_throttled(self, text: str, delay_ms: int = 20) -> None:
         """Write text character-by-character with a delay to mimic user typing."""
+        self.grab_focus()
         chars = list(text)
 
         def _send_next() -> bool:
