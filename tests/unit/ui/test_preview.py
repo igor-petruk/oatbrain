@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 gi.require_version("WebKit", "6.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import WebKit, Gtk  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402

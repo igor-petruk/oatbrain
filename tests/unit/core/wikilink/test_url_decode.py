@@ -1,4 +1,3 @@
-from urllib.parse import quote
 from oatbrain.core.ports.filestore import VaultPath
 from oatbrain.core.wikilink.resolver import WikilinkResolver
 from typing import Iterable, Any
