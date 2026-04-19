@@ -60,7 +60,7 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
                 handlers = list(self._subscribers)
             for handler in handlers:
                 handler(event)
-            return bool(GLib.SOURCE_REMOVE)
+            return False
 
         GLib.idle_add(publish)
 

@@ -189,7 +189,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
     def _update_dirty_states(self, event: StateUpdated) -> bool:
         # TODO: Implement deep update of dirty states in tree
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _sync_with_state(self, event: StateUpdated) -> bool:
         self._sync_idle_id = None
@@ -216,7 +216,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Also update dirty states (placeholder for now)
         self._update_dirty_states(event)
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _collapse_path(self, target_path: VaultPath) -> None:
         """Finds and collapses the given path in the tree."""
@@ -338,14 +338,27 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _on_file_created(self, event: FileCreated) -> None:
         GLib.idle_add(self._handle_file_created, event.path)
 
+    def _split_rel_path(self, rel_path: str) -> tuple[str, str]:
+        """
+        Splits a vault-relative path into (parent_rel, name).
+
+        Input: "projects/oatbrain/README.md"
+        Output: ("projects/oatbrain", "README.md")
+
+        Input: "top_level.md"
+        Output: ("", "top_level.md")
+        """
+        parts = rel_path.split("/")
+        parent_rel = "/".join(parts[:-1]) if len(parts) > 1 else ""
+        name = parts[-1]
+        return parent_rel, name
+
     def _handle_file_created(self, abs_path: str) -> bool:
         rel = self._vault_rel(abs_path)
         if rel is None:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
 
-        parts = rel.split("/")
-        parent_rel = "/".join(parts[:-1]) if len(parts) > 1 else ""
-        name = parts[-1]
+        parent_rel, name = self._split_rel_path(rel)
         is_dir = not abs_path.endswith(name) or self._path_is_dir(abs_path)
 
         parent_iter = self._find_iter_for_path(parent_rel) if parent_rel else None
@@ -353,17 +366,17 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Only insert if parent is loaded (no dummy child) or we're at root
         if parent_rel:
             if parent_iter is None:
-                return bool(GLib.SOURCE_REMOVE)
+                return False
             child = self.store.iter_children(parent_iter)
             if child and self.store.get_value(child, COL_IS_DUMMY):
-                return bool(GLib.SOURCE_REMOVE)
+                return False
         else:
             # Root: always loaded
             pass
 
         # Check not already present
         if self._find_iter_for_path(rel) is not None:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
 
         icon = self._get_icon(is_dir)
         new_iter = self.store.append(
@@ -372,7 +385,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         if is_dir:
             self.store.append(new_iter, ["", "Loading...", "", True, False, False])
 
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _path_is_dir(self, abs_path: str) -> bool:
         import os
@@ -404,11 +417,11 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _handle_file_deleted(self, abs_path: str) -> bool:
         rel = self._vault_rel(abs_path)
         if rel is None:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         it = self._find_iter_for_path(rel)
         if it is not None:
             self.store.remove(it)
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _on_file_renamed(self, event: FileRenamed) -> None:
         GLib.idle_add(self._handle_file_renamed, event.old_path, event.new_path)
@@ -417,20 +430,20 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         old_rel = self._vault_rel(old_abs)
         new_rel = self._vault_rel(new_abs)
         if old_rel is None or new_rel is None:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
 
         it = self._find_iter_for_path(old_rel)
         if it is None:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
 
-        new_name = new_rel.split("/")[-1]
+        _, new_name = self._split_rel_path(new_rel)
         self.store.set_value(it, COL_NAME, new_name)
         self.store.set_value(it, COL_PATH, new_rel)
 
         # Update COL_PATH for all descendants (prefix swap)
         self._repath_descendants(it, old_rel, new_rel)
 
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _repath_descendants(
         self, it: Gtk.TreeIter, old_prefix: str, new_prefix: str

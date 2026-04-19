@@ -313,7 +313,7 @@ class Editor:
     def _apply_cmd_bar_label(self, text: str) -> bool:
         self._cmd_bar_label.set_text(text)
         self._cmd_bar_row.set_visible(bool(text))
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     # ------------------------------------------------------------------
     # Buffer & focus callbacks
@@ -367,31 +367,31 @@ class Editor:
 
     def _reload_if_clean(self, abs_path: str) -> bool:
         if self._current_path is None or self._vault_root is None:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         expected = self._vault_root / str(self._current_path)
         if Path(abs_path) != expected:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         # If the buffer has unsaved edits, don't silently overwrite them.
         if self._loading:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         start = self.buffer.get_start_iter()
         end = self.buffer.get_end_iter()
         current_text = self.buffer.get_text(start, end, True)
         try:
             content = self._filestore.read_text(self._current_path)
         except Exception:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         if content == current_text:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         # Only reload if the buffer is clean (matches what was last saved).
         if current_text != self._current_content:
-            return bool(GLib.SOURCE_REMOVE)
+            return False
         self._loading = True
         self.buffer.set_text(content)
         self._current_content = content
         self._loading = False
         self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)
@@ -483,4 +483,4 @@ class Editor:
         else:
             self._stack.set_visible_child_name("source")
 
-        return bool(GLib.SOURCE_REMOVE)
+        return False

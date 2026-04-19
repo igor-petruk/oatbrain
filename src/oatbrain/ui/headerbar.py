@@ -83,4 +83,4 @@ class HeaderBar:
             self._title_label.set_text("oatbrain")
             self._unsaved_dot.set_visible(False)
             self._readonly_lock.set_visible(False)
-        return bool(GLib.SOURCE_REMOVE)
+        return False

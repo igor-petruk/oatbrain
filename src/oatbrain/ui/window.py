@@ -347,7 +347,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.header_bar.zen_toggle.handler_block_by_func(self._on_zen_toggled)
         self.header_bar.zen_toggle.set_active(self._zen_mode)
         self.header_bar.zen_toggle.handler_unblock_by_func(self._on_zen_toggled)
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _on_mouse_motion(
         self, ctrl: Gtk.EventControllerMotion, x: float, y: float
@@ -534,7 +534,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_window.connect(
             "notify::default-height", lambda *_: self._save_state()
         )
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _update_right_paned_position(self) -> None:
         """Calculates and sets the right paned position."""

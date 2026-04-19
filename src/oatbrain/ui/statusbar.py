@@ -54,4 +54,4 @@ class StatusBar:
 
         self._word_count_label.set_text(f"{state.editor.word_count} words")
 
-        return bool(GLib.SOURCE_REMOVE)
+        return False

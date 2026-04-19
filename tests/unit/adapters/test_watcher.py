@@ -32,6 +32,10 @@ def _drain_idle(mock_idle: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_subscribe_receives_file_created(mock_glib: MagicMock) -> None:
+    """
+    User story: As a user, I want the application to detect when I create a
+    new file in my vault (e.g., via the terminal) so the file tree updates.
+    """
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -46,6 +50,10 @@ def test_subscribe_receives_file_created(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_subscribe_receives_file_deleted(mock_glib: MagicMock) -> None:
+    """
+    User story: As a user, I want the application to detect when I delete a
+    file (e.g., via 'rm') so the file tree removes the stale entry.
+    """
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -60,6 +68,10 @@ def test_subscribe_receives_file_deleted(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_subscribe_receives_file_modified(mock_glib: MagicMock) -> None:
+    """
+    User story: As a user, I want the application to detect when I edit a
+    file in an external editor so the preview and editor can auto-reload.
+    """
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -73,6 +85,10 @@ def test_subscribe_receives_file_modified(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_subscribe_receives_file_renamed(mock_glib: MagicMock) -> None:
+    """
+    User story: As a user, I want the application to detect when I rename a
+    file (e.g., via 'mv') so the file tree reflects the new name.
+    """
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -88,6 +104,10 @@ def test_subscribe_receives_file_renamed(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_directory_created_event_is_forwarded(mock_glib: MagicMock) -> None:
+    """
+    User story: As a user, I want new directories to appear in the tree
+    immediately after they are created (e.g., via 'mkdir' or 'git checkout').
+    """
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -102,6 +122,10 @@ def test_directory_created_event_is_forwarded(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_directory_modified_event_is_skipped(mock_glib: MagicMock) -> None:
+    """
+    User story: As a system, I want to ignore directory modification events
+    (timestamp updates) to avoid redundant tree refreshes.
+    """
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -114,6 +138,10 @@ def test_directory_modified_event_is_skipped(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_unsubscribe_stops_delivery(mock_glib: MagicMock) -> None:
+    """
+    User story: As a system component, I want to stop receiving file events
+    when I am destroyed to prevent memory leaks and inconsistent behavior.
+    """
     watcher = _make_watcher()
     received: list = []
     unsub = watcher.subscribe(received.append)
@@ -127,6 +155,10 @@ def test_unsubscribe_stops_delivery(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.GLib")
 def test_multiple_subscribers(mock_glib: MagicMock) -> None:
+    """
+    User story: As a developer, I want multiple components (e.g., File Tree,
+    Editor, Search) to independently observe file changes.
+    """
     watcher = _make_watcher()
     a: list = []
     b: list = []
@@ -142,6 +174,10 @@ def test_multiple_subscribers(mock_glib: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.Observer")
 def test_start_and_stop(mock_observer_cls: MagicMock) -> None:
+    """
+    User story: As an administrator, I want the file watcher service to
+    gracefully start and stop alongside the main application.
+    """
     mock_obs = MagicMock()
     mock_observer_cls.return_value = mock_obs
 
@@ -159,6 +195,10 @@ def test_start_and_stop(mock_observer_cls: MagicMock) -> None:
 
 @patch("oatbrain.adapters.watcher.Observer")
 def test_start_is_idempotent(mock_observer_cls: MagicMock) -> None:
+    """
+    User story: As a system, I want starting the watcher twice to be safe
+    and not cause multiple observation threads.
+    """
     mock_obs = MagicMock()
     mock_observer_cls.return_value = mock_obs
 
