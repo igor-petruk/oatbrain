@@ -71,9 +71,14 @@ class Terminal:
     # Public API for window shortcuts (§16.9)
     # ------------------------------------------------------------------
 
+    def _feed(self, data: str) -> None:
+        # Use explicit byte list as per GObject Introspection guidance for feed_child
+        encoded = list(data.encode("utf-8"))
+        self._vte.feed_child(encoded)
+
     def send_text(self, text: str) -> None:
         """Write text directly to the terminal's stdin (§16.9)."""
-        self._vte.feed_child(text.encode("utf-8"))
+        self._feed(text)
 
     def send_text_throttled(self, text: str, delay_ms: int = 20) -> None:
         """Write text character-by-character with a delay to mimic user typing."""
@@ -83,7 +88,7 @@ class Terminal:
             if not chars:
                 return False
             char = chars.pop(0)
-            self._vte.feed_child(char.encode("utf-8"))
+            self._feed(char)
             return True
 
         GLib.timeout_add(delay_ms, _send_next)

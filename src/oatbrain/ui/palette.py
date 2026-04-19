@@ -185,11 +185,11 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             return
 
         text = item.get_string()
-        # Find the original text (with potential newlines) from self._items
+        # Find the original text (with potential newlines/returns) from self._items
         # since item.get_string() might have been stripped.
         original_text = text
         for candidate in self._items:
-            if candidate.rstrip("\n") == text:
+            if candidate.rstrip("\n\r") == text:
                 original_text = candidate
                 break
 
