@@ -7,6 +7,8 @@ from mdit_py_plugins.subscript import sub_plugin
 from oatbrain.core.ports.filestore import FileStore, VaultPath
 from oatbrain.core.markdown.wikilink import wikilink_plugin
 from oatbrain.core.markdown.transclude import transclude_plugin
+from oatbrain.core.markdown.mark import mark_plugin
+from oatbrain.core.markdown.callout import callout_plugin
 from oatbrain.core.wikilink.resolver import WikilinkResolver
 
 
@@ -33,6 +35,8 @@ class MarkdownItRenderer:
             .use(sub_plugin)
             .use(wikilink_plugin)
             .use(transclude_plugin)
+            .use(mark_plugin)
+            .use(callout_plugin)
         )
 
     def render(self, markdown: str, from_path: VaultPath) -> str:
