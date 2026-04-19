@@ -2,7 +2,7 @@ import gi
 from typing import Callable, Optional
 
 gi.require_version("WebKit", "6.0")
-from gi.repository import WebKit, Gio, GLib  # noqa: E402
+from gi.repository import WebKit, Gio, GLib, Gdk  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
@@ -17,6 +17,7 @@ class Preview:
         self.on_wikilink_clicked: Optional[Callable[[str], None]] = None
 
         self._webview = WebKit.WebView()
+        self._webview.set_background_color(Gdk.RGBA(0, 0, 0, 0))
         self._webview.set_hexpand(True)
         self._webview.set_vexpand(True)
         self._webview.connect("load-changed", self._on_load_changed)
@@ -69,6 +70,8 @@ class Preview:
         self._pending_fraction = scroll_to
         self._theme_css = theme_css
         html = self._renderer.render(markdown, from_path)
+        # Hide the webview during load to avoid showing old content or white flashes
+        self._webview.set_opacity(0.0)
         self._webview.load_html(self._wrap_html(html, theme_css), "file:///")
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
@@ -95,12 +98,16 @@ class Preview:
         self._webview.load_html("", "file:///")
 
     def _on_load_changed(self, _wv: WebKit.WebView, event: WebKit.LoadEvent) -> None:
-        if event == WebKit.LoadEvent.FINISHED and self._pending_fraction is not None:
-            frac = self._pending_fraction
-            self._pending_fraction = None
-            if frac > 0.0:
-                # Delay slightly so layout is complete before scrolling
-                GLib.timeout_add(80, self._apply_scroll, frac)
+        if event == WebKit.LoadEvent.FINISHED:
+            # Show the webview once loading is complete
+            self._webview.set_opacity(1.0)
+
+            if self._pending_fraction is not None:
+                frac = self._pending_fraction
+                self._pending_fraction = None
+                if frac > 0.0:
+                    # Delay slightly so layout is complete before scrolling
+                    GLib.timeout_add(80, self._apply_scroll, frac)
 
     def _apply_scroll(self, frac: float) -> bool:
         script = (
