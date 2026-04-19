@@ -76,23 +76,11 @@ Goal: Edit files with syntax highlighting and Vim mode.
 
 ---
 
-## Phase 6: Markdown Preview (Read Mode)
+## Phase 6: Markdown Preview (Read Mode) [DONE]
 Goal: Render Markdown to HTML.
 
-### Step 6.1: Basic Renderer
-- **Task**: Implement `markdown-it-py` adapter (§11.2).
-- **Action**:
-    - Implement `adapters/renderer/markdown_it.py`.
-    - Support basic CommonMark and required extensions.
-- **Verification**: Unit test: Markdown string -> HTML string.
-
-### Step 6.2: WebKitGTK Preview & Toggle
-- **Task**: Show rendered HTML and implement mode toggle (§10.2, §11).
-- **Action**:
-    - Implement `ui/preview.py` wrapping `WebKitWebView`.
-    - Implement floating Edit/Read toggle buttons in the top-right of the editor pane (§8.1).
-    - Implement `Ctrl+E` toggle logic with "best-effort scroll jump".
-- **Verification**: Pressing `Ctrl+E` or clicking buttons flips between source and rendered view.
+### Step 6.1: Basic Renderer [DONE]
+### Step 6.2: WebKitGTK Preview & Toggle [DONE]
 
 ---
 
@@ -127,22 +115,13 @@ Goal: Visual identity and final touches.
 
 ---
 
-## Phase 9: Advanced Markdown & Wikilinks
+## Phase 9: Advanced Markdown & Wikilinks [DONE]
 Goal: Vault-aware rendering.
 See [WIKI_PLAN.md](WIKI_PLAN.md) for the detailed execution steps.
 
-### Step 9.1: Wikilink Resolution [IN PROGRESS]
-- **Task**: Parse and resolve `[[Name]]` (§13).
-- **Action**:
-    - Implement `core/wikilink/` logic to find targets in `FileStore`.
-    - Update Renderer to use the resolver.
-- **Verification**: Unit tests with various vault structures; Preview shows links.
+### Step 9.1: Wikilink Resolution [DONE]
+### Step 9.2: Transclusion [DONE]
 
-### Step 9.2: Transclusion
-- **Task**: Implement `![[Name]]` (§14).
-- **Action**:
-    - Update Renderer to resolve transclusions by reading via `FileStore`.
-- **Verification**: Preview shows content of embedded notes.
 
 ---
 

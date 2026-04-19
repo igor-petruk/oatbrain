@@ -7,10 +7,10 @@ Wikilinks (`[[Name]]`) and Transclusions (`![[Name]]`) transform a static Markdo
 
 ---
 
-## Phase 1: Wikilink Syntax & Core Resolution [EASY]
+## Phase 1: Wikilink Syntax & Core Resolution [DONE]
 Goal: Parse `[[Name]]` and resolve it to a vault path.
 
-### Step 1.1: Markdown-it Plugin for Wikilinks
+### Step 1.1: Markdown-it Plugin for Wikilinks [DONE]
 - **Task**: Create a custom plugin for `markdown-it-py` to recognize `[[...]]` syntax.
 - **Action**:
     - Implement a regex-based inline rule.
@@ -18,7 +18,7 @@ Goal: Parse `[[Name]]` and resolve it to a vault path.
     - Support fragments: `[[Name#Heading]]`, `[[Name#^block-id]]`.
 - **Verification**: `Renderer.render("[[Foo]]")` emits `<a class="wikilink" href="Foo">Foo</a>`.
 
-### Step 1.2: Vault Resolver Logic (§13.2)
+### Step 1.2: Vault Resolver Logic (§13.2) [DONE]
 - **Task**: Implement the `Resolver` in `core/wikilink/resolver.py`.
 - **Logic**:
     - **Name-only**: Scan vault basenames. In case of ambiguity, resolve to the file whose vault-relative path is alphabetically first (absolute resolution).
@@ -27,10 +27,10 @@ Goal: Parse `[[Name]]` and resolve it to a vault path.
 
 ---
 
-## Phase 2: Transclusion (Embeds) [MEDIUM]
+## Phase 2: Transclusion (Embeds) [IN PROGRESS]
 Goal: Inline content from other notes using `![[Name]]`.
 
-### Step 2.1: Basic Note Transclusion (§14)
+### Step 2.1: Basic Note Transclusion (§14) [DONE]
 - **Task**: Update Renderer to fetch and inline target content.
 - **Action**:
     - Detect `![[...] ]` (images vs notes).
@@ -48,10 +48,10 @@ Goal: Inline content from other notes using `![[Name]]`.
 
 ---
 
-## Phase 3: UI Integration & Navigation [EASY]
+## Phase 3: UI Integration & Navigation [DONE]
 Goal: Make links clickable and handle broken links.
 
-### Step 3.1: Preview Click Handling (§7.2, §13.3)
+### Step 3.1: Preview Click Handling (§7.2, §13.3) [DONE]
 - **Task**: Intercept link clicks in `WebKitWebView`.
 - **Action**:
     - Emit an event when a wikilink is clicked.
