@@ -25,6 +25,7 @@ class Preview:
         self._stack.set_vexpand(True)
         self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self._stack.set_transition_duration(50)  # Very fast crossfade
+        self._stack.add_css_class("oatbrain-preview")
 
         self._wv1 = self._create_webview("wv1")
         self._wv2 = self._create_webview("wv2")
@@ -201,6 +202,8 @@ class Preview:
             " background: var(--color-bg, #fff);"
             " max-width: 72ch; margin: 2em auto; padding: 0 1.5em; line-height: 1.6; }"
             "a { color: var(--color-link, #268bd2); }"
+            "img { max-width: 100%; width: 100%; height: auto; "
+            "display: block; margin: 1em 0; }"
             "code { font-family: var(--font-mono, Cousine, monospace);"
             " background: var(--color-code-bg, #f4f4f4);"
             " color: var(--color-code-fg, #333);"
