@@ -1,4 +1,3 @@
-from markdown_it import MarkdownIt
 from unittest.mock import MagicMock
 from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer
 from oatbrain.core.ports.filestore import FileStore, VaultPath

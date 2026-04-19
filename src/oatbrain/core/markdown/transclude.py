@@ -1,5 +1,5 @@
 import re
-from typing import Any, Optional
+from typing import Any
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline import StateInline
 
@@ -46,9 +46,10 @@ def extract_heading_content(content: str, heading_target: str) -> str:
     pattern = re.compile(rf"^(#+)\s+{re.escape(heading_target)}\s*$")
     
     for i, line in enumerate(lines):
-        if pattern.match(line):
+        match = pattern.match(line)
+        if match:
             start_line = i
-            level = len(pattern.match(line).group(1))
+            level = len(match.group(1))
             break
     
     if start_line == -1:
@@ -121,7 +122,10 @@ def transclude_renderer(
 
             return f'<img src="file://{abs_path}" alt="{alias}" style="{style}">'
         except Exception:
-            return f'<div class="transclusion-error">Error loading image: {target}</div>'
+            return (
+                f'<div class="transclusion-error">'
+                f"Error loading image: {target}</div>"
+            )
 
     # 2. Handle Notes
     # Check for cycles and depth
