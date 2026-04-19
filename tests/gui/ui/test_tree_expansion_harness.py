@@ -276,9 +276,7 @@ class Harness:
     def simulate_expand(self, rel_path: str) -> None:
         """Simulate user expanding a directory row."""
         it = self.tree._find_iter_for_path(rel_path)
-        assert it is not None, (
-            f"Path not in tree: {rel_path}"
-        )
+        assert it is not None, f"Path not in tree: {rel_path}"
         tree_path = self.tree.store.get_path(it)  # noqa: E501
         self.tree.tree_view.row_expanded.return_value = False
         with patch("oatbrain.ui.tree.GLib", self.glib):
@@ -288,9 +286,7 @@ class Harness:
     def simulate_collapse(self, rel_path: str) -> None:
         """Simulate user collapsing a directory row."""
         it = self.tree._find_iter_for_path(rel_path)
-        assert it is not None, (
-            f"Path not in tree: {rel_path}"
-        )
+        assert it is not None, f"Path not in tree: {rel_path}"
         tree_path = self.tree.store.get_path(it)  # noqa: E501
         self.tree.tree_view.row_expanded.return_value = True
         with patch("oatbrain.ui.tree.GLib", self.glib):
@@ -298,7 +294,9 @@ class Harness:
         self.drain()
 
     def fire_state(self, expanded: list[str]) -> None:
-        """Inject a StateUpdated with the given expanded list (external state change)."""
+        """
+        Inject a StateUpdated with the given expanded list (external state change).
+        """
         self.state_manager.tree_expanded = list(expanded)
         with patch("oatbrain.ui.tree.GLib", self.glib):
             self.state_manager._publish()
@@ -598,7 +596,7 @@ def test_B6_external_collapse_updates_ui() -> None:
 def test_C1_collapse_dir_stays_collapsed() -> None:
     """
     After collapsing 'projects', no further events must re-expand it.
-    State must stabilize with 'projects' absent from both manager and tree._expanded_state.
+    State must stabilize with 'projects' absent from manager and tree._expanded_state.
     """
     with make_harness(
         dir_map={
@@ -627,7 +625,7 @@ def test_C2_collapse_dir_with_expanded_children_stays_collapsed() -> None:
     'projects' and 'projects/sub' are both expanded. User collapses 'projects'.
     Expected: both removed from expanded, tree stays collapsed.
     Actual (buggy): 'projects/sub' remains → _sync_with_state tries to expand it
-    → must expand 'projects' first → on_row_expanded fires → adds 'projects' back → loop.
+    → must expand 'projects' first → on_row_expanded fires → adds it back → loop.
     """
     with make_harness(
         dir_map={
@@ -746,7 +744,7 @@ def test_D3_file_deleted_removes_row() -> None:
 
 def test_D4_dir_deleted_removes_from_tree_expanded() -> None:
     """
-    Deleting an expanded directory must remove it from tree_expanded in the state manager.
+    Deleting an expanded directory must remove it from tree_expanded in the manager.
     The FileDeleted handler in window.py already does this correctly.
     """
     with make_harness(

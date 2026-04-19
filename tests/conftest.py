@@ -2,12 +2,16 @@ import signal
 import pytest
 from typing import Generator
 
+
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_protocol(item: pytest.Item, nextitem: object) -> Generator[None, None, None]:
+def pytest_runtest_protocol(
+    item: pytest.Item, nextitem: object
+) -> Generator[None, None, None]:
     """
     Sets a 3-second alarm for each test to prevent hangs.
     Only works on Unix-like systems.
     """
+
     def handler(signum: int, frame: object) -> None:
         raise TimeoutError(f"Test timed out after 3 seconds: {item.nodeid}")
 
