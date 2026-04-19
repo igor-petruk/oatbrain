@@ -80,23 +80,37 @@ class Terminal:
         """Write text directly to the terminal's stdin (§16.9)."""
         self._feed(text)
 
-    def send_text_throttled(self, text: str, delay_ms: int = 100) -> None:
-        """Write text character-by-character with a delay to mimic user typing.
+    def send_text_throttled(self, text: str, delay_ms: int = 60) -> None:
+        """Write text to the terminal, batching characters but throttling Enter keys.
         
-        Using a 100ms delay to avoid being flagged as a fast-paste by CLIs 
-        like Gemini CLI (which uses a 30ms timeout).
+        Sends all non-return characters immediately, but waits for delay_ms before
+        each '\r' to bypass fast-paste detection in CLIs (e.g. Gemini CLI's 30ms limit).
         """
         self.grab_focus()
         chars = list(text)
 
-        def _send_next() -> bool:
+        def _send_next() -> None:
             if not chars:
-                return False
-            char = chars.pop(0)
-            self._feed(char)
-            return True
+                return
 
-        GLib.timeout_add(delay_ms, _send_next)
+            # Batch and send all leading non-return characters immediately
+            batch = ""
+            while chars and chars[0] != "\r":
+                batch += chars.pop(0)
+            if batch:
+                self._feed(batch)
+
+            # If the next character is a return, wait then send it
+            if chars and chars[0] == "\r":
+                chars.pop(0)
+                GLib.timeout_add(delay_ms, _trigger_return)
+
+        def _trigger_return() -> bool:
+            self._feed("\r")
+            _send_next()
+            return False
+
+        _send_next()
 
     def grab_focus(self) -> bool:
         """Focus the terminal widget."""
