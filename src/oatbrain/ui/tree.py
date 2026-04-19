@@ -1,4 +1,4 @@
-from typing import Final, Any
+from typing import Any, Final, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")

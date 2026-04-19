@@ -17,7 +17,8 @@ def test_wikilink_parsing_alias() -> None:
 def test_wikilink_parsing_fragment() -> None:
     md = MarkdownIt().use(wikilink_plugin)
     html = md.render("[[Foo#Heading]]")
-    assert '<a class="wikilink" href="oatbrain://vault/Foo#Heading">Foo#Heading</a>' in html
+    expected = '<a class="wikilink" href="oatbrain://vault/Foo#Heading">Foo#Heading</a>'
+    assert expected in html
 
 
 def test_wikilink_parsing_fragment_alias() -> None:
@@ -29,7 +30,11 @@ def test_wikilink_parsing_fragment_alias() -> None:
 def test_wikilink_parsing_block_id() -> None:
     md = MarkdownIt().use(wikilink_plugin)
     html = md.render("[[Foo#^block-id]]")
-    assert '<a class="wikilink" href="oatbrain://vault/Foo#^block-id">Foo#^block-id</a>' in html
+    expected = (
+        '<a class="wikilink" href="oatbrain://vault/Foo#^block-id">'
+        "Foo#^block-id</a>"
+    )
+    assert expected in html
 
 
 def test_wikilink_not_confused_by_regular_link() -> None:

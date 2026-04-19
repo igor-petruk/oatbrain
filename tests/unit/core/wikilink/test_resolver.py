@@ -1,6 +1,6 @@
 from typing import Iterable
 from dataclasses import dataclass
-from oatbrain.core.ports.filestore import FileStore, VaultPath, FileEntry
+from oatbrain.core.ports.filestore import VaultPath, FileEntry
 from oatbrain.core.wikilink.resolver import WikilinkResolver
 
 
@@ -54,7 +54,8 @@ def test_resolver_same_folder_priority() -> None:
     store = FakeFileStore(["folder1/foo.md", "folder2/foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
     
-    # Source is in folder2, should pick folder2/foo.md despite folder1 coming first alphabetically
+    # Source is in folder2, should pick folder2/foo.md 
+    # despite folder1 coming first alphabetically
     result = resolver.resolve("foo", VaultPath.from_str("folder2/note.md"))
     assert result is not None
     assert str(result) == "folder2/foo.md"

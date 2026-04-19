@@ -27,15 +27,25 @@ Every task MUST follow this lifecycle:
 
 ## 3. Testing & Verification ([SPEC §30](SPEC.md#30-testing-strategy))
 
+- **Universal Commands**: ALWAYS run validation via the `Makefile` using path-independent targets. NEVER pass specific file paths to test or lint commands.
+  - `make lint` — Ruff check and Mypy.
+  - `make format` — Ruff formatting.
+  - `make tach` — Architecture boundary check (via `.venv/bin/tach`).
+  - `make test` — Run all unit tests.
 - **Coverage Floor**: Maintain at least 50% overall coverage. New features MUST include unit tests for core logic.
 - **Fast First**: Prioritize unit tests over GUI/Smoke tests during development.
 - **No App Start**: Do NOT call `app.run()` or start the full application loop during automated tests. Validation should focus on unit logic and widget hierarchy without requiring a running application process. Manual verification of the UI is the responsibility of the user unless explicitly requested otherwise.
 - **Fakes over Mocks**: Prefer `tests/fakes/` (in-memory implementations) over `unittest.mock` ([SPEC §30.3](SPEC.md#303-fakes-vs-mocks)).
-- **Architecture Linting**: Run `tach check` (or the equivalent import check) to ensure boundary integrity.
+- **Architecture Linting**: Run `make tach` to ensure boundary integrity. NEVER run `tach` directly; always use the make target or `.venv/bin/tach`.
+
 
 ## 4. Operational Safety
 
 - **Git Discipline**: Never stage or commit changes unless explicitly requested.
+- **Reliable PR Creation**: To avoid shell syntax errors (e.g. from backticks or brackets in Markdown) and interactive prompts:
+  1. ALWAYS push the branch first using `git push -u origin <branch-name>`.
+  2. ALWAYS write the PR body to a temporary file (e.g., `/tmp/pr_body.md`).
+  3. Create the PR using `gh pr create --title "..." --body-file /tmp/pr_body.md`.
 - **Credential Protection**: Never log, print, or commit API keys or secrets. Check `.env` and `.gitignore`.
 - **Context Efficiency**: Combine tool calls where possible. Read only what is necessary.
 - **Explain Before Acting**: Provide a concise one-sentence explanation of intent before executing tools.

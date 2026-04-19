@@ -74,11 +74,14 @@ class WikilinkResolver:
         source_parts = str(source_path).split("/")
         source_dir = "/".join(source_parts[:-1]) if len(source_parts) > 1 else ""
         
-        def sort_key(p: VaultPath):
+        def sort_key(p: VaultPath) -> tuple[int, bool, str]:
             path_str = str(p)
             parts = path_str.split("/")
             depth = len(parts) - 1
-            is_same_folder = "/".join(parts[:-1]) == source_dir if len(parts) > 1 else source_dir == ""
+            if len(parts) > 1:
+                is_same_folder = "/".join(parts[:-1]) == source_dir
+            else:
+                is_same_folder = source_dir == ""
             return (depth, not is_same_folder, path_str)
             
         matches.sort(key=sort_key)

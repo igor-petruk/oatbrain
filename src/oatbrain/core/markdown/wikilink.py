@@ -1,8 +1,10 @@
 import re
+from typing import Any
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline import StateInline
 
-# Regex to match [[Target]], [[Target|Alias]], [[Target#Fragment]], [[Target#Fragment|Alias]]
+# Regex to match [[Target]], [[Target|Alias]], 
+# [[Target#Fragment]], [[Target#Fragment|Alias]]
 # Group 1: Target (including path and fragments)
 # Group 2: Alias (optional)
 WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
@@ -42,7 +44,9 @@ def wikilink_plugin(md: MarkdownIt) -> None:
     md.add_render_rule("wikilink", wikilink_renderer)
 
 
-def wikilink_renderer(self, tokens, idx, options, env):
+def wikilink_renderer(
+    self: Any, tokens: Any, idx: int, options: Any, env: Any
+) -> str:
     token = tokens[idx]
     label = token.content
     target_full = token.attrs.get("href", "")

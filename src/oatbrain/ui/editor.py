@@ -267,7 +267,9 @@ class Editor:
             return
         if read:
             if self._preview is not None:
-                self._preview.render(self._current_content, theme_css=self._theme_css)
+                self._preview.render(
+                    self._current_content, self._current_path, theme_css=self._theme_css
+                )
                 self._stack.set_visible_child_name("preview")
         else:
             self._stack.set_visible_child_name("source")

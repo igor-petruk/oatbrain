@@ -1,7 +1,7 @@
 import re
+from typing import Any
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline import StateInline
-from oatbrain.core.ports.filestore import VaultPath
 
 # Regex to match ![[Target]], ![[Target|Alias]]
 TRANSCLUDE_RE = re.compile(r"!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
@@ -19,7 +19,8 @@ def transclude_plugin(md: MarkdownIt) -> None:
 
         if not silent:
             target_full = match.group(1).strip()
-            # Alias is mostly ignored for note transclusion but might be used for sizing later
+            # Alias is mostly ignored for note transclusion 
+            # but might be used for sizing later
             
             token = state.push("transclusion", "div", 0)
             token.attrs = {
@@ -34,7 +35,9 @@ def transclude_plugin(md: MarkdownIt) -> None:
     md.add_render_rule("transclusion", transclude_renderer)
 
 
-def transclude_renderer(self, tokens, idx, options, env):
+def transclude_renderer(
+    self: Any, tokens: Any, idx: int, options: Any, env: Any
+) -> str:
     token = tokens[idx]
     target_full = token.attrs.get("data-target", "")
     
@@ -43,26 +46,38 @@ def transclude_renderer(self, tokens, idx, options, env):
     from_path = env.get("from_path")
     
     if not resolver or not filestore or not from_path:
-        return f'<div class="transclusion-error">Error: Missing dependencies for {target_full}</div>'
+        return (
+            '<div class="transclusion-error">'
+            f"Error: Missing dependencies for {target_full}</div>"
+        )
 
     # Handle fragments
     if "#" in target_full:
-        target, fragment = target_full.split("#", 1)
+        target, _ = target_full.split("#", 1)
     else:
-        target, fragment = target_full, ""
+        target, _ = target_full, ""
 
     # Resolve target
     target_path = resolver.resolve(target, from_path)
     if not target_path:
-        return f'<div class="transclusion-error">Broken transclusion: [[{target_full}]]</div>'
+        return (
+            '<div class="transclusion-error">'
+            f"Broken transclusion: [[{target_full}]]</div>"
+        )
 
     # Check for cycles and depth
     stack = env.get("transclude_stack", [])
     if str(target_path) in stack:
-        return f'<div class="transclusion-error">Circular transclusion detected: {target_full}</div>'
+        return (
+            '<div class="transclusion-error">'
+            f"Circular transclusion detected: {target_full}</div>"
+        )
     
     if len(stack) >= MAX_DEPTH:
-        return f'<div class="transclusion-error">Transclusion depth limit exceeded: {target_full}</div>'
+        return (
+            '<div class="transclusion-error">'
+            f"Transclusion depth limit exceeded: {target_full}</div>"
+        )
 
     # Read content
     try:
@@ -82,7 +97,10 @@ def transclude_renderer(self, tokens, idx, options, env):
     
     md = env.get("md_instance")
     if not md:
-         return f'<div class="transclusion-error">Internal error: md_instance missing</div>'
+        return (
+            '<div class="transclusion-error">'
+            "Internal error: md_instance missing</div>"
+        )
 
     # Strip frontmatter from transcluded content for cleaner look?
     # Usually Obsidian doesn't show frontmatter in embeds.
@@ -95,7 +113,8 @@ def transclude_renderer(self, tokens, idx, options, env):
     
     return (
         f'<div class="transclusion" style="border-left: 3px solid var(--color-bg-alt); '
-        'padding-left: 1em; margin: 0.5em 0; background: var(--color-bg-alt, rgba(0,0,0,0.05));">'
-        f'{rendered_content}'
-        '</div>'
+        "padding-left: 1em; margin: 0.5em 0; "
+        'background: var(--color-bg-alt, rgba(0,0,0,0.05));">'
+        f"{rendered_content}"
+        "</div>"
     )
