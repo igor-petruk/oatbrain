@@ -44,6 +44,7 @@ from concurrent.futures import ThreadPoolExecutor  # noqa: E402
 import urllib.request  # noqa: E402
 from oatbrain.core.events.mermaid import MermaidFetchResult  # noqa: E402
 
+
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
     """Main application shell using Libadwaita."""
 
@@ -241,8 +242,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         if not self._mermaid_banner:
             self._mermaid_banner = Adw.Banner.new(
-                "Mermaid support requires an internet connection to download its library once. "
-                "Diagrams will not render."
+                "Mermaid support requires an internet connection to download "
+                "its library once. Diagrams will not render."
             )
             self._mermaid_banner.set_button_label("Dismiss")
             self._mermaid_banner.connect(
@@ -255,7 +256,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._mermaid_banner.set_revealed(True)
 
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
-
         GLib.idle_add(self._apply_zen_toggle)
 
     def _apply_zen_toggle(self) -> bool:

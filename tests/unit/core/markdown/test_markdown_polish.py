@@ -32,7 +32,7 @@ def test_markdown_polish_features() -> None:
     resolver.resolve.return_value = image_path
     # LocalFileStore has _get_path, mock it specifically
     filestore._get_path = MagicMock(return_value="/vault/image.png")
-    
+
     html = renderer.render("![[image.png|300]]", path)
     assert '<img src="file:///vault/image.png" alt="300" style="width: 300px;">' in html
 
@@ -40,7 +40,7 @@ def test_markdown_polish_features() -> None:
     target_path = VaultPath.from_str("target.md")
     resolver.resolve.return_value = target_path
     filestore.read_text.return_value = "# Header\nContent\n## Sub\nSubcontent\n# Next"
-    
+
     # Transclude just ## Sub
     html = renderer.render("![[target#Sub]]", path)
     assert "Subcontent" in html

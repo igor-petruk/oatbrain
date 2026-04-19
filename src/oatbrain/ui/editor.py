@@ -64,9 +64,9 @@ class Editor:
         self.view.add_css_class("oatbrain-editor")
 
         if vim_enabled:
-            self._vim_context: Optional[GtkSource.VimIMContext] = (
-                GtkSource.VimIMContext.new()
-            )
+            self._vim_context: Optional[
+                GtkSource.VimIMContext
+            ] = GtkSource.VimIMContext.new()
             self._vim_key_ctrl = Gtk.EventControllerKey.new()
             self._vim_key_ctrl.set_im_context(self._vim_context)
             self._vim_key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)

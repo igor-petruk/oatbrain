@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from oatbrain.core.ports.env import Env
 
 
 class StdlibEnv:

@@ -1,4 +1,5 @@
 from markdown_it import MarkdownIt
+from typing import Any, cast
 from mdit_py_plugins.front_matter import front_matter_plugin
 from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
@@ -40,19 +41,27 @@ class MarkdownItRenderer:
         )
         self._md.add_render_rule("fence", self._render_mermaid)
 
-    def _render_mermaid(self, tokens, idx, options, env) -> str:
+    def _render_mermaid(
+        self,
+        tokens: list[object],
+        idx: int,
+        options: dict[str, object],
+        env: dict[str, object],
+    ) -> str:
         token = tokens[idx]
-        if token.info == "mermaid":
+        # In markdown-it-py, fenced code blocks have 'info' as their language
+        if hasattr(token, "info") and token.info == "mermaid":
             import html
 
-            content = html.escape(token.content)
+            content = html.escape(token.content)  # type: ignore
             return (
                 '<div class="mermaid-container">'
                 f'<div class="mermaid">{content}</div>'
-                '<button class="mermaid-expand-btn" onclick="expandMermaid(this)">🔍</button>'
+                '<button class="mermaid-expand-btn" '
+                'onclick="expandMermaid(this)">🔍</button>'
                 "</div>"
             )
-        return self._md.renderer.renderToken(tokens, idx, options, env)
+        return str(cast(Any, self._md.renderer).renderToken(tokens, idx, options, env))
 
     def render(self, markdown: str, from_path: VaultPath) -> str:
         frontmatter_html = ""

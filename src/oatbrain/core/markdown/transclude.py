@@ -44,21 +44,21 @@ def extract_heading_content(content: str, heading_target: str) -> str:
     # Match heading exactly or starting with #s
     # e.g. "## Target" or "Target" if it's the text of any level heading
     pattern = re.compile(rf"^(#+)\s+{re.escape(heading_target)}\s*$")
-    
+
     for i, line in enumerate(lines):
         match = pattern.match(line)
         if match:
             start_line = i
             level = len(match.group(1))
             break
-    
+
     if start_line == -1:
-        return content # Fallback to full content if heading not found
-    
+        return content  # Fallback to full content if heading not found
+
     extracted = []
     # Skip the heading itself? Usually Obsidian includes the heading.
     extracted.append(lines[start_line])
-    
+
     for i in range(start_line + 1, len(lines)):
         line = lines[i]
         # Check if we hit another heading of same or higher level
@@ -67,7 +67,7 @@ def extract_heading_content(content: str, heading_target: str) -> str:
             if len(match.group(1)) <= level:
                 break
         extracted.append(line)
-        
+
     return "\n".join(extracted)
 
 
