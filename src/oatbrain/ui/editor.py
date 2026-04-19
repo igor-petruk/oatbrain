@@ -3,8 +3,9 @@ from typing import Optional
 from pathlib import Path
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("GtkSource", "5")
-from gi.repository import Gtk, GtkSource, GLib  # noqa: E402
+from gi.repository import Gtk, Gdk, GtkSource, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
@@ -15,6 +16,7 @@ from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
+    Zoom,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
@@ -67,6 +69,19 @@ class Editor:
         self.view.set_top_margin(8)
         self.view.add_css_class("oatbrain-editor")
 
+        # Zoom provider for Source view (§19)
+        self._zoom_provider = Gtk.CssProvider()
+        self.view.get_style_context().add_provider(
+            self._zoom_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        # Ctrl+MouseScroll zooming (§19)
+        scroll_ctrl = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.VERTICAL
+        )
+        scroll_ctrl.connect("scroll", self._on_scroll)
+        self.view.add_controller(scroll_ctrl)
+
         if vim_enabled:
             self._vim_context: Optional[
                 GtkSource.VimIMContext
@@ -98,6 +113,9 @@ class Editor:
 
             self._preview: Optional["Preview"] = Preview(renderer, self._env)
             self._preview.on_wikilink_clicked = self._on_wikilink_clicked
+            self._preview.on_zoom = lambda delta: self._command_router.dispatch(
+                Zoom("preview", delta)
+            )
         else:
             self._preview = None
 
@@ -184,6 +202,19 @@ class Editor:
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
         event_bus.subscribe(FileModified, self._on_file_modified)
+
+    def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
+        """Handle Ctrl+MouseScroll to zoom editor (§19)."""
+        event = ctrl.get_current_event()
+        if not event:
+            return False
+        modifiers = event.get_modifier_state()
+        if modifiers & Gdk.ModifierType.CONTROL_MASK:
+            # dy is positive for scroll down, negative for scroll up
+            delta = -0.1 if dy > 0 else 0.1
+            self._command_router.dispatch(Zoom("editor", delta))
+            return True
+        return False
 
     def _on_wikilink_clicked(self, target_full: str) -> None:
         if self._resolver is None or self._current_path is None:
@@ -403,6 +434,15 @@ class Editor:
     def _update_ui(self, event: StateUpdated) -> bool:
         new_path = event.state.editor.open_file
         new_read_mode = event.state.editor.read_mode
+
+        # Apply zoom (§19)
+        base_size = 13.0
+        new_size = base_size * event.state.editor.zoom
+        css = f".oatbrain-editor {{ font-size: {new_size:.1f}pt; }}"
+        self._zoom_provider.load_from_string(css)
+
+        if self._preview:
+            self._preview.set_zoom(event.state.editor.preview_zoom)
 
         self.placeholder.set_visible(new_path is None)
         is_markdown = new_path is not None and str(new_path).endswith(

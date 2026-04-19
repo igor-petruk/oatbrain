@@ -1,11 +1,16 @@
 import gi
 import os
 from pathlib import Path
+from typing import Optional
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Vte", "3.91")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gtk, Gdk, Vte, GLib, Pango, PangoCairo, Gio  # noqa: E402
+
+from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
+from oatbrain.core.events.state import StateUpdated  # noqa: E402
+from oatbrain.core.commands.ui import Zoom  # noqa: E402
 
 # Same priority list as the editor CSS font-family stack (§19).
 # Pick the first family actually installed on this system.
@@ -18,7 +23,7 @@ _PREFERRED_FONTS = [
 _FALLBACK_FONT = "Monospace"
 
 
-def _resolve_terminal_font(size_pt: int = 12) -> Pango.FontDescription:
+def _resolve_terminal_font(size_pt: int = 13) -> Pango.FontDescription:
     installed = {f.get_name() for f in PangoCairo.FontMap.get_default().list_families()}
     family = next((f for f in _PREFERRED_FONTS if f in installed), _FALLBACK_FONT)
     return Pango.FontDescription.from_string(f"{family} {size_pt}")
@@ -27,8 +32,16 @@ def _resolve_terminal_font(size_pt: int = 12) -> Pango.FontDescription:
 class Terminal:
     """VTE-based terminal pane (SPEC §16)."""
 
-    def __init__(self, vault_root: Path) -> None:
+    def __init__(
+        self,
+        vault_root: Path,
+        event_bus: Optional[EventBus] = None,
+        command_router: Optional[CommandRouter] = None,
+    ) -> None:
         self._vault_root = vault_root
+        self._event_bus = event_bus
+        self._command_router = command_router
+        self._current_zoom = 1.0
 
         self._vte = Vte.Terminal()
         self._vte.set_hexpand(True)
@@ -43,6 +56,13 @@ class Terminal:
 
         # §16.5 Font: first available from the editor's preferred font list (§19)
         self._vte.set_font(_resolve_terminal_font())
+
+        # Ctrl+MouseScroll zooming (§19)
+        scroll_ctrl = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.VERTICAL
+        )
+        scroll_ctrl.connect("scroll", self._on_scroll)
+        self._vte.add_controller(scroll_ctrl)
 
         # §16.6 Hyperlinks: OSC 8 (app-emitted) + plain URL regex detection
         self._vte.set_allow_hyperlink(True)
@@ -65,7 +85,35 @@ class Terminal:
         self.widget.set_hexpand(True)
         self.widget.set_vexpand(True)
 
+        if self._event_bus:
+            self._event_bus.subscribe(StateUpdated, self._on_state_updated)
+
         self._spawn()
+
+    def _on_state_updated(self, event: StateUpdated) -> None:
+        GLib.idle_add(self._update_zoom, event.state.terminal_zoom)
+
+    def _update_zoom(self, zoom: float) -> bool:
+        if zoom != self._current_zoom:
+            self._current_zoom = zoom
+            base_size = 13
+            new_size = int(base_size * zoom)
+            self._vte.set_font(_resolve_terminal_font(new_size))
+        return False
+
+    def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
+        """Handle Ctrl+MouseScroll to zoom terminal (§19)."""
+        event = ctrl.get_current_event()
+        if not event:
+            return False
+        modifiers = event.get_modifier_state()
+        if modifiers & Gdk.ModifierType.CONTROL_MASK:
+            if self._command_router:
+                # dy is positive for scroll down, negative for scroll up
+                delta = -0.1 if dy > 0 else 0.1
+                self._command_router.dispatch(Zoom("terminal", delta))
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Public API for window shortcuts (§16.9)
