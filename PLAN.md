@@ -154,30 +154,37 @@ Goal: Distribution-ready.
 
 ---
 
-## Phase 12: Mermaid Support
+## Phase 12: Mermaid Support [DONE]
 Goal: Offline-first diagram rendering.
-See [MERMAID_PLAN.md](MERMAID_PLAN.md) for the detailed execution steps.
 
-### Step 12.1: Asset Caching
-### Step 12.2: UI Notifications
-### Step 12.3: Renderer Integration
+### Step 12.1: Asset Caching [DONE]
+### Step 12.2: UI Notifications [DONE]
+### Step 12.3: Renderer Integration [DONE]
+- **Task**: Simplified Click-to-Toggle and Escape support.
+- **Action**: 
+    - Made Mermaid diagrams clickable to expand into modal.
+    - Removed explicit 'Expand' button widget.
+    - Added click-anywhere-to-collapse for the Mermaid modal.
+    - Added global 'Escape' key listener in preview to close the modal.
+- **Verification**: Clicking a diagram expands it; `Esc` or clicking the modal closes it.
 
 ---
 
-## Phase 13: File Watcher & Tree Expansion
+## Phase 13: File Watcher & Tree Expansion [DONE]
 Goal: Ensure the app reacts instantly to external file changes and persists the tree expansion state across sessions.
 
-### Step 13.1: Expansion State Persistence & Lazy-Load Sync
-- Add `tree_expanded` to `AppState` and update `TomlStateStore`.
-- Add `SetTreeExpanded` command and logic in `CommandRouter`.
-- Update `tree.py` to restore expansion on load, dispatch toggles, and wipe children on collapse.
+### Step 13.1: Expansion State Persistence & Lazy-Load Sync [DONE]
+### Step 13.2: Watcher Core & Adapter [DONE]
+### Step 13.3: Watcher UI Integration [DONE]
 
-### Step 13.2: Watcher Core & Adapter
-- Create `core/ports/watcher.py` and `core/events/watcher.py`.
-- Create `adapters/watcher.py` wrapping `watchdog`.
-- Wire the watcher in `app/bootstrap.py`.
+### Verification Scenarios (Tree Expansion & Watcher)
+The following scenarios are verified by `tests/gui/ui/test_tree_expansion_harness.py`:
 
-### Step 13.3: Watcher UI Integration
-- Update `CommandRouter` to handle `FileDeleted` and prune `tree_expanded`.
-- Update `tree.py` to react to file events.
-- Update `editor.py` and `CommandRouter` to handle `FileModified` auto-reloading and dirty-buffer conflict resolution.
+| Group | Category | Scenario | Result |
+|-------|----------|----------|--------|
+| **A** | **Pruning** | A1: Exact path removal; A2-A3: Recursive descendant pruning on collapse. | **PASS** |
+| **B** | **Sync** | B1: External state expansion; B6: External state collapse reflection. | **PASS** |
+| **C** | **Stability**| C1-C3: Collapse stability (no auto-re-expand loops); C5: Rapid toggle race conditions. | **PASS** |
+| **D** | **Watcher** | D1-D2: File/Dir creation adds rows; D4: Deletion prunes state; D6: Rename remaps state. | **PASS** |
+| **E** | **Load** | E1-E2: Correct expansion order and depth during app startup. | **PASS** |
+
