@@ -2,7 +2,8 @@ import gi
 from unittest.mock import MagicMock
 
 gi.require_version("WebKit", "6.0")
-from gi.repository import WebKit  # noqa: E402
+gi.require_version("Gtk", "4.0")
+from gi.repository import WebKit, Gtk  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
@@ -24,13 +25,15 @@ def dummy_path() -> VaultPath:
 # ---------------------------------------------------------------------------
 
 
-def test_preview_widget_is_webview() -> None:
+def test_preview_widget_is_stack() -> None:
     p = Preview(make_renderer())
-    assert isinstance(p.widget, WebKit.WebView)
+    # widget is now a Gtk.Stack for double-buffering
+    assert isinstance(p.widget, Gtk.Stack)
 
 
 def test_preview_widget_expands() -> None:
     p = Preview(make_renderer())
+    # The stack should expand to fill the available space
     assert p.widget.get_hexpand()
     assert p.widget.get_vexpand()
 

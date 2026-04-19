@@ -2,7 +2,8 @@ import gi
 from typing import Callable, Optional
 
 gi.require_version("WebKit", "6.0")
-from gi.repository import WebKit, Gio, GLib  # noqa: E402
+gi.require_version("Gtk", "4.0")
+from gi.repository import WebKit, Gio, GLib, Gtk, Gdk  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
@@ -16,13 +17,34 @@ class Preview:
         self._pending_fraction: Optional[float] = None
         self.on_wikilink_clicked: Optional[Callable[[str], None]] = None
 
-        self._webview = WebKit.WebView()
-        self._webview.set_hexpand(True)
-        self._webview.set_vexpand(True)
-        self._webview.connect("load-changed", self._on_load_changed)
-        self._webview.connect("decide-policy", self._on_decide_policy)
+        # --- Dual WebView setup for flicker-free swaps (Option B) ---
+        self._stack = Gtk.Stack()
+        self._stack.set_hexpand(True)
+        self._stack.set_vexpand(True)
+        self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._stack.set_transition_duration(50)  # Very fast crossfade
 
-        self.widget = self._webview
+        self._wv1 = self._create_webview("wv1")
+        self._wv2 = self._create_webview("wv2")
+
+        self._stack.add_named(self._wv1, "wv1")
+        self._stack.add_named(self._wv2, "wv2")
+
+        # Start with wv1
+        self._active_wv = self._wv1
+        self._stack.set_visible_child_name("wv1")
+
+        self.widget = self._stack
+
+    def _create_webview(self, name: str) -> WebKit.WebView:
+        wv = WebKit.WebView()
+        wv.set_hexpand(True)
+        wv.set_vexpand(True)
+        # Use transparent background to avoid white flashes
+        wv.set_background_color(Gdk.RGBA(0, 0, 0, 0))
+        wv.connect("load-changed", self._on_load_changed, name)
+        wv.connect("decide-policy", self._on_decide_policy)
+        return wv
 
     def _on_decide_policy(
         self,
@@ -38,11 +60,8 @@ class Preview:
             request = navigation_action.get_request()
             uri = request.get_uri() if request else "N/A"
 
-            # If the navigation was initiated by a user gesture,
-            # open in external browser or handle as wikilink
             if navigation_action.is_user_gesture() and uri:
                 if uri.startswith("http"):
-                    print(f"DEBUG: Intercepting external link: {uri}")
                     import subprocess
 
                     subprocess.Popen(["xdg-open", uri])
@@ -52,7 +71,6 @@ class Preview:
                     from urllib.parse import unquote
 
                     target = unquote(uri[len("oatbrain://vault/") :])
-                    print(f"DEBUG: Wikilink clicked: {target}")
                     if self.on_wikilink_clicked:
                         self.on_wikilink_clicked(target)
                     decision.ignore()
@@ -67,9 +85,11 @@ class Preview:
         theme_css: str = "",
     ) -> None:
         self._pending_fraction = scroll_to
-        self._theme_css = theme_css
         html = self._renderer.render(markdown, from_path)
-        self._webview.load_html(self._wrap_html(html, theme_css), "file:///")
+
+        # Render to the INACTIVE webview
+        self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
+        self._inactive_wv.load_html(self._wrap_html(html, theme_css), "file:///")
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
         script = (
@@ -81,35 +101,44 @@ class Preview:
 
         def _on_result(_wv: WebKit.WebView, result: Gio.AsyncResult, _ud: None) -> None:
             try:
-                js_val = self._webview.evaluate_javascript_finish(result)
+                # Always evaluate on the ACTIVE webview
+                js_val = self._active_wv.evaluate_javascript_finish(result)
                 fraction = js_val.to_double() if js_val is not None else 0.0
             except Exception:
                 fraction = 0.0
             callback(fraction)
 
-        self._webview.evaluate_javascript(
+        self._active_wv.evaluate_javascript(
             script, -1, None, None, None, _on_result, None
         )
 
     def clear(self) -> None:
-        self._webview.load_html("", "file:///")
+        self._wv1.load_html("", "file:///")
+        self._wv2.load_html("", "file:///")
 
-    def _on_load_changed(self, _wv: WebKit.WebView, event: WebKit.LoadEvent) -> None:
-        if event == WebKit.LoadEvent.FINISHED and self._pending_fraction is not None:
-            frac = self._pending_fraction
-            self._pending_fraction = None
-            if frac > 0.0:
-                # Delay slightly so layout is complete before scrolling
-                GLib.timeout_add(80, self._apply_scroll, frac)
+    def _on_load_changed(
+        self, wv: WebKit.WebView, event: WebKit.LoadEvent, name: str
+    ) -> None:
+        if event == WebKit.LoadEvent.FINISHED:
+            # If this is the one we were loading in the background, swap it in
+            if wv != self._active_wv:
+                self._active_wv = wv
+                self._stack.set_visible_child_name(name)
 
-    def _apply_scroll(self, frac: float) -> bool:
+            if self._pending_fraction is not None:
+                frac = self._pending_fraction
+                self._pending_fraction = None
+                if frac > 0.0:
+                    GLib.timeout_add(80, self._apply_scroll, wv, frac)
+
+    def _apply_scroll(self, wv: WebKit.WebView, frac: float) -> bool:
         script = (
             f"(function(){{"
             f"var h=document.documentElement.scrollHeight-window.innerHeight;"
             f"if(h>0)window.scrollTo(0,{frac}*h);"
             f"}})()"
         )
-        self._webview.evaluate_javascript(script, -1, None, None, None, None, None)
+        wv.evaluate_javascript(script, -1, None, None, None, None, None)
         return bool(GLib.SOURCE_REMOVE)
 
     @staticmethod
