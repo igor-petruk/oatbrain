@@ -422,20 +422,22 @@ class Editor:
             self._btn_source.handler_unblock_by_func(self._on_source_toggled)
 
         # Switch view
-        target_view = "preview" if new_read_mode else "source"
+        self._stack.set_visible_child_name("preview" if new_read_mode else "source")
         if new_path is None:
-            target_view = "placeholder"
-            
-        if self._stack.get_visible_child_name() != target_view:
-            self._stack.set_visible_child_name(target_view)
-
-        if new_path is not None and new_read_mode:
-            if self._preview is not None:
+            self._stack.set_visible_child_name("placeholder")
+        elif new_read_mode:
+            if self._preview is not None and new_path is not None:
                 self._preview.render(
                     self._current_content,
                     new_path,
                     scroll_to=self._scroll_fraction,
                     theme_css=self._theme_css,
                 )
+
+                self._stack.set_visible_child_name("preview")
+            else:
+                self._stack.set_visible_child_name("source")
+        else:
+            self._stack.set_visible_child_name("source")
 
         return bool(GLib.SOURCE_REMOVE)
