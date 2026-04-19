@@ -41,7 +41,7 @@ class MarkdownItRenderer:
         if markdown.startswith("---"):
             parts = markdown.split("---", 2)
             if len(parts) >= 3:
-                import yaml  # type: ignore[import-untyped]
+                import yaml
 
                 try:
                     fm = yaml.safe_load(parts[1])
