@@ -49,7 +49,9 @@ class Preview:
                     decision.ignore()
                     return True
                 elif uri.startswith("oatbrain://vault/"):
-                    target = uri[len("oatbrain://vault/") :]
+                    from urllib.parse import unquote
+
+                    target = unquote(uri[len("oatbrain://vault/") :])
                     print(f"DEBUG: Wikilink clicked: {target}")
                     if self.on_wikilink_clicked:
                         self.on_wikilink_clicked(target)
