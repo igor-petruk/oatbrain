@@ -60,9 +60,9 @@ class Editor:
         self.view.add_css_class("oatbrain-editor")
 
         if vim_enabled:
-            self._vim_context: Optional[
-                GtkSource.VimIMContext
-            ] = GtkSource.VimIMContext.new()
+            self._vim_context: Optional[GtkSource.VimIMContext] = (
+                GtkSource.VimIMContext.new()
+            )
             self._vim_key_ctrl = Gtk.EventControllerKey.new()
             self._vim_key_ctrl.set_im_context(self._vim_context)
             self._vim_key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -188,11 +188,11 @@ class Editor:
         else:
             # Simple rule: create next to current note
             new_filename = target if target.endswith(".md") else f"{target}.md"
-            
+
             # If target has folders, it might be path-bearing
             if "/" in new_filename:
-                 # Vault-relative creation
-                 new_path = VaultPath.from_str(new_filename)
+                # Vault-relative creation
+                new_path = VaultPath.from_str(new_filename)
             else:
                 # File-relative creation
                 parent = self._current_path.parent
@@ -200,7 +200,7 @@ class Editor:
                     new_path = VaultPath.from_str(f"{parent}/{new_filename}")
                 else:
                     new_path = VaultPath.from_str(new_filename)
-            
+
             # Create the file
             try:
                 self._filestore.write_text(new_path, f"# {target}\n")

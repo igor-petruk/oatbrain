@@ -41,7 +41,7 @@ class MarkdownItRenderer:
         if markdown.startswith("---"):
             parts = markdown.split("---", 2)
             if len(parts) >= 3:
-                import yaml
+                import yaml  # type: ignore[import-untyped]
 
                 try:
                     fm = yaml.safe_load(parts[1])
@@ -57,7 +57,7 @@ class MarkdownItRenderer:
                             frontmatter_html += (
                                 '<h1 style="margin-top:0; font-size: 1.5em; '
                                 'font-family: var(--font-sans, sans-serif);">'
-                                f'{fm["title"]}</h1>'
+                                f"{fm['title']}</h1>"
                             )
                             del fm["title"]
 

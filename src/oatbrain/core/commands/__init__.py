@@ -7,4 +7,5 @@ from .ui import ToggleTree, ToggleTerminal, SendToTerminal
 class OpenFile:
     path: VaultPath
 
+
 __all__ = ["OpenFile", "ToggleTree", "ToggleTerminal", "SendToTerminal"]

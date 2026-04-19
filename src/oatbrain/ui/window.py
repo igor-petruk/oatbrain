@@ -184,7 +184,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         def _do_send() -> bool:
             self.terminal_placeholder.grab_focus()
             text = command.text
-            
+
             # Ensure a space before return if execution requested.
             # Workaround for some CLI prompt-submission bugs.
             if command.execute:

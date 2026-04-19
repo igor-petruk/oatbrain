@@ -31,7 +31,7 @@ class FakeFileStore:
 def test_resolver_simple_name() -> None:
     store = FakeFileStore(["foo.md", "bar.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     result = resolver.resolve("foo", VaultPath.from_str("note.md"))
     assert result is not None
     assert str(result) == "foo.md"
@@ -42,7 +42,7 @@ def test_resolver_ambiguous_name_prefers_root() -> None:
     # Alphabetical order would pick folder1/foo.md
     store = FakeFileStore(["folder1/foo.md", "foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     result = resolver.resolve("foo", VaultPath.from_str("other_folder/note.md"))
     assert result is not None
     # depth-based sorting: foo.md (depth 0) comes before folder1/foo.md (depth 1)
@@ -53,8 +53,8 @@ def test_resolver_same_folder_priority() -> None:
     # Multiple files with same basename, one IS in same folder as source
     store = FakeFileStore(["folder1/foo.md", "folder2/foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
-    # Source is in folder2, should pick folder2/foo.md 
+
+    # Source is in folder2, should pick folder2/foo.md
     # despite folder1 coming first alphabetically
     result = resolver.resolve("foo", VaultPath.from_str("folder2/note.md"))
     assert result is not None
@@ -65,7 +65,7 @@ def test_resolver_root_relative_via_slash() -> None:
     # Explicitly ask for root using leading slash
     store = FakeFileStore(["folder1/foo.md", "foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     # Even if source is in folder1, /foo should resolve to root foo.md
     result = resolver.resolve("/foo", VaultPath.from_str("folder1/note.md"))
     assert result is not None
@@ -75,7 +75,7 @@ def test_resolver_root_relative_via_slash() -> None:
 def test_resolver_vault_relative_path() -> None:
     store = FakeFileStore(["folder/foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     result = resolver.resolve("folder/foo", VaultPath.from_str("note.md"))
     assert result is not None
     assert str(result) == "folder/foo.md"
@@ -84,7 +84,7 @@ def test_resolver_vault_relative_path() -> None:
 def test_resolver_file_relative_path() -> None:
     store = FakeFileStore(["folder/sub/foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     # linking from folder/other.md to sub/foo
     result = resolver.resolve("sub/foo", VaultPath.from_str("folder/other.md"))
     assert result is not None
@@ -94,7 +94,7 @@ def test_resolver_file_relative_path() -> None:
 def test_resolver_dot_dot_relative_path() -> None:
     store = FakeFileStore(["folder/foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     # linking from folder/sub/note.md to ../foo
     result = resolver.resolve("../foo", VaultPath.from_str("folder/sub/note.md"))
     assert result is not None
@@ -104,6 +104,6 @@ def test_resolver_dot_dot_relative_path() -> None:
 def test_resolver_unresolved() -> None:
     store = FakeFileStore(["foo.md"])
     resolver = WikilinkResolver(store)  # type: ignore
-    
+
     result = resolver.resolve("missing", VaultPath.from_str("note.md"))
     assert result is None

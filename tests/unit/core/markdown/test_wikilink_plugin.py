@@ -31,8 +31,7 @@ def test_wikilink_parsing_block_id() -> None:
     md = MarkdownIt().use(wikilink_plugin)
     html = md.render("[[Foo#^block-id]]")
     expected = (
-        '<a class="wikilink" href="oatbrain://vault/Foo#^block-id">'
-        "Foo#^block-id</a>"
+        '<a class="wikilink" href="oatbrain://vault/Foo#^block-id">Foo#^block-id</a>'
     )
     assert expected in html
 

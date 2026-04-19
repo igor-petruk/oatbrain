@@ -19,9 +19,9 @@ def transclude_plugin(md: MarkdownIt) -> None:
 
         if not silent:
             target_full = match.group(1).strip()
-            # Alias is mostly ignored for note transclusion 
+            # Alias is mostly ignored for note transclusion
             # but might be used for sizing later
-            
+
             token = state.push("transclusion", "div", 0)
             token.attrs = {
                 "class": "transclusion",
@@ -40,11 +40,11 @@ def transclude_renderer(
 ) -> str:
     token = tokens[idx]
     target_full = token.attrs.get("data-target", "")
-    
+
     resolver = env.get("resolver")
     filestore = env.get("filestore")
     from_path = env.get("from_path")
-    
+
     if not resolver or not filestore or not from_path:
         return (
             '<div class="transclusion-error">'
@@ -72,7 +72,7 @@ def transclude_renderer(
             '<div class="transclusion-error">'
             f"Circular transclusion detected: {target_full}</div>"
         )
-    
+
     if len(stack) >= MAX_DEPTH:
         return (
             '<div class="transclusion-error">'
@@ -89,17 +89,16 @@ def transclude_renderer(
     new_stack = stack + [str(from_path)]
     new_env = env.copy()
     new_env["transclude_stack"] = new_stack
-    new_env["from_path"] = target_path # Update context for links inside transclusion
-    
+    new_env["from_path"] = target_path  # Update context for links inside transclusion
+
     # Note: we use self (the renderer) to call md.render via the options or similar?
     # Actually, MarkdownIt instance is available in self? No.
     # But we can get it from env if we put it there.
-    
+
     md = env.get("md_instance")
     if not md:
         return (
-            '<div class="transclusion-error">'
-            "Internal error: md_instance missing</div>"
+            '<div class="transclusion-error">Internal error: md_instance missing</div>'
         )
 
     # Strip frontmatter from transcluded content for cleaner look?
@@ -110,7 +109,7 @@ def transclude_renderer(
             content = parts[2]
 
     rendered_content = md.render(content, env=new_env)
-    
+
     return (
         f'<div class="transclusion" style="border-left: 3px solid var(--color-bg-alt); '
         "padding-left: 1em; margin: 0.5em 0; "

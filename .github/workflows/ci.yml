@@ -40,6 +40,7 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install tach
           make lint
+          make tach
 
   test-unit:
     runs-on: ubuntu-latest

@@ -15,5 +15,4 @@ class AppConfig:
 
 
 class ConfigStore(Protocol):
-    def load(self) -> AppConfig:
-        ...
+    def load(self) -> AppConfig: ...

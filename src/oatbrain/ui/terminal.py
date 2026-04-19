@@ -82,7 +82,7 @@ class Terminal:
 
     def send_text_throttled(self, text: str, delay_ms: int = 60) -> None:
         """Write text to the terminal, batching characters but throttling Enter keys.
-        
+
         Sends all non-return characters immediately, but waits for delay_ms before
         each '\r' to bypass fast-paste detection in CLIs (e.g. Gemini CLI's 30ms limit).
         """

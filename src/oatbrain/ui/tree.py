@@ -178,7 +178,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             self._last_synced_path = open_path
             if open_path:
                 self._reveal_path(open_path)
-        
+
         # Also update dirty states (placeholder for now)
         self._update_dirty_states(event)
         return bool(GLib.SOURCE_REMOVE)
@@ -187,15 +187,15 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         """Finds, expands, and selects the given path in the tree."""
         path_str = str(target_path)
         parts = path_str.split("/")
-        
+
         current_iter = None
         accumulated = ""
-        
+
         for i, part in enumerate(parts):
             if i > 0:
                 accumulated += "/"
             accumulated += part
-            
+
             found = False
             child_iter = self.store.iter_children(current_iter)
             while child_iter:
@@ -203,7 +203,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                 if row_path == accumulated:
                     current_iter = child_iter
                     found = True
-                    
+
                     # If this is a directory and not the final file, expand it
                     is_dir = self.store.get_value(current_iter, COL_IS_DIR)
                     if is_dir and i < len(parts) - 1:
@@ -212,7 +212,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                         self.tree_view.expand_row(tree_path, False)
                     break
                 child_iter = self.store.iter_next(child_iter)
-            
+
             if not found:
                 return
 
