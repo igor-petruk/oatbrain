@@ -67,15 +67,13 @@ def test_temp_rename_emits_file_modified_not_renamed(mock_glib: MagicMock) -> No
     received: list = []
     watcher.subscribe(received.append)
 
-    watcher.on_moved(
-        FileMovedEvent("/vault/1/.abc123.oatbrain.tmp", "/vault/1/yo.md")
-    )
+    watcher.on_moved(FileMovedEvent("/vault/1/.abc123.oatbrain.tmp", "/vault/1/yo.md"))
     _drain_idle(mock_glib)
 
     assert len(received) == 1
-    assert isinstance(received[0], FileModified), (
-        f"Expected FileModified but got {type(received[0])}"
-    )
+    assert isinstance(
+        received[0], FileModified
+    ), f"Expected FileModified but got {type(received[0])}"
     assert received[0].path == "/vault/1/yo.md"
 
 
@@ -113,13 +111,9 @@ def test_full_atomic_save_sequence_emits_only_file_modified(
     _drain_idle(mock_glib)
 
     # Step 2: os.replace renames temp → target
-    watcher.on_moved(
-        FileMovedEvent("/vault/1/.abc123.oatbrain.tmp", "/vault/1/yo.md")
-    )
+    watcher.on_moved(FileMovedEvent("/vault/1/.abc123.oatbrain.tmp", "/vault/1/yo.md"))
     _drain_idle(mock_glib)
 
-    assert len(received) == 1, (
-        f"Expected 1 event but got {len(received)}: {received}"
-    )
+    assert len(received) == 1, f"Expected 1 event but got {len(received)}: {received}"
     assert isinstance(received[0], FileModified)
     assert received[0].path == "/vault/1/yo.md"

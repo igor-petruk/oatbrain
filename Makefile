@@ -17,7 +17,7 @@ tach:
 	.venv/bin/tach check
 
 test:
-	xvfb-run -a python3 -m pytest tests/unit
+	python3 -m pytest tests/unit
 
 test-gui:
-	xvfb-run -a python3 -m pytest tests/gui
+	GDK_BACKEND=x11 xvfb-run -a python3 -m pytest tests/gui

@@ -192,7 +192,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         if command.is_expanded and command.path not in expanded:
             expanded.append(command.path)
         elif not command.is_expanded and command.path in expanded:
-            expanded.remove(command.path)
+            # Prune exact path and all its descendants
+            prefix = command.path + "/"
+            expanded = [
+                p for p in expanded if p != command.path and not p.startswith(prefix)
+            ]
 
         self._state = replace(self._state, tree_expanded=expanded)
         self._event_bus.publish(StateUpdated(self._state))
@@ -312,8 +316,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 "button-clicked",
                 lambda *_: self._command_router.dispatch(DismissMermaidWarning()),
             )
-            # Add to the top of ToolbarView
-            self.toolbar_view.add_top_bar(self._mermaid_banner)
+            # Add to the top of ToolbarView if it exists
+            if hasattr(self, "toolbar_view"):
+                self.toolbar_view.add_top_bar(self._mermaid_banner)
 
         self._mermaid_banner.set_revealed(True)
 

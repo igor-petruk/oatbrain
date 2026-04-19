@@ -110,9 +110,9 @@ def test_stale_state_updated_does_not_re_expand_collapsed_dir() -> None:
     tree._sync_with_state(collapsed_event)
 
     # Confirm: _expanded_state reflects the collapsed state, not the stale one
-    assert tree._expanded_state == set(), (
-        f"_expanded_state should be empty after collapse, got {tree._expanded_state}"
-    )
+    assert (
+        tree._expanded_state == set()
+    ), f"_expanded_state should be empty after collapse, got {tree._expanded_state}"
 
 
 def test_only_latest_state_updated_is_processed() -> None:
@@ -167,9 +167,9 @@ def test_dir_created_event_is_forwarded(mock_glib: MagicMock) -> None:
     for args in mock_glib.idle_add.call_args_list:
         args[0][0]()
 
-    assert len(received) == 1, (
-        "DirCreatedEvent must produce exactly one FileCreated notification"
-    )
+    assert (
+        len(received) == 1
+    ), "DirCreatedEvent must produce exactly one FileCreated notification"
     assert isinstance(received[0], FileCreated)
     assert received[0].path == "/vault/oatbar"
 

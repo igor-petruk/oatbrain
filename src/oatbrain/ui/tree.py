@@ -57,6 +57,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Model: [Icon, Name, Path, IsDummy, IsDir, IsDirty]
         self.store = Gtk.TreeStore(str, str, str, bool, bool, bool)
+        self.store.set_sort_func(COL_NAME, self._compare_rows)
+        self.store.set_sort_column_id(COL_NAME, Gtk.SortType.ASCENDING)
+
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
         self.tree_view.add_css_class("oatbrain-filetree")
@@ -194,7 +197,13 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Apply expansion state on initial sync or if it changes externally
         if self._expanded_state != new_expanded:
+            to_collapse = self._expanded_state - new_expanded
             self._expanded_state = new_expanded
+
+            # Collapse those that were removed
+            for path_str in to_collapse:
+                self._collapse_path(VaultPath.from_str(path_str))
+
             # Sort by path depth to expand parents before children
             for path_str in sorted(new_expanded, key=lambda p: p.count("/")):
                 self._expand_path(VaultPath.from_str(path_str))
@@ -208,6 +217,14 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Also update dirty states (placeholder for now)
         self._update_dirty_states(event)
         return bool(GLib.SOURCE_REMOVE)
+
+    def _collapse_path(self, target_path: VaultPath) -> None:
+        """Finds and collapses the given path in the tree."""
+        path_str = str(target_path)
+        it = self._find_iter_for_path(path_str)
+        if it:
+            tree_path = self.store.get_path(it)
+            self.tree_view.collapse_row(tree_path)
 
     def _expand_path(self, target_path: VaultPath) -> None:
         """Finds and expands the given path in the tree without selecting it."""
@@ -355,7 +372,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         if is_dir:
             self.store.append(new_iter, ["", "Loading...", "", True, False, False])
 
-        self._sort_children(parent_iter)
         return bool(GLib.SOURCE_REMOVE)
 
     def _path_is_dir(self, abs_path: str) -> bool:
@@ -363,21 +379,24 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         return os.path.isdir(abs_path)
 
-    def _sort_children(self, parent_iter: Optional[Gtk.TreeIter]) -> None:
-        """Re-sort children of parent_iter: dirs first, then alpha."""
-        rows: list[list[Any]] = []
-        child = self.store.iter_children(parent_iter)
-        while child:
-            rows.append([self.store.get_value(child, c) for c in range(6)])
-            child = self.store.iter_next(child)
-        if not rows:
-            return
-        rows.sort(key=lambda r: (not r[COL_IS_DIR], r[COL_NAME].lower()))
-        child = self.store.iter_children(parent_iter)
-        for row in rows:
-            for col, val in enumerate(row):
-                self.store.set_value(child, col, val)
-            child = self.store.iter_next(child)
+    def _compare_rows(
+        self, model: Gtk.TreeModel, iter1: Gtk.TreeIter, iter2: Gtk.TreeIter, data: Any
+    ) -> int:
+        """Custom sort: directories first, then alphabetical name."""
+        is_dir1 = model.get_value(iter1, COL_IS_DIR)
+        is_dir2 = model.get_value(iter2, COL_IS_DIR)
+
+        if is_dir1 != is_dir2:
+            return -1 if is_dir1 else 1
+
+        name1 = str(model.get_value(iter1, COL_NAME)).lower()
+        name2 = str(model.get_value(iter2, COL_NAME)).lower()
+
+        if name1 < name2:
+            return -1
+        if name1 > name2:
+            return 1
+        return 0
 
     def _on_file_deleted(self, event: FileDeleted) -> None:
         GLib.idle_add(self._handle_file_deleted, event.path)
@@ -411,8 +430,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Update COL_PATH for all descendants (prefix swap)
         self._repath_descendants(it, old_rel, new_rel)
 
-        parent_iter = self.store.iter_parent(it)
-        self._sort_children(parent_iter)
         return bool(GLib.SOURCE_REMOVE)
 
     def _repath_descendants(
