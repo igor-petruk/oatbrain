@@ -36,6 +36,7 @@ Every task MUST follow this lifecycle:
 - **Pre-Push Gate**: NEVER push changes to the repository unless the entire validation pipeline (`make lint && make tach && make test-gui && make test`) passes.
 - **No Manual Formatting**: Do NOT manually format code or use AI-generated formatting. Always invoke `make format` to ensure consistency with project standards.
 - **Mandatory Coverage**: Any code change or new feature MUST be accompanied by a unit test. A change is incomplete without verification logic that prevents future regressions.
+- **Exception Reproduction**: If a user reports an application runtime exception (e.g., Python tracebacks, AttributeError, TypeError), you MUST first reproduce the failure with a new unit test before applying any fix. This ensures the bug is caught and prevented from recurring.
 - **Reproduction Mandate**: For bug fixes, you MUST include a unit test that reproduces the failure before applying the fix.
 - **Dependency Mandate**: ALL dependencies installable via Debian MUST be used via the system-packaged versions. Only `tach` is permitted in a virtual environment.
 - **Coverage Floor**: Maintain at least 50% overall coverage. New features MUST include unit tests for core logic.
