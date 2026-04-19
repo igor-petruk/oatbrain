@@ -784,6 +784,8 @@ vault:
 
 ## 15. Mermaid
 
+## 15. Mermaid
+
 ### 15.1 Library caching
 
 - `mermaid.js` is fetched from CDN in the background on startup.
@@ -793,7 +795,10 @@ vault:
 - If the user dismisses the banner, the state is persisted and they are not
   notified again.
 - Rendering is done inside the WebKitGTK preview (WebKit runs the JS).
-- (See [MERMAID_PLAN.md](MERMAID_PLAN.md) for implementation details).
+- Mermaid diagrams are wrapped in a container providing an "Expand" button (🔍)
+  which opens the diagram in a full-window centered modal view.
+- Diagrams are theme-aware, switching between 'dark' and 'default' mermaid
+  themes based on the active application theme.
 
 ### 15.2 Diagram types
 
@@ -802,6 +807,26 @@ mermaid emits an error, the error text is displayed inline where the diagram
 would be.
 
 ### 15.3 Live preview
+
+Mermaid is rendered only in read mode. There is no live-while-typing preview.
+
+### 15.4 Theme
+
+Mermaid is initialized with `{theme: 'dark'}` when a dark theme is active,
+and `{theme: 'default'}` otherwise. Diagram background matches the active
+theme's `--color-bg`.
+
+### 15.5 User actions
+
+- Click-to-enlarge: opens a modal with a larger rendered SVG. The diagram is
+  centered and scrollable if it exceeds the viewport dimensions.
+- Right-click → Save as SVG / PNG / PDF. Right-click → Copy as image.
+- Implementation note: export uses mermaid's own SVG output; rasterization
+  to PNG/PDF is via WebKit's print-to-file, not a separate library.
+
+### 15.6 Other diagram dialects
+
+PlantUML, D2, Graphviz — deferred beyond MVP.
 
 Mermaid is rendered only in read mode. There is no live-while-typing preview.
 
