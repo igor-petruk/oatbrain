@@ -49,9 +49,10 @@ Every task MUST follow this lifecycle:
 ## 4. Operational Safety
 
 - **Git Discipline**: Never stage or commit changes unless explicitly requested.
-- **Reliable PR Creation**: To avoid shell syntax errors (e.g. from backticks or brackets in Markdown) and interactive prompts:
+- **No Interactive Prompts**: NEVER run commands that require interactive user input (e.g., `gh pr create` without pushing the branch first).
+- **Reliable PR Creation**: To avoid interactive prompts and shell syntax errors:
   1. ALWAYS push the branch first using `git push -u origin <branch-name>`.
-  2. ALWAYS write the PR body to a temporary file (e.g., `/tmp/pr_body.md`).
+  2. ALWAYS write the PR body to a temporary file using the Write File tool (e.g., `/tmp/pr_body.md`). Do NOT use `echo` or inline strings for PR descriptions.
   3. Create the PR using `gh pr create --title "..." --body-file /tmp/pr_body.md`.
 - **Credential Protection**: Never log, print, or commit API keys or secrets. Check `.env` and `.gitignore`.
 - **Context Efficiency**: Combine tool calls where possible. Read only what is necessary.
