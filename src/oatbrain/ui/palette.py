@@ -185,23 +185,34 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
             return
 
         text = item.get_string()
+        # Find the original text (with potential newlines) from self._items
+        # since item.get_string() might have been stripped.
+        original_text = text
+        for candidate in self._items:
+            if candidate.rstrip("\n") == text:
+                original_text = candidate
+                break
+
         prefix = self._current_prefix
 
         if prefix == "" or prefix == "%" or prefix == "#":
             # Files, Text, Tags results are often file paths or contain file paths.
             # For tags/text we need to extract the path.
-            path_str = text.split(":")[0] if ":" in text else text
+            if ":" in original_text:
+                path_str = original_text.split(":")[0]
+            else:
+                path_str = original_text
             self._command_router.dispatch(OpenFile(VaultPath.from_str(path_str)))
         elif prefix == ">":
             # Execute app command
             for cmd_instance, name in self._command_router.list_commands():
-                if name == text:
+                if name == original_text:
                     self._command_router.dispatch(cmd_instance)
                     break
         elif prefix == "/":
-            self._paste_to_terminal(text)
+            self._paste_to_terminal(original_text)
         elif prefix == "!":
-            self._execute_shell(text)
+            self._execute_shell(original_text)
 
         self.close()
 
@@ -241,8 +252,11 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         # Clear model
         while self.model.get_n_items() > 0:
             self.model.remove(0)
+        # Strip trailing newlines for display in the palette list
+        display_items = [item.rstrip("\n") for item in filtered_items]
+
         # Add items
-        for item in filtered_items:
+        for item in display_items:
             self.model.append(item)
 
         # Auto-select first item
