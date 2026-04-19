@@ -25,3 +25,8 @@ class SendToTerminal:
 
     text: str
     execute: bool = False
+
+
+@dataclass(frozen=True)
+class DismissMermaidWarning:
+    """Dismiss the mermaid.js fetch failure warning."""

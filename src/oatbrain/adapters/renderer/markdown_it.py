@@ -38,6 +38,21 @@ class MarkdownItRenderer:
             .use(mark_plugin)
             .use(callout_plugin)
         )
+        self._md.add_render_rule("fence", self._render_mermaid)
+
+    def _render_mermaid(self, tokens, idx, options, env) -> str:
+        token = tokens[idx]
+        if token.info == "mermaid":
+            import html
+
+            content = html.escape(token.content)
+            return (
+                '<div class="mermaid-container">'
+                f'<div class="mermaid">{content}</div>'
+                '<button class="mermaid-expand-btn" onclick="expandMermaid(this)">🔍</button>'
+                "</div>"
+            )
+        return self._md.renderer.renderToken(tokens, idx, options, env)
 
     def render(self, markdown: str, from_path: VaultPath) -> str:
         frontmatter_html = ""

@@ -32,6 +32,9 @@ Every task MUST follow this lifecycle:
   - `make format` — Ruff formatting (system python3).
   - `make tach` — Architecture boundary check (via `.venv/bin/tach`).
   - `make test` — Run all unit tests (system python3).
+- **Exclusivity**: All tests and validation MUST be run through the `Makefile` (e.g., `make test`, `make lint`). Do NOT run `pytest` or other tools directly.
+- **Mandatory Coverage**: Any code change or new feature MUST be accompanied by a unit test. A change is incomplete without verification logic that prevents future regressions.
+- **Reproduction Mandate**: For bug fixes, you MUST include a unit test that reproduces the failure before applying the fix.
 - **Dependency Mandate**: ALL dependencies installable via Debian MUST be used via the system-packaged versions. Only `tach` is permitted in a virtual environment.
 - **Coverage Floor**: Maintain at least 50% overall coverage. New features MUST include unit tests for core logic.
 - **Fast First**: Prioritize unit tests over GUI/Smoke tests during development.

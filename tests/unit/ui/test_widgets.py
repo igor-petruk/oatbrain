@@ -45,7 +45,8 @@ def test_editor_instantiation() -> None:
     filestore = MagicMock(spec=FileStore)
     event_bus = EventBus()
     command_router = CommandRouter()
-    editor = Editor(filestore, event_bus, command_router)
+    env = MagicMock()
+    editor = Editor(filestore, event_bus, command_router, env)
     assert isinstance(editor.widget, Gtk.Box)
     assert isinstance(editor.view, GtkSource.View)
     assert isinstance(editor.overlay, Gtk.Overlay)
@@ -55,7 +56,8 @@ def test_editor_vim_context_enabled() -> None:
     filestore = MagicMock(spec=FileStore)
     event_bus = EventBus()
     command_router = CommandRouter()
-    editor = Editor(filestore, event_bus, command_router, vim_enabled=True)
+    env = MagicMock()
+    editor = Editor(filestore, event_bus, command_router, env, vim_enabled=True)
     assert editor._vim_context is not None
     assert isinstance(editor._vim_context, GtkSource.VimIMContext)
     # Key controller must be wired with set_im_context (canonical setup)
@@ -67,7 +69,8 @@ def test_editor_vim_context_disabled() -> None:
     filestore = MagicMock(spec=FileStore)
     event_bus = EventBus()
     command_router = CommandRouter()
-    editor = Editor(filestore, event_bus, command_router, vim_enabled=False)
+    env = MagicMock()
+    editor = Editor(filestore, event_bus, command_router, env, vim_enabled=False)
     assert editor._vim_context is None
     assert editor._vim_key_ctrl is None
 
@@ -86,7 +89,8 @@ def test_editor_save_dispatches_set_dirty() -> None:
     command_router.register(UpdateWordCount, lambda c: dispatched.append(c))
     command_router.register(SetDirty, lambda c: dispatched.append(c))
 
-    editor = Editor(filestore, event_bus, command_router, vim_enabled=False)
+    env = MagicMock()
+    editor = Editor(filestore, event_bus, command_router, env, vim_enabled=False)
     editor._current_path = VaultPath.from_str("test.md")
 
     editor._save()
@@ -114,6 +118,7 @@ def test_app_shell_activation_smoke() -> None:
         filestore=filestore,
         state_store=state_store,
         config=MagicMock(),
+        env=MagicMock(),
         application_id="org.oatbrain.TestApp",
     )
 
@@ -141,6 +146,7 @@ def test_app_shell_shutdown_saves_state() -> None:
         filestore=filestore,
         state_store=state_store,
         config=MagicMock(),
+        env=MagicMock(),
         application_id="org.oatbrain.ShutdownTest",
     )
 

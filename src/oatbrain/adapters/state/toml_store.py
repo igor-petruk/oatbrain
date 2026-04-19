@@ -34,6 +34,9 @@ class TomlStateStore:
             "theme": {
                 "theme_id": state.theme_id,
             },
+            "mermaid": {
+                "dismissed": state.mermaid_dismissed,
+            },
         }
         if state.editor.open_file:
             data["editor"]["open_file"] = str(state.editor.open_file)  # type: ignore
@@ -54,6 +57,7 @@ class TomlStateStore:
         panes = data.get("panes", {})
         editor_data = data.get("editor", {})
         theme_data = data.get("theme", {})
+        mermaid_data = data.get("mermaid", {})
 
         open_file_str = editor_data.get("open_file")
 
@@ -74,4 +78,5 @@ class TomlStateStore:
             terminal_visible=panes.get("terminal_visible", True),
             editor=editor,
             theme_id=theme_data.get("theme_id", "solarized-light"),
+            mermaid_dismissed=mermaid_data.get("dismissed", False),
         )

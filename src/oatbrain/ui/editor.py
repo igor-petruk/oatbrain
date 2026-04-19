@@ -9,6 +9,7 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
+from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
@@ -28,6 +29,7 @@ class Editor:
         filestore: FileStore,
         event_bus: EventBus,
         command_router: CommandRouter,
+        env: Env,
         renderer: Optional[Renderer] = None,
         resolver: Optional[WikilinkResolver] = None,
         vim_enabled: bool = True,
@@ -35,6 +37,7 @@ class Editor:
         self._filestore = filestore
         self._event_bus = event_bus
         self._command_router = command_router
+        self._env = env
         self._renderer = renderer
         self._resolver = resolver
         self._current_path: Optional[VaultPath] = None
@@ -45,6 +48,7 @@ class Editor:
         self._current_content: str = ""
         self._scroll_fraction: float = 0.0
         self._theme_css: str = ""
+        self._theme_id: str = "solarized-light"
 
         # --- Source view ---
         self.buffer = GtkSource.Buffer()
@@ -88,7 +92,7 @@ class Editor:
         if renderer is not None:
             from oatbrain.ui.preview import Preview  # local import avoids circular dep
 
-            self._preview: Optional["Preview"] = Preview(renderer)
+            self._preview: Optional["Preview"] = Preview(renderer, self._env)
             self._preview.on_wikilink_clicked = self._on_wikilink_clicked
         else:
             self._preview = None
@@ -219,9 +223,10 @@ class Editor:
         if scheme is not None:
             self.buffer.set_style_scheme(scheme)
 
-    def set_theme_css(self, css: str) -> None:
+    def set_theme_css(self, css: str, theme_id: str = "solarized-light") -> None:
         """Update the CSS injected into the WebKit preview (§11.3)."""
         self._theme_css = css
+        self._theme_id = theme_id
         if (
             self._read_mode
             and self._preview is not None
@@ -232,6 +237,7 @@ class Editor:
                 self._current_path,
                 scroll_to=self._scroll_fraction,
                 theme_css=css,
+                theme_id=theme_id,
             )
 
     def set_zen_mode(self, enabled: bool) -> None:
@@ -432,6 +438,7 @@ class Editor:
                     new_path,
                     scroll_to=self._scroll_fraction,
                     theme_css=self._theme_css,
+                    theme_id=event.state.theme_id,
                 )
 
                 self._stack.set_visible_child_name("preview")

@@ -784,13 +784,16 @@ vault:
 
 ## 15. Mermaid
 
-### 15.1 Inclusion
+### 15.1 Library caching
 
-- Fenced code blocks with `mermaid` language tag are rendered as diagrams.
-- `mermaid.js` is fetched from CDN on first render and cached under
-  `$XDG_CACHE_HOME/oatbrain/mermaid/<version>/mermaid.min.js`. Subsequent
-  renders use the cached copy, fully offline.
+- `mermaid.js` is fetched from CDN in the background on startup.
+- Cached under `$XDG_CACHE_HOME/oatbrain/mermaid.min.js`.
+- If the file is missing and the fetch fails (e.g., offline first run), an
+  `Adw.Banner` notifies the user.
+- If the user dismisses the banner, the state is persisted and they are not
+  notified again.
 - Rendering is done inside the WebKitGTK preview (WebKit runs the JS).
+- (See [MERMAID_PLAN.md](MERMAID_PLAN.md) for implementation details).
 
 ### 15.2 Diagram types
 

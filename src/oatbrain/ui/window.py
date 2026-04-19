@@ -15,6 +15,7 @@ from oatbrain.core.commands import (  # noqa: E402
     ToggleTree,
     ToggleTerminal,
     SendToTerminal,
+    DismissMermaidWarning,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
@@ -26,6 +27,7 @@ from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
+from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
@@ -37,6 +39,10 @@ from oatbrain.ui.tree import FileTree  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
 from oatbrain.ui.terminal import Terminal  # noqa: E402
 
+
+from concurrent.futures import ThreadPoolExecutor  # noqa: E402
+import urllib.request  # noqa: E402
+from oatbrain.core.events.mermaid import MermaidFetchResult  # noqa: E402
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
     """Main application shell using Libadwaita."""
@@ -51,6 +57,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         filestore: FileStore,
         state_store: StateStore,
         config: AppConfig,
+        env: Env,
         renderer: Optional[Renderer] = None,
         resolver: Optional[WikilinkResolver] = None,
         **kwargs: Any,
@@ -62,10 +69,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._filestore = filestore
         self._state_store = state_store
         self._config = config
+        self._env = env
         self._renderer = renderer
         self._resolver = resolver
         self._active_theme: Optional[ThemeData] = None
         self._theme_css_provider = Gtk.CssProvider()
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
         self._command_router.register(
             OpenFile, self._handle_open_file, "Open File", visible=False
@@ -90,10 +99,16 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             SendToTerminal, self._handle_send_to_terminal, visible=False
         )
+        self._command_router.register(
+            DismissMermaidWarning, self._handle_dismiss_mermaid, visible=False
+        )
 
         self._zen_mode: bool = False
         self._pre_zen_tree_visible: bool = True
         self._pre_zen_terminal_visible: bool = True
+
+        self._mermaid_banner: Optional[Adw.Banner] = None
+        self._event_bus.subscribe(MermaidFetchResult, self._on_mermaid_fetch_result)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -207,6 +222,38 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # focus restoration has finished before we steal it.
         GLib.idle_add(_do_send)
 
+    def _handle_dismiss_mermaid(self, _command: DismissMermaidWarning) -> None:
+        """Persistently dismiss the Mermaid warning."""
+        self._state = replace(self._state, mermaid_dismissed=True)
+        if self._mermaid_banner:
+            self._mermaid_banner.set_revealed(False)
+        self._save_state()
+
+    def _on_mermaid_fetch_result(self, event: MermaidFetchResult) -> None:
+        """Show a banner if the Mermaid library fetch failed (SPEC §15.1)."""
+        if event.success or self._state.mermaid_dismissed:
+            return
+
+        # Check if we have it in cache already
+        cache_dir = self._env.get_xdg_cache_home() / "oatbrain"
+        if (cache_dir / "mermaid.min.js").exists():
+            return
+
+        if not self._mermaid_banner:
+            self._mermaid_banner = Adw.Banner.new(
+                "Mermaid support requires an internet connection to download its library once. "
+                "Diagrams will not render."
+            )
+            self._mermaid_banner.set_button_label("Dismiss")
+            self._mermaid_banner.connect(
+                "button-clicked",
+                lambda *_: self._command_router.dispatch(DismissMermaidWarning()),
+            )
+            # Add to the top of ToolbarView
+            self.toolbar_view.add_top_bar(self._mermaid_banner)
+
+        self._mermaid_banner.set_revealed(True)
+
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
 
         GLib.idle_add(self._apply_zen_toggle)
@@ -312,6 +359,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._filestore,
             self._event_bus,
             self._command_router,
+            self._env,
             renderer=self._renderer,
             resolver=self._resolver,
         )
@@ -368,6 +416,34 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         # Emit initial state
         self._event_bus.publish(StateUpdated(self._state))
+
+        # Start Mermaid fetch in background
+        self._executor.submit(self._fetch_mermaid_library)
+
+    def _fetch_mermaid_library(self) -> None:
+        """Downloads mermaid.js to the cache directory (SPEC §15.1)."""
+        cache_dir = self._env.get_xdg_cache_home() / "oatbrain"
+        target = cache_dir / "mermaid.min.js"
+
+        if target.exists():
+            return
+
+        url = "https://cdn.jsdelivr.net/npm/mermaid@latest/dist/mermaid.min.js"
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            with urllib.request.urlopen(url, timeout=10) as response:
+                content = response.read()
+                target.write_bytes(content)
+            GLib.idle_add(
+                lambda: self._event_bus.publish(MermaidFetchResult(success=True))
+            )
+        except Exception as e:
+            err = str(e)
+            GLib.idle_add(
+                lambda: self._event_bus.publish(
+                    MermaidFetchResult(success=False, error=err)
+                )
+            )
 
     def _connect_late_signals(self) -> bool:
         """Connects signals that trigger state saving."""
@@ -433,7 +509,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # GtkSourceView style scheme (§20.9)
         if hasattr(self, "editor"):
             self.editor.apply_source_scheme(theme.source_scheme)
-            self.editor.set_theme_css(css)
+            self.editor.set_theme_css(css, theme_id=theme_id)
 
         # VTE terminal colors from ansi palette (§16.5, §20.2)
         if hasattr(self, "terminal_placeholder"):

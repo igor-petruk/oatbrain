@@ -13,33 +13,17 @@ from oatbrain.core.state.app_state import AppState  # noqa: E402
 from oatbrain.adapters.filestore.local import LocalFileStore  # noqa: E402
 from oatbrain.adapters.state.toml_store import TomlStateStore  # noqa: E402
 from oatbrain.adapters.config.toml_store import TomlConfigStore  # noqa: E402
+from oatbrain.adapters.env import StdlibEnv  # noqa: E402
 from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 
 
-def get_config_path() -> Path:
-    config_home = os.environ.get("XDG_CONFIG_HOME")
-    if config_home:
-        base = Path(config_home)
-    else:
-        base = Path.home() / ".config"
-    return base / "oatbrain" / "config.toml"
-
-
-def get_state_path() -> Path:
-    state_home = os.environ.get("XDG_STATE_HOME")
-    if state_home:
-        base = Path(state_home)
-    else:
-        base = Path.home() / ".local" / "state"
-    return base / "oatbrain" / "state.toml"
-
-
 def build_app(argv: list[str]) -> Adw.Application:
-    state_path = get_state_path()
+    env = StdlibEnv()
+    state_path = env.get_xdg_state_home() / "oatbrain" / "state.toml"
     state_store = TomlStateStore(state_path)
 
-    config_path = get_config_path()
+    config_path = env.get_xdg_config_home() / "oatbrain" / "config.toml"
     config_store = TomlConfigStore(config_path)
     config = config_store.load()
 
@@ -72,5 +56,6 @@ def build_app(argv: list[str]) -> Adw.Application:
         config=config,
         renderer=renderer,
         resolver=resolver,
+        env=env,
     )
     return app

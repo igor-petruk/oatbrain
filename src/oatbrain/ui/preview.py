@@ -7,13 +7,15 @@ from gi.repository import WebKit, Gio, GLib, Gtk, Gdk  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
+from oatbrain.core.ports.env import Env  # noqa: E402
 
 
 class Preview:
     """Read-mode pane: renders Markdown to HTML via WebKitWebView (SPEC §11)."""
 
-    def __init__(self, renderer: Renderer) -> None:
+    def __init__(self, renderer: Renderer, env: Env) -> None:
         self._renderer = renderer
+        self._env = env
         self._pending_fraction: Optional[float] = None
         self.on_wikilink_clicked: Optional[Callable[[str], None]] = None
 
@@ -83,13 +85,20 @@ class Preview:
         from_path: VaultPath,
         scroll_to: float = 0.0,
         theme_css: str = "",
+        theme_id: str = "solarized-light",
     ) -> None:
         self._pending_fraction = scroll_to
         html = self._renderer.render(markdown, from_path)
 
+        # Check for cached Mermaid library (§15.1)
+        mermaid_path = self._env.get_xdg_cache_home() / "oatbrain" / "mermaid.min.js"
+        mermaid_js = str(mermaid_path) if mermaid_path.exists() else None
+
         # Render to the INACTIVE webview
         self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
-        self._inactive_wv.load_html(self._wrap_html(html, theme_css), "file:///")
+        self._inactive_wv.load_html(
+            self._wrap_html(html, theme_css, mermaid_js, theme_id), "file:///"
+        )
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
         script = (
@@ -142,7 +151,41 @@ class Preview:
         return bool(GLib.SOURCE_REMOVE)
 
     @staticmethod
-    def _wrap_html(body: str, theme_css: str = "") -> str:
+    def _wrap_html(
+        body: str,
+        theme_css: str = "",
+        mermaid_js: Optional[str] = None,
+        theme_id: str = "solarized-light",
+    ) -> str:
+        mermaid_script = ""
+        mermaid_modal = ""
+        if mermaid_js:
+            mermaid_theme = "dark" if "dark" in theme_id.lower() else "default"
+            mermaid_script = (
+                f'<script src="file://{mermaid_js}"></script>'
+                f"<script>mermaid.initialize({{startOnLoad:true, theme:'{mermaid_theme}'}});</script>"
+                "<script>"
+                "function expandMermaid(btn) {"
+                "  var container = btn.parentElement;"
+                "  var mermaidDiv = container.querySelector('.mermaid');"
+                "  var svg = mermaidDiv.innerHTML;"
+                "  var modal = document.getElementById('mermaid-modal');"
+                "  var modalContent = document.getElementById('mermaid-modal-content');"
+                "  modalContent.innerHTML = svg;"
+                "  modal.style.display = 'block';"
+                "}"
+                "function closeMermaidModal() {"
+                "  document.getElementById('mermaid-modal').style.display = 'none';"
+                "}"
+                "</script>"
+            )
+            mermaid_modal = (
+                '<div id="mermaid-modal" class="mermaid-modal">'
+                '<span class="mermaid-modal-close" onclick="closeMermaidModal()">&times;</span>'
+                '<div id="mermaid-modal-content" class="mermaid-modal-content"></div>'
+                "</div>"
+            )
+
         return (
             "<!DOCTYPE html><html><head>"
             "<meta charset='utf-8'>"
@@ -180,8 +223,31 @@ class Preview:
             ".callout-warning { border-left-color: #ff9800; }"
             ".callout-error { border-left-color: #f44336; }"
             ".callout-note { border-left-color: #9e9e9e; }"
+            ".mermaid-container { position: relative; margin: 1.5em auto; display: block; text-align: center; width: 100%; }"
+            ".mermaid { background: var(--color-bg); border-radius: 4px; padding: 1em; "
+            "display: inline-block; margin: 0 auto; max-width: 100%; }"
+            ".mermaid svg { display: block; margin: 0 auto; }"
+            ".mermaid-expand-btn { position: absolute; top: 8px; right: 8px; "
+            "background: var(--color-bg-alt, rgba(0,0,0,0.05)); "
+            "color: var(--color-fg-muted); "
+            "border: 1px solid var(--color-border); border-radius: 4px; "
+            "padding: 2px 6px; cursor: pointer; opacity: 0; "
+            "transition: opacity 0.2s; z-index: 10; font-size: 14px; }"
+            ".mermaid-container:hover .mermaid-expand-btn { opacity: 1; }"
+            ".mermaid-modal { display: none; position: fixed; z-index: 9999; "
+            "left: 0; top: 0; width: 100%; height: 100%; "
+            "background-color: var(--color-bg, #fff); overflow: auto; }"
+            ".mermaid-modal-content { display: flex; justify-content: center; "
+            "min-height: 100%; padding: 60px 20px 20px 20px; box-sizing: border-box; }"
+            ".mermaid-modal-content svg { width: auto; height: auto; "
+            "max-width: 100%; margin: 0 auto; }"
+            ".mermaid-modal-close { position: fixed; top: 60px; right: 25px; "
+            "color: var(--color-fg, #000); font-size: 35px; "
+            "font-weight: bold; cursor: pointer; z-index: 10000; }"
             "</style>"
+            f"{mermaid_script}"
             "</head><body>"
             f"{body}"
+            f"{mermaid_modal}"
             "</body></html>"
         )

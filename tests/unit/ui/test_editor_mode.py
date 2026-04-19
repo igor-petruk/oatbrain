@@ -20,6 +20,7 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     SetDirty,
     UpdateWordCount,
 )
+from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
 from oatbrain.ui.window import AdwAppShell  # noqa: E402
 
@@ -28,6 +29,15 @@ def make_renderer(html: str = "<p>ok</p>") -> Renderer:
     r = MagicMock(spec=Renderer)
     r.render.return_value = html
     return r
+
+
+def make_env() -> Env:
+    env = MagicMock(spec=Env)
+    env.get_xdg_cache_home.return_value = Path("/tmp/cache")
+    env.get_xdg_config_home.return_value = Path("/tmp/config")
+    env.get_xdg_state_home.return_value = Path("/tmp/state")
+    env.get_xdg_data_home.return_value = Path("/tmp/data")
+    return env
 
 
 def make_editor(
@@ -43,7 +53,12 @@ def make_editor(
     command_router.register(SetDirty, dispatched.append)
     command_router.register(ToggleMode, dispatched.append)
     editor = Editor(
-        filestore, event_bus, command_router, renderer=renderer, vim_enabled=vim_enabled
+        filestore,
+        event_bus,
+        command_router,
+        make_env(),
+        renderer=renderer,
+        vim_enabled=vim_enabled,
     )
     return editor, command_router, dispatched
 
@@ -191,6 +206,7 @@ def test_window_toggle_mode_flips_read_mode() -> None:
         filestore=filestore,
         state_store=MagicMock(),
         config=MagicMock(),
+        env=make_env(),
         application_id="org.oatbrain.TestToggle",
     )
     app.on_activate(app)
@@ -218,6 +234,7 @@ def test_toggle_mode_publishes_state_updated() -> None:
         filestore=MagicMock(spec=FileStore),
         state_store=MagicMock(),
         config=MagicMock(),
+        env=make_env(),
         application_id="org.oatbrain.TestToggleEvent",
     )
     app.on_activate(app)

@@ -13,8 +13,9 @@ def test_editor_mode_recovers_to_preview_when_returning_to_markdown() -> None:
     event_bus = MagicMock()
     command_router = MagicMock()
     renderer = MagicMock()
+    env = MagicMock()
 
-    editor = Editor(filestore, event_bus, command_router, renderer)
+    editor = Editor(filestore, event_bus, command_router, env, renderer)
     state = AppState(vault_root=Path("/tmp"))
 
     # 1. Open MD file in Preview mode

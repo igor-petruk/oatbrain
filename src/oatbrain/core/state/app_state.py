@@ -32,3 +32,4 @@ class AppState:
     status_message: str = "Ready"
     theme_name: str = "Solarized Light"
     theme_id: str = "solarized-light"
+    mermaid_dismissed: bool = False

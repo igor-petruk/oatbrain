@@ -151,3 +151,13 @@ Goal: Distribution-ready.
 - **Task**: Create `debian/` packaging metadata (§3).
 ### Step 11.2: GitHub Actions
 - **Task**: Finalize CI pipeline (§31).
+
+---
+
+## Phase 12: Mermaid Support
+Goal: Offline-first diagram rendering.
+See [MERMAID_PLAN.md](MERMAID_PLAN.md) for the detailed execution steps.
+
+### Step 12.1: Asset Caching
+### Step 12.2: UI Notifications
+### Step 12.3: Renderer Integration

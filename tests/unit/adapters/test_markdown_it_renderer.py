@@ -65,3 +65,10 @@ def test_all_configured_extensions_are_active() -> None:
     assert 'type="checkbox"' in html
     assert "<sub>" in html
     assert "footnote" in html
+
+
+def test_mermaid_block_rendering() -> None:
+    # This test will fail if the _render_mermaid signature is incorrect
+    md = "```mermaid\ngraph TD; A-->B;\n```"
+    html = make_renderer().render(md, dummy_path())
+    assert '<div class="mermaid">graph TD; A--&gt;B;\n</div>' in html
