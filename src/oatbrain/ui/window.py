@@ -178,16 +178,14 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             # Sync the toggle button in the header bar
             self.header_bar.terminal_toggle.set_active(True)
 
+        self.terminal_placeholder.grab_focus()
+
         text = command.text
-        # Normalize all newlines to \r (Carriage Return).
-        text = text.replace("\r\n", "\r").replace("\n", "\r")
-        
-        if command.execute and not text.endswith("\r"):
+        if command.execute and not (text.endswith("\r") or text.endswith("\n")):
             text += "\r"
-            
-        # Send Ctrl+U (\x15) to clear the line before pasting/executing.
-        # This ensures commands like /stats start at the beginning of the line.
-        self.terminal_placeholder.send_text("\x15" + text)
+
+        # Send Ctrl+U (\x15) to clear the line before typing.
+        self.terminal_placeholder.send_text_throttled("\x15" + text)
 
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
 

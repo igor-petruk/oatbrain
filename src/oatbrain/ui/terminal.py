@@ -75,6 +75,23 @@ class Terminal:
         """Write text directly to the terminal's stdin (§16.9)."""
         self._vte.feed_child(text.encode("utf-8"))
 
+    def send_text_throttled(self, text: str, delay_ms: int = 20) -> None:
+        """Write text character-by-character with a delay to mimic user typing."""
+        chars = list(text)
+
+        def _send_next() -> bool:
+            if not chars:
+                return False
+            char = chars.pop(0)
+            self._vte.feed_child(char.encode("utf-8"))
+            return True
+
+        GLib.timeout_add(delay_ms, _send_next)
+
+    def grab_focus(self) -> bool:
+        """Focus the terminal widget."""
+        return bool(self._vte.grab_focus())
+
     def apply_theme(self, theme: object) -> None:
         """Apply VTE colors from theme ansi palette (SPEC §16.5, §20.2)."""
         from oatbrain.core.theme.models import ThemeData
