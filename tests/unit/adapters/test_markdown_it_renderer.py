@@ -71,4 +71,8 @@ def test_mermaid_block_rendering() -> None:
     # This test will fail if the _render_mermaid signature is incorrect
     md = "```mermaid\ngraph TD; A-->B;\n```"
     html = make_renderer().render(md, dummy_path())
-    assert '<div class="mermaid">graph TD; A--&gt;B;\n</div>' in html
+    assert (
+        '<div class="mermaid" style="cursor: pointer" '
+        'onclick="expandMermaid(this)">' in html
+    )
+    assert "graph TD; A--&gt;B;\n" in html

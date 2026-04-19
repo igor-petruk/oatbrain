@@ -1,4 +1,5 @@
 from typing import Any, Final, Optional
+from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -7,9 +8,14 @@ from gi.repository import Gtk, GLib, Gio, Gdk  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.commands import OpenFile  # noqa: E402
+from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
 
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
+from oatbrain.core.events.watcher import (  # noqa: E402
+    FileCreated,
+    FileDeleted,
+    FileRenamed,
+)
 
 # TreeStore column indices for clarity and maintainability
 COL_ICON: Final[int] = 0  # Icon name
@@ -35,11 +41,13 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         filestore: FileStore,
         event_bus: EventBus,
         command_router: CommandRouter,
+        vault_root: Optional[Path] = None,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.filestore = filestore
         self._event_bus = event_bus
         self._command_router = command_router
+        self._vault_root = vault_root
 
         # Scrolled window provides scrollbars
         self.scrolled = Gtk.ScrolledWindow()
@@ -49,6 +57,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Model: [Icon, Name, Path, IsDummy, IsDir, IsDirty]
         self.store = Gtk.TreeStore(str, str, str, bool, bool, bool)
+        self.store.set_sort_func(COL_NAME, self._compare_rows)
+        self.store.set_sort_column_id(COL_NAME, Gtk.SortType.ASCENDING)
+
         self.tree_view = Gtk.TreeView(model=self.store)
         self.tree_view.set_headers_visible(False)
         self.tree_view.add_css_class("oatbrain-filetree")
@@ -82,6 +93,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Signals for lazy loading and single-click interaction
         self.tree_view.connect("row-expanded", self.on_row_expanded)
+        self.tree_view.connect("row-collapsed", self.on_row_collapsed)
         self.tree_view.connect("row-activated", self.on_row_activated)
 
         # Context Menu (§9.2)
@@ -90,9 +102,14 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Keyboard shortcuts (§9.2)
         self._setup_key_controller()
 
+        self._expanded_state: set[str] = set()
         self._last_synced_path: Optional[VaultPath] = None
+        self._sync_idle_id: Optional[int] = None
         self._populate_root()
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
+        self._event_bus.subscribe(FileCreated, self._on_file_created)
+        self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
+        self._event_bus.subscribe(FileRenamed, self._on_file_renamed)
 
     def _setup_context_menu(self) -> None:
         """Sets up the right-click context menu."""
@@ -162,7 +179,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         cell.set_property("text", "●" if is_dirty else "")
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        GLib.idle_add(self._sync_with_state, event)
+        if self._sync_idle_id is not None:
+            GLib.source_remove(self._sync_idle_id)
+        self._sync_idle_id = GLib.idle_add(self._sync_with_state, event)
 
     def grab_focus(self) -> bool:
         """Override to focus the internal TreeView."""
@@ -170,9 +189,25 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
     def _update_dirty_states(self, event: StateUpdated) -> bool:
         # TODO: Implement deep update of dirty states in tree
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _sync_with_state(self, event: StateUpdated) -> bool:
+        self._sync_idle_id = None
+        new_expanded = set(event.state.tree_expanded)
+
+        # Apply expansion state on initial sync or if it changes externally
+        if self._expanded_state != new_expanded:
+            to_collapse = self._expanded_state - new_expanded
+            self._expanded_state = new_expanded
+
+            # Collapse those that were removed
+            for path_str in to_collapse:
+                self._collapse_path(VaultPath.from_str(path_str))
+
+            # Sort by path depth to expand parents before children
+            for path_str in sorted(new_expanded, key=lambda p: p.count("/")):
+                self._expand_path(VaultPath.from_str(path_str))
+
         open_path = event.state.editor.open_file
         if open_path != self._last_synced_path:
             self._last_synced_path = open_path
@@ -181,7 +216,47 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Also update dirty states (placeholder for now)
         self._update_dirty_states(event)
-        return bool(GLib.SOURCE_REMOVE)
+        return False
+
+    def _collapse_path(self, target_path: VaultPath) -> None:
+        """Finds and collapses the given path in the tree."""
+        path_str = str(target_path)
+        it = self._find_iter_for_path(path_str)
+        if it:
+            tree_path = self.store.get_path(it)
+            self.tree_view.collapse_row(tree_path)
+
+    def _expand_path(self, target_path: VaultPath) -> None:
+        """Finds and expands the given path in the tree without selecting it."""
+        path_str = str(target_path)
+        parts = path_str.split("/")
+
+        current_iter = None
+        accumulated = ""
+
+        for i, part in enumerate(parts):
+            if i > 0:
+                accumulated += "/"
+            accumulated += part
+
+            found = False
+            child_iter = self.store.iter_children(current_iter)
+            while child_iter:
+                row_path = self.store.get_value(child_iter, COL_PATH)
+                if row_path == accumulated:
+                    current_iter = child_iter
+                    found = True
+
+                    is_dir = self.store.get_value(current_iter, COL_IS_DIR)
+                    if is_dir:
+                        self._ensure_dir_loaded(current_iter)
+                        tree_path = self.store.get_path(current_iter)
+                        self.tree_view.expand_row(tree_path, False)
+                    break
+                child_iter = self.store.iter_next(child_iter)
+
+            if not found:
+                return
 
     def _reveal_path(self, target_path: VaultPath) -> None:
         """Finds, expands, and selects the given path in the tree."""
@@ -227,6 +302,160 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
     def _get_icon(self, is_dir: bool) -> str:
         return "folder-symbolic" if is_dir else "text-x-generic-symbolic"
+
+    # ------------------------------------------------------------------
+    # File watcher event handlers
+    # ------------------------------------------------------------------
+
+    def _vault_rel(self, abs_path: str) -> Optional[str]:
+        """Convert an absolute path to vault-relative, or None if outside vault."""
+        if self._vault_root is None:
+            return None
+        prefix = str(self._vault_root) + "/"
+        if abs_path.startswith(prefix):
+            return abs_path[len(prefix) :]
+        return None
+
+    def _find_iter_for_path(self, rel_path: str) -> Optional[Gtk.TreeIter]:
+        """Walk the store and return the TreeIter whose COL_PATH matches rel_path."""
+        parts = rel_path.split("/")
+        current_iter = None
+        accumulated = ""
+        for i, part in enumerate(parts):
+            if i > 0:
+                accumulated += "/"
+            accumulated += part
+            child_iter = self.store.iter_children(current_iter)
+            while child_iter:
+                if self.store.get_value(child_iter, COL_PATH) == accumulated:
+                    current_iter = child_iter
+                    break
+                child_iter = self.store.iter_next(child_iter)
+            else:
+                return None
+        return current_iter
+
+    def _on_file_created(self, event: FileCreated) -> None:
+        GLib.idle_add(self._handle_file_created, event.path)
+
+    def _split_rel_path(self, rel_path: str) -> tuple[str, str]:
+        """
+        Splits a vault-relative path into (parent_rel, name).
+
+        Input: "projects/oatbrain/README.md"
+        Output: ("projects/oatbrain", "README.md")
+
+        Input: "top_level.md"
+        Output: ("", "top_level.md")
+        """
+        parts = rel_path.split("/")
+        parent_rel = "/".join(parts[:-1]) if len(parts) > 1 else ""
+        name = parts[-1]
+        return parent_rel, name
+
+    def _handle_file_created(self, abs_path: str) -> bool:
+        rel = self._vault_rel(abs_path)
+        if rel is None:
+            return False
+
+        parent_rel, name = self._split_rel_path(rel)
+        is_dir = not abs_path.endswith(name) or self._path_is_dir(abs_path)
+
+        parent_iter = self._find_iter_for_path(parent_rel) if parent_rel else None
+
+        # Only insert if parent is loaded (no dummy child) or we're at root
+        if parent_rel:
+            if parent_iter is None:
+                return False
+            child = self.store.iter_children(parent_iter)
+            if child and self.store.get_value(child, COL_IS_DUMMY):
+                return False
+        else:
+            # Root: always loaded
+            pass
+
+        # Check not already present
+        if self._find_iter_for_path(rel) is not None:
+            return False
+
+        icon = self._get_icon(is_dir)
+        new_iter = self.store.append(
+            parent_iter, [icon, name, rel, False, is_dir, False]
+        )
+        if is_dir:
+            self.store.append(new_iter, ["", "Loading...", "", True, False, False])
+
+        return False
+
+    def _path_is_dir(self, abs_path: str) -> bool:
+        import os
+
+        return os.path.isdir(abs_path)
+
+    def _compare_rows(
+        self, model: Gtk.TreeModel, iter1: Gtk.TreeIter, iter2: Gtk.TreeIter, data: Any
+    ) -> int:
+        """Custom sort: directories first, then alphabetical name."""
+        is_dir1 = model.get_value(iter1, COL_IS_DIR)
+        is_dir2 = model.get_value(iter2, COL_IS_DIR)
+
+        if is_dir1 != is_dir2:
+            return -1 if is_dir1 else 1
+
+        name1 = str(model.get_value(iter1, COL_NAME)).lower()
+        name2 = str(model.get_value(iter2, COL_NAME)).lower()
+
+        if name1 < name2:
+            return -1
+        if name1 > name2:
+            return 1
+        return 0
+
+    def _on_file_deleted(self, event: FileDeleted) -> None:
+        GLib.idle_add(self._handle_file_deleted, event.path)
+
+    def _handle_file_deleted(self, abs_path: str) -> bool:
+        rel = self._vault_rel(abs_path)
+        if rel is None:
+            return False
+        it = self._find_iter_for_path(rel)
+        if it is not None:
+            self.store.remove(it)
+        return False
+
+    def _on_file_renamed(self, event: FileRenamed) -> None:
+        GLib.idle_add(self._handle_file_renamed, event.old_path, event.new_path)
+
+    def _handle_file_renamed(self, old_abs: str, new_abs: str) -> bool:
+        old_rel = self._vault_rel(old_abs)
+        new_rel = self._vault_rel(new_abs)
+        if old_rel is None or new_rel is None:
+            return False
+
+        it = self._find_iter_for_path(old_rel)
+        if it is None:
+            return False
+
+        _, new_name = self._split_rel_path(new_rel)
+        self.store.set_value(it, COL_NAME, new_name)
+        self.store.set_value(it, COL_PATH, new_rel)
+
+        # Update COL_PATH for all descendants (prefix swap)
+        self._repath_descendants(it, old_rel, new_rel)
+
+        return False
+
+    def _repath_descendants(
+        self, it: Gtk.TreeIter, old_prefix: str, new_prefix: str
+    ) -> None:
+        """Recursively update COL_PATH for all children after a rename."""
+        child = self.store.iter_children(it)
+        while child:
+            p = self.store.get_value(child, COL_PATH)
+            if p.startswith(old_prefix + "/"):
+                self.store.set_value(child, COL_PATH, new_prefix + p[len(old_prefix) :])
+            self._repath_descendants(child, old_prefix, new_prefix)
+            child = self.store.iter_next(child)
 
     def _populate_root(self) -> None:
         """Initial population of the tree's root level."""
@@ -281,6 +510,31 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     ) -> None:
         """Loads directory contents if they haven't been loaded yet."""
         self._ensure_dir_loaded(iter_)
+        path_str = self.store.get_value(iter_, COL_PATH)
+        if path_str not in self._expanded_state:
+            self._command_router.dispatch(
+                SetTreeExpanded(path=path_str, is_expanded=True)
+            )
+
+    def on_row_collapsed(
+        self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
+    ) -> None:
+        """Unloads directory contents and stores a dummy node."""
+        path_str = self.store.get_value(iter_, COL_PATH)
+
+        # Remove all children
+        child_iter = self.store.iter_children(iter_)
+        while child_iter:
+            self.store.remove(child_iter)
+            child_iter = self.store.iter_children(iter_)
+
+        # Re-add dummy node
+        self.store.append(iter_, ["", "Loading...", "", True, False, False])
+
+        if path_str in self._expanded_state:
+            self._command_router.dispatch(
+                SetTreeExpanded(path=path_str, is_expanded=False)
+            )
 
     def _ensure_dir_loaded(self, iter_: Gtk.TreeIter) -> None:
         """Checks if a directory is loaded and loads it if needed."""

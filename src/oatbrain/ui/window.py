@@ -16,6 +16,7 @@ from oatbrain.core.commands import (  # noqa: E402
     ToggleTerminal,
     SendToTerminal,
     DismissMermaidWarning,
+    SetTreeExpanded,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
@@ -28,6 +29,8 @@ from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
+from oatbrain.core.ports.watcher import FileWatcher  # noqa: E402
+from oatbrain.core.events.watcher import FileDeleted, FileRenamed  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
@@ -59,6 +62,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         state_store: StateStore,
         config: AppConfig,
         env: Env,
+        watcher: Optional[FileWatcher] = None,
         renderer: Optional[Renderer] = None,
         resolver: Optional[WikilinkResolver] = None,
         **kwargs: Any,
@@ -73,6 +77,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._env = env
         self._renderer = renderer
         self._resolver = resolver
+        self._watcher = watcher  # Store watcher
         self._active_theme: Optional[ThemeData] = None
         self._theme_css_provider = Gtk.CssProvider()
         self._executor = ThreadPoolExecutor(max_workers=2)
@@ -103,6 +108,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             DismissMermaidWarning, self._handle_dismiss_mermaid, visible=False
         )
+        self._command_router.register(
+            SetTreeExpanded, self._handle_set_tree_expanded, visible=False
+        )
 
         self._zen_mode: bool = False
         self._pre_zen_tree_visible: bool = True
@@ -110,6 +118,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         self._mermaid_banner: Optional[Adw.Banner] = None
         self._event_bus.subscribe(MermaidFetchResult, self._on_mermaid_fetch_result)
+        self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
+        self._event_bus.subscribe(FileRenamed, self._on_file_renamed)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -176,6 +186,62 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         new_editor = replace(self._state.editor, read_mode=new_read_mode)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_set_tree_expanded(self, command: SetTreeExpanded) -> None:
+        expanded = list(self._state.tree_expanded)
+        if command.is_expanded and command.path not in expanded:
+            expanded.append(command.path)
+        elif not command.is_expanded and command.path in expanded:
+            # Prune exact path and all its descendants
+            prefix = command.path + "/"
+            expanded = [
+                p for p in expanded if p != command.path and not p.startswith(prefix)
+            ]
+
+        self._state = replace(self._state, tree_expanded=expanded)
+        self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
+
+    def _on_file_deleted(self, event: FileDeleted) -> None:
+        """Prune deleted paths from tree_expanded and persist."""
+        vault_prefix = str(self._state.vault_root) + "/"
+        rel = (
+            event.path[len(vault_prefix) :]
+            if event.path.startswith(vault_prefix)
+            else event.path
+        )
+        expanded = [
+            p
+            for p in self._state.tree_expanded
+            if p != rel and not p.startswith(rel + "/")
+        ]
+        if len(expanded) != len(self._state.tree_expanded):
+            self._state = replace(self._state, tree_expanded=expanded)
+            self._event_bus.publish(StateUpdated(self._state))
+            self._save_state()
+
+    def _on_file_renamed(self, event: FileRenamed) -> None:
+        """Update tree_expanded paths when a file/directory is renamed."""
+        vault_prefix = str(self._state.vault_root) + "/"
+
+        def to_rel(p: str) -> str:
+            return p[len(vault_prefix) :] if p.startswith(vault_prefix) else p
+
+        old_rel = to_rel(event.old_path)
+        new_rel = to_rel(event.new_path)
+
+        def remap(p: str) -> str:
+            if p == old_rel:
+                return new_rel
+            if p.startswith(old_rel + "/"):
+                return new_rel + p[len(old_rel) :]
+            return p
+
+        expanded = [remap(p) for p in self._state.tree_expanded]
+        if expanded != self._state.tree_expanded:
+            self._state = replace(self._state, tree_expanded=expanded)
+            self._event_bus.publish(StateUpdated(self._state))
+            self._save_state()
 
     def _handle_toggle_tree(self, _command: ToggleTree) -> None:
         visible = not self.tree_pane.get_visible()
@@ -250,8 +316,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 "button-clicked",
                 lambda *_: self._command_router.dispatch(DismissMermaidWarning()),
             )
-            # Add to the top of ToolbarView
-            self.toolbar_view.add_top_bar(self._mermaid_banner)
+            # Add to the top of ToolbarView if it exists
+            if hasattr(self, "toolbar_view"):
+                self.toolbar_view.add_top_bar(self._mermaid_banner)
 
         self._mermaid_banner.set_revealed(True)
 
@@ -280,7 +347,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.header_bar.zen_toggle.handler_block_by_func(self._on_zen_toggled)
         self.header_bar.zen_toggle.set_active(self._zen_mode)
         self.header_bar.zen_toggle.handler_unblock_by_func(self._on_zen_toggled)
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _on_mouse_motion(
         self, ctrl: Gtk.EventControllerMotion, x: float, y: float
@@ -333,7 +400,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state_store.save(self._state)
 
     def _on_shutdown(self, *args: Any) -> None:
-        """Ensures state is saved on application exit."""
+        """Ensures state is saved and watcher is stopped on application exit."""
+        if self._watcher:  # Ensure watcher is stopped
+            self._watcher.stop()
         self._save_state()
 
     def on_activate(self, app: Adw.Application) -> None:
@@ -353,13 +422,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.right_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
 
         self.tree_pane = FileTree(
-            self._filestore, self._event_bus, self._command_router
+            self._filestore,
+            self._event_bus,
+            self._command_router,
+            self._state.vault_root,
         )
         self.editor = Editor(
             self._filestore,
             self._event_bus,
             self._command_router,
             self._env,
+            vault_root=self._state.vault_root,
             renderer=self._renderer,
             resolver=self._resolver,
         )
@@ -414,6 +487,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # 8. Wire proactive saving LATE to avoid construction noise
         GLib.idle_add(self._connect_late_signals)
 
+        # 9. Start file watcher
+        if self._watcher:
+            self._watcher.subscribe(lambda e: self._event_bus.publish(e))
+            self._watcher.start(self._state.vault_root)
+
         # Emit initial state
         self._event_bus.publish(StateUpdated(self._state))
 
@@ -456,7 +534,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_window.connect(
             "notify::default-height", lambda *_: self._save_state()
         )
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     def _update_right_paned_position(self) -> None:
         """Calculates and sets the right paned position."""

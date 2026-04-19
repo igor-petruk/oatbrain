@@ -25,6 +25,7 @@ class AppState:
     # Pane state (§27.2)
     tree_width: int = 180
     tree_visible: bool = True
+    tree_expanded: List[str] = field(default_factory=list)
     terminal_width: int = 360
     terminal_visible: bool = True
 

@@ -148,7 +148,7 @@ class Preview:
             f"}})()"
         )
         wv.evaluate_javascript(script, -1, None, None, None, None, None)
-        return bool(GLib.SOURCE_REMOVE)
+        return False
 
     @staticmethod
     def _wrap_html(
@@ -167,26 +167,26 @@ class Preview:
                 f"startOnLoad:true, theme:'{mermaid_theme}'}});"
                 "</script>"
                 "<script>"
-                "function expandMermaid(btn) {"
-                "  var c = btn.parentElement;"
-                "  var m = c.querySelector('.mermaid');"
+                "function expandMermaid(m) {"
                 "  var s = m.innerHTML;"
                 "  var mod = document.getElementById('mermaid-modal');"
-                "  var mc = document.getElementById("
-                "'mermaid-modal-content');"
+                "  var mc = document.getElementById('mermaid-modal-content');"
                 "  mc.innerHTML = s;"
                 "  mod.style.display = 'block';"
                 "}"
                 "function closeMermaidModal() {"
-                "  document.getElementById('mermaid-modal').style.display = "
-                "'none';"
+                "  var m = document.getElementById('mermaid-modal');"
+                "  if (m) m.style.display = 'none';"
                 "}"
+                "window.addEventListener('keydown', function(e) {"
+                "  if (e.key === 'Escape') closeMermaidModal();"
+                "});"
                 "</script>"
             )
             mermaid_modal = (
-                '<div id="mermaid-modal" class="mermaid-modal">'
-                '<span class="mermaid-modal-close" '
-                'onclick="closeMermaidModal()">&times;</span>'
+                '<div id="mermaid-modal" class="mermaid-modal" '
+                'onclick="closeMermaidModal()">'
+                '<span class="mermaid-modal-close">&times;</span>'
                 '<div id="mermaid-modal-content" class="mermaid-modal-content"></div>'
                 "</div>"
             )
@@ -235,18 +235,12 @@ class Preview:
             "text-align: center; "
             "width: 100%; }"
             ".mermaid { background: var(--color-bg); border-radius: 4px; padding: 1em; "
-            "display: inline-block; margin: 0 auto; max-width: 100%; }"
-            ".mermaid svg { display: block; margin: 0 auto; }"
-            ".mermaid-expand-btn { position: absolute; top: 8px; right: 8px; "
-            "background: var(--color-bg-alt, rgba(0,0,0,0.05)); "
-            "color: var(--color-fg-muted); "
-            "border: 1px solid var(--color-border); border-radius: 4px; "
-            "padding: 2px 6px; cursor: pointer; opacity: 0; "
-            "transition: opacity 0.2s; z-index: 10; font-size: 14px; }"
-            ".mermaid-container:hover .mermaid-expand-btn { opacity: 1; }"
+            "display: block; width: 100%; box-sizing: border-box; cursor: pointer; }"
+            ".mermaid svg { display: block; width: 100%; height: auto; }"
             ".mermaid-modal { display: none; position: fixed; z-index: 9999; "
             "left: 0; top: 0; width: 100%; height: 100%; "
-            "background-color: var(--color-bg, #fff); overflow: auto; }"
+            "background-color: var(--color-bg, #fff); overflow: auto; "
+            "cursor: pointer; }"
             ".mermaid-modal-content { "
             "display: flex; "
             "justify-content: center; "

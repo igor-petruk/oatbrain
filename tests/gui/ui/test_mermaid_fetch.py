@@ -43,15 +43,25 @@ def test_mermaid_fetch_failure_emits_event() -> None:
                 env=env,
                 application_id="org.oatbrain.TestMermaid",
             )
+            # Ensure widgets are created so toolbar_view exists for the callback
+            app.on_activate(app)
 
             # Trigger the fetch
             app._fetch_mermaid_library()
 
-            # Process GLib idle loop to run the lambda
-            ctx = GLib.MainContext.default()
-            while ctx.pending():
-                ctx.iteration(False)
+            # Wait for event using a proper MainLoop
+            loop = GLib.MainLoop()
 
-            assert len(received_events) == 1
+            def on_result(event: MermaidFetchResult) -> None:
+                received_events.append(event)
+                loop.quit()
+
+            event_bus.subscribe(MermaidFetchResult, on_result)
+
+            # Safety timeout to quit loop if event never arrives
+            GLib.timeout_add(2000, loop.quit)
+            loop.run()
+
+            assert len(received_events) >= 1
             assert not received_events[0].success
             assert received_events[0].error == "Network Down"

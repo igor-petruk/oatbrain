@@ -795,8 +795,10 @@ vault:
 - If the user dismisses the banner, the state is persisted and they are not
   notified again.
 - Rendering is done inside the WebKitGTK preview (WebKit runs the JS).
-- Mermaid diagrams are wrapped in a container providing an "Expand" button (🔍)
-  which opens the diagram in a full-window centered modal view.
+- Mermaid diagrams are clickable; clicking the diagram opens it in a full-window
+  centered modal view.
+- Pressing `Esc` or clicking anywhere in the modal collapses it back to the
+  preview.
 - Diagrams are theme-aware, switching between 'dark' and 'default' mermaid
   themes based on the active application theme.
 
@@ -819,7 +821,9 @@ theme's `--color-bg`.
 ### 15.5 User actions
 
 - Click-to-enlarge: opens a modal with a larger rendered SVG. The diagram is
-  centered and scrollable if it exceeds the viewport dimensions.
+  centered.
+- Click-to-collapse: clicking anywhere in the modal view or pressing `Esc`
+  closes the modal.
 - Right-click → Save as SVG / PNG / PDF. Right-click → Copy as image.
 - Implementation note: export uses mermaid's own SVG output; rasterization
   to PNG/PDF is via WebKit's print-to-file, not a separate library.

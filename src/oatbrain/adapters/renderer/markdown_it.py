@@ -56,9 +56,8 @@ class MarkdownItRenderer:
             content = html.escape(token.content)  # type: ignore
             return (
                 '<div class="mermaid-container">'
-                f'<div class="mermaid">{content}</div>'
-                '<button class="mermaid-expand-btn" '
-                'onclick="expandMermaid(this)">🔍</button>'
+                '<div class="mermaid" style="cursor: pointer" '
+                f'onclick="expandMermaid(this)">{content}</div>'
                 "</div>"
             )
         return str(cast(Any, self._md.renderer).renderToken(tokens, idx, options, env))

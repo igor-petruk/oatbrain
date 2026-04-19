@@ -30,3 +30,11 @@ class SendToTerminal:
 @dataclass(frozen=True)
 class DismissMermaidWarning:
     """Dismiss the mermaid.js fetch failure warning."""
+
+
+@dataclass(frozen=True)
+class SetTreeExpanded:
+    """Update the expansion state of a directory in the tree."""
+
+    path: str
+    is_expanded: bool

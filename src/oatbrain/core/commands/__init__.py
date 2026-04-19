@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 from oatbrain.core.ports.filestore import VaultPath
-from .ui import ToggleTree, ToggleTerminal, SendToTerminal, DismissMermaidWarning
+from .ui import (
+    ToggleTree,
+    ToggleTerminal,
+    SendToTerminal,
+    DismissMermaidWarning,
+    SetTreeExpanded,
+)
 
 
 @dataclass(frozen=True)
@@ -14,4 +20,5 @@ __all__ = [
     "ToggleTerminal",
     "SendToTerminal",
     "DismissMermaidWarning",
+    "SetTreeExpanded",
 ]
