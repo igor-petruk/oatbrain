@@ -26,6 +26,7 @@ from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
+from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
 from oatbrain.adapters.theme.loader import load_theme  # noqa: E402
@@ -51,6 +52,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         state_store: StateStore,
         config: AppConfig,
         renderer: Optional[Renderer] = None,
+        resolver: Optional[WikilinkResolver] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -61,6 +63,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state_store = state_store
         self._config = config
         self._renderer = renderer
+        self._resolver = resolver
         self._active_theme: Optional[ThemeData] = None
         self._theme_css_provider = Gtk.CssProvider()
 
@@ -310,6 +313,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._event_bus,
             self._command_router,
             renderer=self._renderer,
+            resolver=self._resolver,
         )
         self.terminal_placeholder = Terminal(self._state.vault_root)
 

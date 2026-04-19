@@ -11,7 +11,15 @@ class VaultPath:
 
     @classmethod
     def from_str(cls, path_str: str) -> "VaultPath":
-        return cls(PurePosixPath(path_str))
+        import os
+        # Strip leading slashes to ensure vault-relative resolution
+        clean_path = path_str.lstrip("/")
+        normalized = os.path.normpath(clean_path)
+        # normpath on linux might return "." for empty or just "."
+        # we prefer empty string for vault root
+        if normalized == ".":
+            normalized = ""
+        return cls(PurePosixPath(normalized))
 
     def __str__(self) -> str:
         return str(self.path)

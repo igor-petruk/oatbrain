@@ -5,6 +5,7 @@ gi.require_version("WebKit", "6.0")
 from gi.repository import WebKit, Gio, GLib  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
+from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
 
 
 class Preview:
@@ -13,6 +14,7 @@ class Preview:
     def __init__(self, renderer: Renderer) -> None:
         self._renderer = renderer
         self._pending_fraction: Optional[float] = None
+        self.on_wikilink_clicked: Optional[Callable[[str], None]] = None
 
         self._webview = WebKit.WebView()
         self._webview.set_hexpand(True)
@@ -37,22 +39,34 @@ class Preview:
             uri = request.get_uri() if request else "N/A"
 
             # If the navigation was initiated by a user gesture,
-            # open in external browser
-            if navigation_action.is_user_gesture() and uri and uri.startswith("http"):
-                print(f"DEBUG: Intercepting external link: {uri}")
-                import subprocess
+            # open in external browser or handle as wikilink
+            if navigation_action.is_user_gesture() and uri:
+                if uri.startswith("http"):
+                    print(f"DEBUG: Intercepting external link: {uri}")
+                    import subprocess
 
-                subprocess.Popen(["xdg-open", uri])
-                decision.ignore()
-                return True
+                    subprocess.Popen(["xdg-open", uri])
+                    decision.ignore()
+                    return True
+                elif uri.startswith("oatbrain://vault/"):
+                    target = uri[len("oatbrain://vault/") :]
+                    print(f"DEBUG: Wikilink clicked: {target}")
+                    if self.on_wikilink_clicked:
+                        self.on_wikilink_clicked(target)
+                    decision.ignore()
+                    return True
         return False
 
     def render(
-        self, markdown: str, scroll_to: float = 0.0, theme_css: str = ""
+        self,
+        markdown: str,
+        from_path: VaultPath,
+        scroll_to: float = 0.0,
+        theme_css: str = "",
     ) -> None:
         self._pending_fraction = scroll_to
         self._theme_css = theme_css
-        html = self._renderer.render(markdown)
+        html = self._renderer.render(markdown, from_path)
         self._webview.load_html(self._wrap_html(html, theme_css), "file:///")
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:

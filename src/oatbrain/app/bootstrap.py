@@ -14,6 +14,7 @@ from oatbrain.adapters.filestore.local import LocalFileStore  # noqa: E402
 from oatbrain.adapters.state.toml_store import TomlStateStore  # noqa: E402
 from oatbrain.adapters.config.toml_store import TomlConfigStore  # noqa: E402
 from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer  # noqa: E402
+from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 
 
 def get_config_path() -> Path:
@@ -57,7 +58,8 @@ def build_app(argv: list[str]) -> Adw.Application:
     event_bus = EventBus()
     command_router = CommandRouter()
     filestore = LocalFileStore(initial_state.vault_root)
-    renderer = MarkdownItRenderer()
+    resolver = WikilinkResolver(filestore)
+    renderer = MarkdownItRenderer(filestore, resolver)
 
     app = AdwAppShell(
         application_id="app.oatbrain.App",
@@ -69,5 +71,6 @@ def build_app(argv: list[str]) -> Adw.Application:
         state_store=state_store,
         config=config,
         renderer=renderer,
+        resolver=resolver,
     )
     return app

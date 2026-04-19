@@ -9,6 +9,10 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
+from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
+from oatbrain.core.commands import (  # noqa: E402
+    OpenFile,
+)
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
@@ -25,12 +29,14 @@ class Editor:
         event_bus: EventBus,
         command_router: CommandRouter,
         renderer: Optional[Renderer] = None,
+        resolver: Optional[WikilinkResolver] = None,
         vim_enabled: bool = True,
     ) -> None:
         self._filestore = filestore
         self._event_bus = event_bus
         self._command_router = command_router
         self._renderer = renderer
+        self._resolver = resolver
         self._current_path: Optional[VaultPath] = None
         self._autosave_timer: Optional[int] = None
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
@@ -83,6 +89,7 @@ class Editor:
             from oatbrain.ui.preview import Preview  # local import avoids circular dep
 
             self._preview: Optional["Preview"] = Preview(renderer)
+            self._preview.on_wikilink_clicked = self._on_wikilink_clicked
         else:
             self._preview = None
 
@@ -169,6 +176,38 @@ class Editor:
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
 
+    def _on_wikilink_clicked(self, target_full: str) -> None:
+        if self._resolver is None or self._current_path is None:
+            return
+
+        target = target_full.split("#")[0] if "#" in target_full else target_full
+        resolved = self._resolver.resolve(target, self._current_path)
+
+        if resolved:
+            self._command_router.dispatch(OpenFile(resolved))
+        else:
+            # Simple rule: create next to current note
+            new_filename = target if target.endswith(".md") else f"{target}.md"
+            
+            # If target has folders, it might be path-bearing
+            if "/" in new_filename:
+                 # Vault-relative creation
+                 new_path = VaultPath.from_str(new_filename)
+            else:
+                # File-relative creation
+                parent = self._current_path.parent
+                if str(parent):
+                    new_path = VaultPath.from_str(f"{parent}/{new_filename}")
+                else:
+                    new_path = VaultPath.from_str(new_filename)
+            
+            # Create the file
+            try:
+                self._filestore.write_text(new_path, f"# {target}\n")
+                self._command_router.dispatch(OpenFile(new_path))
+            except Exception as e:
+                print(f"Error creating file for wikilink: {e}")
+
     # ------------------------------------------------------------------
     # Theme
     # ------------------------------------------------------------------
@@ -183,9 +222,14 @@ class Editor:
     def set_theme_css(self, css: str) -> None:
         """Update the CSS injected into the WebKit preview (§11.3)."""
         self._theme_css = css
-        if self._read_mode and self._preview is not None:
+        if (
+            self._read_mode
+            and self._preview is not None
+            and self._current_path is not None
+        ):
             self._preview.render(
                 self._current_content,
+                self._current_path,
                 scroll_to=self._scroll_fraction,
                 theme_css=css,
             )
@@ -380,9 +424,12 @@ class Editor:
         if new_path is None:
             self._stack.set_visible_child_name("placeholder")
         elif new_read_mode:
-            if self._preview is not None:
+            if self._preview is not None and new_path is not None:
                 self._preview.render(
-                    self._current_content, self._scroll_fraction, self._theme_css
+                    self._current_content,
+                    new_path,
+                    scroll_to=self._scroll_fraction,
+                    theme_css=self._theme_css,
                 )
 
                 self._stack.set_visible_child_name("preview")
