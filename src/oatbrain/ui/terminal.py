@@ -80,8 +80,12 @@ class Terminal:
         """Write text directly to the terminal's stdin (§16.9)."""
         self._feed(text)
 
-    def send_text_throttled(self, text: str, delay_ms: int = 20) -> None:
-        """Write text character-by-character with a delay to mimic user typing."""
+    def send_text_throttled(self, text: str, delay_ms: int = 100) -> None:
+        """Write text character-by-character with a delay to mimic user typing.
+        
+        Using a 100ms delay to avoid being flagged as a fast-paste by CLIs 
+        like Gemini CLI (which uses a 30ms timeout).
+        """
         self.grab_focus()
         chars = list(text)
 
