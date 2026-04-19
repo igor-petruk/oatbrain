@@ -16,6 +16,7 @@ from oatbrain.core.commands import (  # noqa: E402
     ToggleTerminal,
     SendToTerminal,
     DismissMermaidWarning,
+    SetTreeExpanded,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
@@ -103,6 +104,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             DismissMermaidWarning, self._handle_dismiss_mermaid, visible=False
         )
+        self._command_router.register(
+            SetTreeExpanded, self._handle_set_tree_expanded, visible=False
+        )
 
         self._zen_mode: bool = False
         self._pre_zen_tree_visible: bool = True
@@ -176,6 +180,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         new_editor = replace(self._state.editor, read_mode=new_read_mode)
         self._state = replace(self._state, editor=new_editor)
         self._event_bus.publish(StateUpdated(self._state))
+
+    def _handle_set_tree_expanded(self, command: SetTreeExpanded) -> None:
+        expanded = list(self._state.tree_expanded)
+        if command.is_expanded and command.path not in expanded:
+            expanded.append(command.path)
+        elif not command.is_expanded and command.path in expanded:
+            expanded.remove(command.path)
+        
+        self._state = replace(self._state, tree_expanded=expanded)
+        self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
 
     def _handle_toggle_tree(self, _command: ToggleTree) -> None:
         visible = not self.tree_pane.get_visible()

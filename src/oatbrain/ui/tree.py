@@ -7,7 +7,7 @@ from gi.repository import Gtk, GLib, Gio, Gdk  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.commands import OpenFile  # noqa: E402
+from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
 
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 
@@ -82,6 +82,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Signals for lazy loading and single-click interaction
         self.tree_view.connect("row-expanded", self.on_row_expanded)
+        self.tree_view.connect("row-collapsed", self.on_row_collapsed)
         self.tree_view.connect("row-activated", self.on_row_activated)
 
         # Context Menu (§9.2)
@@ -90,6 +91,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Keyboard shortcuts (§9.2)
         self._setup_key_controller()
 
+        self._expanded_state: set[str] = set()
         self._last_synced_path: Optional[VaultPath] = None
         self._populate_root()
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
@@ -173,6 +175,15 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         return bool(GLib.SOURCE_REMOVE)
 
     def _sync_with_state(self, event: StateUpdated) -> bool:
+        new_expanded = set(event.state.tree_expanded)
+
+        # Apply expansion state on initial sync or if it changes externally
+        if self._expanded_state != new_expanded:
+            self._expanded_state = new_expanded
+            # Sort by path depth to expand parents before children
+            for path_str in sorted(new_expanded, key=lambda p: p.count("/")):
+                self._expand_path(VaultPath.from_str(path_str))
+
         open_path = event.state.editor.open_file
         if open_path != self._last_synced_path:
             self._last_synced_path = open_path
@@ -182,6 +193,38 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Also update dirty states (placeholder for now)
         self._update_dirty_states(event)
         return bool(GLib.SOURCE_REMOVE)
+
+    def _expand_path(self, target_path: VaultPath) -> None:
+        """Finds and expands the given path in the tree without selecting it."""
+        path_str = str(target_path)
+        parts = path_str.split("/")
+
+        current_iter = None
+        accumulated = ""
+
+        for i, part in enumerate(parts):
+            if i > 0:
+                accumulated += "/"
+            accumulated += part
+
+            found = False
+            child_iter = self.store.iter_children(current_iter)
+            while child_iter:
+                row_path = self.store.get_value(child_iter, COL_PATH)
+                if row_path == accumulated:
+                    current_iter = child_iter
+                    found = True
+
+                    is_dir = self.store.get_value(current_iter, COL_IS_DIR)
+                    if is_dir:
+                        self._ensure_dir_loaded(current_iter)
+                        tree_path = self.store.get_path(current_iter)
+                        self.tree_view.expand_row(tree_path, False)
+                    break
+                child_iter = self.store.iter_next(child_iter)
+
+            if not found:
+                return
 
     def _reveal_path(self, target_path: VaultPath) -> None:
         """Finds, expands, and selects the given path in the tree."""
@@ -281,6 +324,31 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     ) -> None:
         """Loads directory contents if they haven't been loaded yet."""
         self._ensure_dir_loaded(iter_)
+        path_str = self.store.get_value(iter_, COL_PATH)
+        if path_str not in self._expanded_state:
+            self._command_router.dispatch(
+                SetTreeExpanded(path=path_str, is_expanded=True)
+            )
+
+    def on_row_collapsed(
+        self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
+    ) -> None:
+        """Unloads directory contents and stores a dummy node."""
+        path_str = self.store.get_value(iter_, COL_PATH)
+
+        # Remove all children
+        child_iter = self.store.iter_children(iter_)
+        while child_iter:
+            self.store.remove(child_iter)
+            child_iter = self.store.iter_children(iter_)
+
+        # Re-add dummy node
+        self.store.append(iter_, ["", "Loading...", "", True, False, False])
+
+        if path_str in self._expanded_state:
+            self._command_router.dispatch(
+                SetTreeExpanded(path=path_str, is_expanded=False)
+            )
 
     def _ensure_dir_loaded(self, iter_: Gtk.TreeIter) -> None:
         """Checks if a directory is loaded and loads it if needed."""

@@ -24,6 +24,7 @@ class TomlStateStore:
             "panes": {
                 "tree_width": state.tree_width,
                 "tree_visible": state.tree_visible,
+                "tree_expanded": state.tree_expanded,
                 "terminal_width": state.terminal_width,
                 "terminal_visible": state.terminal_visible,
             },
@@ -74,6 +75,7 @@ class TomlStateStore:
             window_fullscreen=window.get("fullscreen", False),
             tree_width=panes.get("tree_width", 180),
             tree_visible=panes.get("tree_visible", True),
+            tree_expanded=panes.get("tree_expanded", []),
             terminal_width=panes.get("terminal_width", 360),
             terminal_visible=panes.get("terminal_visible", True),
             editor=editor,

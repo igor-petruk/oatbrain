@@ -161,3 +161,23 @@ See [MERMAID_PLAN.md](MERMAID_PLAN.md) for the detailed execution steps.
 ### Step 12.1: Asset Caching
 ### Step 12.2: UI Notifications
 ### Step 12.3: Renderer Integration
+
+---
+
+## Phase 13: File Watcher & Tree Expansion
+Goal: Ensure the app reacts instantly to external file changes and persists the tree expansion state across sessions.
+
+### Step 13.1: Expansion State Persistence & Lazy-Load Sync
+- Add `tree_expanded` to `AppState` and update `TomlStateStore`.
+- Add `SetTreeExpanded` command and logic in `CommandRouter`.
+- Update `tree.py` to restore expansion on load, dispatch toggles, and wipe children on collapse.
+
+### Step 13.2: Watcher Core & Adapter
+- Create `core/ports/watcher.py` and `core/events/watcher.py`.
+- Create `adapters/watcher.py` wrapping `watchdog`.
+- Wire the watcher in `app/bootstrap.py`.
+
+### Step 13.3: Watcher UI Integration
+- Update `CommandRouter` to handle `FileDeleted` and prune `tree_expanded`.
+- Update `tree.py` to react to file events.
+- Update `editor.py` and `CommandRouter` to handle `FileModified` auto-reloading and dirty-buffer conflict resolution.
