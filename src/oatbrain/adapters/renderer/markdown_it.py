@@ -4,25 +4,25 @@ from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
 from mdit_py_plugins.subscript import sub_plugin
 
+from oatbrain.core.ports.filestore import FileStore, VaultPath
+from oatbrain.core.markdown.wikilink import wikilink_plugin
+from oatbrain.core.markdown.transclude import transclude_plugin
+from oatbrain.core.wikilink.resolver import WikilinkResolver
+
 
 class MarkdownItRenderer:
     """Renders Markdown to HTML using markdown-it-py (SPEC §11.2).
-
-    Extensions enabled (from §12.2):
-    - CommonMark baseline
-    - GFM tables
-    - Strikethrough (~~text~~)
-    - Task lists (- [ ] / - [x])
-    - Footnotes ([^1])
-    - Subscript (H~2~O)
+    ...
     - YAML frontmatter (stripped; not rendered)
+    - Wikilinks ([[Name]])
 
     Extensions NOT available in python3-mdit-py-plugins (Debian bookworm):
-    - Superscript (x^2^) — no sup_plugin in packaged version
-    - Highlight (==text==) — no mark plugin in packaged version
+    ...
     """
 
-    def __init__(self) -> None:
+    def __init__(self, filestore: FileStore, resolver: WikilinkResolver) -> None:
+        self._filestore = filestore
+        self._resolver = resolver
         self._md = (
             MarkdownIt("commonmark")
             .enable("strikethrough")
@@ -31,9 +31,11 @@ class MarkdownItRenderer:
             .use(footnote_plugin)
             .use(tasklists_plugin)
             .use(sub_plugin)
+            .use(wikilink_plugin)
+            .use(transclude_plugin)
         )
 
-    def render(self, markdown: str) -> str:
+    def render(self, markdown: str, from_path: VaultPath) -> str:
         frontmatter_html = ""
         body = markdown
         if markdown.startswith("---"):
@@ -55,7 +57,7 @@ class MarkdownItRenderer:
                             frontmatter_html += (
                                 '<h1 style="margin-top:0; font-size: 1.5em; '
                                 'font-family: var(--font-sans, sans-serif);">'
-                                f'{fm["title"]}</h1>'
+                                f"{fm['title']}</h1>"
                             )
                             del fm["title"]
 
@@ -106,4 +108,11 @@ class MarkdownItRenderer:
                     pass
                 body = parts[2]
 
-        return frontmatter_html + str(self._md.render(body))
+        # Pass resolver and filestore to plugin via env
+        env = {
+            "from_path": from_path,
+            "resolver": self._resolver,
+            "filestore": self._filestore,
+            "md_instance": self._md,
+        }
+        return frontmatter_html + str(self._md.render(body, env=env))

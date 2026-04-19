@@ -1,4 +1,4 @@
-from typing import Final, Any
+from typing import Any, Final, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -90,6 +90,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Keyboard shortcuts (§9.2)
         self._setup_key_controller()
 
+        self._last_synced_path: Optional[VaultPath] = None
         self._populate_root()
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
 
@@ -161,7 +162,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         cell.set_property("text", "●" if is_dirty else "")
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        GLib.idle_add(self._update_dirty_states, event)
+        GLib.idle_add(self._sync_with_state, event)
 
     def grab_focus(self) -> bool:
         """Override to focus the internal TreeView."""
@@ -170,6 +171,59 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _update_dirty_states(self, event: StateUpdated) -> bool:
         # TODO: Implement deep update of dirty states in tree
         return bool(GLib.SOURCE_REMOVE)
+
+    def _sync_with_state(self, event: StateUpdated) -> bool:
+        open_path = event.state.editor.open_file
+        if open_path != self._last_synced_path:
+            self._last_synced_path = open_path
+            if open_path:
+                self._reveal_path(open_path)
+
+        # Also update dirty states (placeholder for now)
+        self._update_dirty_states(event)
+        return bool(GLib.SOURCE_REMOVE)
+
+    def _reveal_path(self, target_path: VaultPath) -> None:
+        """Finds, expands, and selects the given path in the tree."""
+        path_str = str(target_path)
+        parts = path_str.split("/")
+
+        current_iter = None
+        accumulated = ""
+
+        for i, part in enumerate(parts):
+            if i > 0:
+                accumulated += "/"
+            accumulated += part
+
+            found = False
+            child_iter = self.store.iter_children(current_iter)
+            while child_iter:
+                row_path = self.store.get_value(child_iter, COL_PATH)
+                if row_path == accumulated:
+                    current_iter = child_iter
+                    found = True
+
+                    # If this is a directory and not the final file, expand it
+                    is_dir = self.store.get_value(current_iter, COL_IS_DIR)
+                    if is_dir and i < len(parts) - 1:
+                        self._ensure_dir_loaded(current_iter)
+                        tree_path = self.store.get_path(current_iter)
+                        self.tree_view.expand_row(tree_path, False)
+                    break
+                child_iter = self.store.iter_next(child_iter)
+
+            if not found:
+                return
+
+        if current_iter:
+            # Block signal to avoid re-triggering OpenFile from selection change
+            # Actually, activation triggers OpenFile, selection doesn't by default here.
+            selection = self.tree_view.get_selection()
+            selection.select_iter(current_iter)
+            tree_path = self.store.get_path(current_iter)
+            # Scroll to make it visible
+            self.tree_view.scroll_to_cell(tree_path, None, True, 0.5, 0.0)
 
     def _get_icon(self, is_dir: bool) -> str:
         return "folder-symbolic" if is_dir else "text-x-generic-symbolic"

@@ -1,6 +1,6 @@
 export PYTHONPATH := $(CURDIR)/src:$(PYTHONPATH)
 
-.PHONY: clean lint test
+.PHONY: clean lint format test test-gui tach
 
 clean:
 	rm -rf .pytest_cache .ruff_cache build dist *.egg-info .tach
@@ -9,6 +9,11 @@ clean:
 lint:
 	python3 -m ruff check .
 	python3 -m mypy --strict src/oatbrain
+
+format:
+	python3 -m ruff format .
+
+tach:
 	.venv/bin/tach check
 
 test:

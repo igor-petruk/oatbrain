@@ -1,9 +1,18 @@
+from unittest.mock import MagicMock
 from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer
 from oatbrain.core.ports.renderer import Renderer
+from oatbrain.core.ports.filestore import VaultPath, FileStore
+from oatbrain.core.wikilink.resolver import WikilinkResolver
 
 
 def make_renderer() -> MarkdownItRenderer:
-    return MarkdownItRenderer()
+    filestore = MagicMock(spec=FileStore)
+    resolver = MagicMock(spec=WikilinkResolver)
+    return MarkdownItRenderer(filestore, resolver)
+
+
+def dummy_path() -> VaultPath:
+    return VaultPath.from_str("note.md")
 
 
 def test_implements_renderer_protocol() -> None:
@@ -15,19 +24,19 @@ def test_instantiation_does_not_raise() -> None:
 
 
 def test_empty_string_returns_empty() -> None:
-    assert make_renderer().render("") == ""
+    assert make_renderer().render("", dummy_path()) == ""
 
 
 def test_output_is_deterministic() -> None:
     r = make_renderer()
     md = "# Heading\n\nParagraph with **bold** text."
-    assert r.render(md) == r.render(md)
+    assert r.render(md, dummy_path()) == r.render(md, dummy_path())
 
 
 def test_frontmatter_is_rendered() -> None:
     # Verifies that frontmatter is rendered with the new structure
     md = "---\ntitle: Test\ntags: [a, b]\n---\n\nBody."
-    html = make_renderer().render(md)
+    html = make_renderer().render(md, dummy_path())
     assert '<div class="frontmatter"' in html
     assert (
         '<h1 style="margin-top:0; font-size: 1.5em; '
@@ -50,7 +59,7 @@ def test_all_configured_extensions_are_active() -> None:
         "H~2~O\n\n"  # subscript
         "foot[^1]\n\n[^1]: note"  # footnotes
     )
-    html = make_renderer().render(md)
+    html = make_renderer().render(md, dummy_path())
     assert "<table>" in html
     assert "<s>" in html
     assert 'type="checkbox"' in html

@@ -664,7 +664,7 @@ oatbrain parses an extended CommonMark:
 | Subscript / superscript | `H~2~O`, `x^2^` | |
 | Footnotes | `[^1]` + `[^1]: body` | |
 | Definition lists | standard | |
-| Callouts / admonitions | `> [!note] ... ` | |
+| Callouts / admonitions | `> [!note] ... ` | Collapsible via `> [!note]-` |
 | Auto-link | bare URLs | see §12.5 |
 | Code block titles | ``` ```lang title="foo.py" ``` ``` | |
 | Image sizing | wikilink-embed form only | see §12.3 |
@@ -727,12 +727,18 @@ the fences and render them as a neutral placeholder in MVP.
 ### 13.2 Resolution
 
 - **Name-only** (`[[Name]]`): scan the vault for a file whose basename (minus
-  `.md`) equals `Name`. If there is exactly one match, it wins. If there are
-  many, prefer the closest ancestor shared with the current file, then
-  alphabetically first. If there is none, the link is broken.
+  `.md`) equals `Name`. If there are many, resolve by:
+  1. **Shortest path** from vault root (fewest directory segments).
+  2. **Same-folder** priority (if tied in depth, prefer the one in the same
+     folder as the linking note).
+  3. **Alphabetical** tie-breaker.
+  This "Absolute resolution" ensures consistent behavior across the vault while
+  making links as concise as possible.
 - **Path-bearing** (`[[folder/Name]]` or `[[../x/Name]]`): resolve as vault-
-  relative first. If it does not exist, try file-relative (relative to the
-  directory of the linking note). Whichever hits first wins.
+  relative first (starting from root). If it does not exist, try file-relative
+  (relative to the directory of the linking note). Whichever hits first wins.
+- A leading slash (`[[/Name]]`) explicitly forces vault-relative resolution
+  at root.
 - Paths are matched case-sensitively on Linux.
 - `.md` extension is implied and MAY be omitted.
 - Unresolved links render in red (broken-link color token).
@@ -770,6 +776,8 @@ vault:
 - Transclusion is resolved at render time by the Renderer via the `FileStore`
   port. Cycles MUST be detected; a cyclic transclusion renders as an inline
   error, not a crash.
+- Transcluded content SHOULD have a subtle visual border or background to 
+  indicate it is "borrowed" from another file.
 - Depth limit: 6 levels. Beyond that, render an inline error.
 
 ---

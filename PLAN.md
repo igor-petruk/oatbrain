@@ -129,8 +129,9 @@ Goal: Visual identity and final touches.
 
 ## Phase 9: Advanced Markdown & Wikilinks
 Goal: Vault-aware rendering.
+See [WIKI_PLAN.md](WIKI_PLAN.md) for the detailed execution steps.
 
-### Step 9.1: Wikilink Resolution
+### Step 9.1: Wikilink Resolution [IN PROGRESS]
 - **Task**: Parse and resolve `[[Name]]` (§13).
 - **Action**:
     - Implement `core/wikilink/` logic to find targets in `FileStore`.
