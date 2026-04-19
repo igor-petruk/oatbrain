@@ -73,7 +73,7 @@ class Terminal:
 
     def send_text(self, text: str) -> None:
         """Write text directly to the terminal's stdin (§16.9)."""
-        self._vte.feed_child(list(text.encode()))
+        self._vte.feed_child(text.encode("utf-8"))
 
     def apply_theme(self, theme: object) -> None:
         """Apply VTE colors from theme ansi palette (SPEC §16.5, §20.2)."""
