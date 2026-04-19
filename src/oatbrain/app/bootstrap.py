@@ -15,6 +15,7 @@ from oatbrain.adapters.config.toml_store import TomlConfigStore  # noqa: E402
 from oatbrain.adapters.env import StdlibEnv  # noqa: E402
 from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
+from oatbrain.adapters.watcher import WatchdogFileWatcher  # noqa: E402
 
 
 def build_app(argv: list[str]) -> Adw.Application:
@@ -43,6 +44,7 @@ def build_app(argv: list[str]) -> Adw.Application:
     filestore = LocalFileStore(initial_state.vault_root)
     resolver = WikilinkResolver(filestore)
     renderer = MarkdownItRenderer(filestore, resolver)
+    watcher = WatchdogFileWatcher()
 
     app = AdwAppShell(
         application_id="app.oatbrain.App",
@@ -53,6 +55,7 @@ def build_app(argv: list[str]) -> Adw.Application:
         filestore=filestore,
         state_store=state_store,
         config=config,
+        watcher=watcher,
         renderer=renderer,
         resolver=resolver,
         env=env,

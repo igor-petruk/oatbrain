@@ -1,4 +1,5 @@
 from typing import Any, Final, Optional
+from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -10,6 +11,11 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
 
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
+from oatbrain.core.events.watcher import (  # noqa: E402
+    FileCreated,
+    FileDeleted,
+    FileRenamed,
+)
 
 # TreeStore column indices for clarity and maintainability
 COL_ICON: Final[int] = 0  # Icon name
@@ -35,11 +41,13 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         filestore: FileStore,
         event_bus: EventBus,
         command_router: CommandRouter,
+        vault_root: Optional[Path] = None,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.filestore = filestore
         self._event_bus = event_bus
         self._command_router = command_router
+        self._vault_root = vault_root
 
         # Scrolled window provides scrollbars
         self.scrolled = Gtk.ScrolledWindow()
@@ -95,6 +103,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self._last_synced_path: Optional[VaultPath] = None
         self._populate_root()
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
+        self._event_bus.subscribe(FileCreated, self._on_file_created)
+        self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
+        self._event_bus.subscribe(FileRenamed, self._on_file_renamed)
 
     def _setup_context_menu(self) -> None:
         """Sets up the right-click context menu."""
@@ -270,6 +281,147 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
     def _get_icon(self, is_dir: bool) -> str:
         return "folder-symbolic" if is_dir else "text-x-generic-symbolic"
+
+    # ------------------------------------------------------------------
+    # File watcher event handlers
+    # ------------------------------------------------------------------
+
+    def _vault_rel(self, abs_path: str) -> Optional[str]:
+        """Convert an absolute path to vault-relative, or None if outside vault."""
+        if self._vault_root is None:
+            return None
+        prefix = str(self._vault_root) + "/"
+        if abs_path.startswith(prefix):
+            return abs_path[len(prefix) :]
+        return None
+
+    def _find_iter_for_path(self, rel_path: str) -> Optional[Gtk.TreeIter]:
+        """Walk the store and return the TreeIter whose COL_PATH matches rel_path."""
+        parts = rel_path.split("/")
+        current_iter = None
+        accumulated = ""
+        for i, part in enumerate(parts):
+            if i > 0:
+                accumulated += "/"
+            accumulated += part
+            child_iter = self.store.iter_children(current_iter)
+            while child_iter:
+                if self.store.get_value(child_iter, COL_PATH) == accumulated:
+                    current_iter = child_iter
+                    break
+                child_iter = self.store.iter_next(child_iter)
+            else:
+                return None
+        return current_iter
+
+    def _on_file_created(self, event: FileCreated) -> None:
+        GLib.idle_add(self._handle_file_created, event.path)
+
+    def _handle_file_created(self, abs_path: str) -> bool:
+        rel = self._vault_rel(abs_path)
+        if rel is None:
+            return bool(GLib.SOURCE_REMOVE)
+
+        parts = rel.split("/")
+        parent_rel = "/".join(parts[:-1]) if len(parts) > 1 else ""
+        name = parts[-1]
+        is_dir = not abs_path.endswith(name) or self._path_is_dir(abs_path)
+
+        parent_iter = self._find_iter_for_path(parent_rel) if parent_rel else None
+
+        # Only insert if parent is loaded (no dummy child) or we're at root
+        if parent_rel:
+            if parent_iter is None:
+                return bool(GLib.SOURCE_REMOVE)
+            child = self.store.iter_children(parent_iter)
+            if child and self.store.get_value(child, COL_IS_DUMMY):
+                return bool(GLib.SOURCE_REMOVE)
+        else:
+            # Root: always loaded
+            pass
+
+        # Check not already present
+        if self._find_iter_for_path(rel) is not None:
+            return bool(GLib.SOURCE_REMOVE)
+
+        icon = self._get_icon(is_dir)
+        new_iter = self.store.append(
+            parent_iter, [icon, name, rel, False, is_dir, False]
+        )
+        if is_dir:
+            self.store.append(new_iter, ["", "Loading...", "", True, False, False])
+
+        self._sort_children(parent_iter)
+        return bool(GLib.SOURCE_REMOVE)
+
+    def _path_is_dir(self, abs_path: str) -> bool:
+        import os
+
+        return os.path.isdir(abs_path)
+
+    def _sort_children(self, parent_iter: Optional[Gtk.TreeIter]) -> None:
+        """Re-sort children of parent_iter: dirs first, then alpha."""
+        rows: list[list[Any]] = []
+        child = self.store.iter_children(parent_iter)
+        while child:
+            rows.append([self.store.get_value(child, c) for c in range(6)])
+            child = self.store.iter_next(child)
+        if not rows:
+            return
+        rows.sort(key=lambda r: (not r[COL_IS_DIR], r[COL_NAME].lower()))
+        child = self.store.iter_children(parent_iter)
+        for row in rows:
+            for col, val in enumerate(row):
+                self.store.set_value(child, col, val)
+            child = self.store.iter_next(child)
+
+    def _on_file_deleted(self, event: FileDeleted) -> None:
+        GLib.idle_add(self._handle_file_deleted, event.path)
+
+    def _handle_file_deleted(self, abs_path: str) -> bool:
+        rel = self._vault_rel(abs_path)
+        if rel is None:
+            return bool(GLib.SOURCE_REMOVE)
+        it = self._find_iter_for_path(rel)
+        if it is not None:
+            self.store.remove(it)
+        return bool(GLib.SOURCE_REMOVE)
+
+    def _on_file_renamed(self, event: FileRenamed) -> None:
+        GLib.idle_add(self._handle_file_renamed, event.old_path, event.new_path)
+
+    def _handle_file_renamed(self, old_abs: str, new_abs: str) -> bool:
+        old_rel = self._vault_rel(old_abs)
+        new_rel = self._vault_rel(new_abs)
+        if old_rel is None or new_rel is None:
+            return bool(GLib.SOURCE_REMOVE)
+
+        it = self._find_iter_for_path(old_rel)
+        if it is None:
+            return bool(GLib.SOURCE_REMOVE)
+
+        new_name = new_rel.split("/")[-1]
+        self.store.set_value(it, COL_NAME, new_name)
+        self.store.set_value(it, COL_PATH, new_rel)
+
+        # Update COL_PATH for all descendants (prefix swap)
+        self._repath_descendants(it, old_rel, new_rel)
+
+        parent_iter = self.store.iter_parent(it)
+        self._sort_children(parent_iter)
+        return bool(GLib.SOURCE_REMOVE)
+
+    def _repath_descendants(
+        self, it: Gtk.TreeIter, old_prefix: str, new_prefix: str
+    ) -> None:
+        """Recursively update COL_PATH for all children after a rename."""
+        child = self.store.iter_children(it)
+        while child:
+            p = self.store.get_value(child, COL_PATH)
+            if p.startswith(old_prefix + "/"):
+                self.store.set_value(child, COL_PATH, new_prefix + p[len(old_prefix) :])
+            self._repath_descendants(child, old_prefix, new_prefix)
+            child = self.store.iter_next(child)
 
     def _populate_root(self) -> None:
         """Initial population of the tree's root level."""
