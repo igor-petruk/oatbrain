@@ -35,6 +35,6 @@ class DismissMermaidWarning:
 @dataclass(frozen=True)
 class SetTreeExpanded:
     """Update the expansion state of a directory in the tree."""
+
     path: str
     is_expanded: bool
-
