@@ -69,7 +69,7 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
         return path.endswith(".oatbrain.tmp")
 
     def on_created(self, event: Union[DirCreatedEvent, FileCreatedEvent]) -> None:
-        if event.is_directory or self._is_tmp(str(event.src_path)):
+        if self._is_tmp(str(event.src_path)):
             return
         self._publish_event(FileCreated(str(event.src_path)))
 

@@ -87,7 +87,7 @@ def test_subscribe_receives_file_renamed(mock_glib: MagicMock) -> None:
 
 
 @patch("oatbrain.adapters.watcher.GLib")
-def test_directory_created_event_is_skipped(mock_glib: MagicMock) -> None:
+def test_directory_created_event_is_forwarded(mock_glib: MagicMock) -> None:
     watcher = _make_watcher()
     received: list = []
     watcher.subscribe(received.append)
@@ -95,7 +95,9 @@ def test_directory_created_event_is_skipped(mock_glib: MagicMock) -> None:
     watcher.on_created(DirCreatedEvent("/vault/subdir"))
     _drain_idle(mock_glib.idle_add)
 
-    assert len(received) == 0
+    assert len(received) == 1
+    assert isinstance(received[0], FileCreated)
+    assert received[0].path == "/vault/subdir"
 
 
 @patch("oatbrain.adapters.watcher.GLib")

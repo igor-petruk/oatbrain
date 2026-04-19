@@ -101,6 +101,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         self._expanded_state: set[str] = set()
         self._last_synced_path: Optional[VaultPath] = None
+        self._sync_idle_id: Optional[int] = None
         self._populate_root()
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
         self._event_bus.subscribe(FileCreated, self._on_file_created)
@@ -175,7 +176,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         cell.set_property("text", "●" if is_dirty else "")
 
     def _on_state_updated(self, event: StateUpdated) -> None:
-        GLib.idle_add(self._sync_with_state, event)
+        if self._sync_idle_id is not None:
+            GLib.source_remove(self._sync_idle_id)
+        self._sync_idle_id = GLib.idle_add(self._sync_with_state, event)
 
     def grab_focus(self) -> bool:
         """Override to focus the internal TreeView."""
@@ -186,6 +189,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         return bool(GLib.SOURCE_REMOVE)
 
     def _sync_with_state(self, event: StateUpdated) -> bool:
+        self._sync_idle_id = None
         new_expanded = set(event.state.tree_expanded)
 
         # Apply expansion state on initial sync or if it changes externally
