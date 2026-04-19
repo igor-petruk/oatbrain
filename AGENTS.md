@@ -28,11 +28,13 @@ Every task MUST follow this lifecycle:
 ## 3. Testing & Verification ([SPEC §30](SPEC.md#30-testing-strategy))
 
 - **Universal Commands**: ALWAYS run validation via the `Makefile` using path-independent targets.
-  - `make lint` — Ruff check and Mypy (system python3).
-  - `make format` — Ruff formatting (system python3).
-  - `make tach` — Architecture boundary check (via `.venv/bin/tach`).
-  - `make test` — Run all unit tests (system python3).
-- **Exclusivity**: All tests and validation MUST be run through the `Makefile` (e.g., `make test`, `make lint`). Do NOT run `pytest` or other tools directly.
+  - `make lint` — Ruff check and Mypy.
+  - `make format` — Automated formatting (use this instead of manual AI formatting).
+  - `make tach` — Architecture boundary check.
+  - `make test` — Run all unit tests.
+  - `make test-gui` — Run GUI/smoke tests.
+- **Pre-Push Gate**: NEVER push changes to the repository unless the entire validation pipeline (`make lint && make tach && make test-gui && make test`) passes.
+- **No Manual Formatting**: Do NOT manually format code or use AI-generated formatting. Always invoke `make format` to ensure consistency with project standards.
 - **Mandatory Coverage**: Any code change or new feature MUST be accompanied by a unit test. A change is incomplete without verification logic that prevents future regressions.
 - **Reproduction Mandate**: For bug fixes, you MUST include a unit test that reproduces the failure before applying the fix.
 - **Dependency Mandate**: ALL dependencies installable via Debian MUST be used via the system-packaged versions. Only `tach` is permitted in a virtual environment.
