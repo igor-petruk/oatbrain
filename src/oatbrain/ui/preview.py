@@ -1,5 +1,5 @@
 import gi
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 gi.require_version("WebKit", "6.0")
 gi.require_version("Gtk", "4.0")
@@ -65,7 +65,8 @@ class Preview:
         )
         cm.add_script(script)
 
-        wv = WebKit.WebView.new_with_user_content_manager(cm)
+        # WebKit 6.0 constructor (GTK4 compatible)
+        wv = WebKit.WebView(user_content_manager=cm)
         wv.set_hexpand(True)
         wv.set_vexpand(True)
         wv.set_background_color(Gdk.RGBA(0, 0, 0, 0))
@@ -83,12 +84,12 @@ class Preview:
     def _on_script_message(
         self,
         _cm: WebKit.UserContentManager,
-        message: WebKit.JavascriptResult,
+        message: Any,
     ) -> None:
         try:
-            val = message.get_js_value()
-            if val.is_object():
-                obj = val.to_json(0)
+            # In WebKit 6.0, the message is a JSC.Value directly
+            if message.is_object():
+                obj = message.to_json(0)
                 import json
 
                 data = json.loads(obj)
@@ -163,18 +164,15 @@ class Preview:
         full_html = self._wrap_html(html, theme_css, mermaid_js, theme_id)
 
         # If it's the same base document, just update body to avoid flicker
-        # We check if theme or mermaid js changed too by just comparing full HTML
-        # but realistically, even if body changed, we want to avoid full reload.
         if self._last_rendered_html and len(full_html) > 0:
-            # We use a trick: only update if the wrap remains similar enough.
-            # For now, let's try evaluating JS to update body.
-            # If there's Mermaid, we might need full reload to re-run it though.
             if not mermaid_js:
                 escaped_html = (
                     html.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                 )
                 script = f"document.body.innerHTML = '{escaped_html}';"
-                self._active_wv.evaluate_javascript(script, -1, None, None, None, None, None)
+                self._active_wv.evaluate_javascript(
+                    script, -1, None, None, None, None, None
+                )
                 self._last_rendered_html = full_html
                 return
 
@@ -255,8 +253,12 @@ class Preview:
     @staticmethod
     def _get_pygments_css(theme_id: str) -> str:
         try:
-            from pygments.formatters import HtmlFormatter  # type: ignore[import-untyped]
-            from pygments.styles import get_style_by_name  # type: ignore[import-untyped]
+            from pygments.formatters import (  # type: ignore[import-untyped]
+                HtmlFormatter,
+            )
+            from pygments.styles import (  # type: ignore[import-untyped]
+                get_style_by_name,
+            )
 
             style_map = {
                 "solarized-light": "solarized-light",
