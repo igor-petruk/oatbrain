@@ -10,7 +10,8 @@ dependencies = [
     "mdit-py-plugins",
     "pyyaml",
     "watchdog",
-    "tomli-w"
+    "tomli-w",
+    "Pygments"
 ]
 
 [project.scripts]

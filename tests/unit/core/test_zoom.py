@@ -11,7 +11,7 @@ def test_zoom_command_updates_state():
     initial_state = AppState(vault_root=Path("/vault"))
     event_bus = EventBus()
     command_router = CommandRouter()
-    
+
     # Mock dependencies
     filestore = MagicMock()
     state_store = MagicMock()
@@ -51,6 +51,6 @@ def test_zoom_command_updates_state():
     # 6. Clamping
     command_router.dispatch(Zoom(component="tree", delta=10.0))
     assert app._state.tree_zoom == 3.0
-    
+
     command_router.dispatch(Zoom(component="tree", delta=-10.0))
     assert app._state.tree_zoom == 0.5
