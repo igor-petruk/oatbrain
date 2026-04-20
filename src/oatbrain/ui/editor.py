@@ -8,12 +8,12 @@ gi.require_version("GtkSource", "5")
 from gi.repository import Gtk, Gdk, GtkSource, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.events.watcher import FileModified  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
+from oatbrain.core.state.app_state import TabState, AppState  # noqa: E402
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
     Zoom,
@@ -22,6 +22,7 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
     SetDirty,
     ToggleMode,
+    ToggleSplit,
 )
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
@@ -53,10 +54,13 @@ class Editor:
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
         self._loading = False
         self._read_mode = False
+        self._split_mode = False
         self._current_content: str = ""
         self._scroll_fraction: float = 0.0
         self._theme_css: str = ""
         self._theme_id: str = "solarized-light"
+        self._render_timeout_id: Optional[int] = None
+        self._scrolling_locked = False
 
         # --- Source view ---
         self.buffer = GtkSource.Buffer()
@@ -121,6 +125,14 @@ class Editor:
         else:
             self._preview = None
 
+        # Containers for easy reparenting
+        self._source_container = Gtk.Box()
+        self._source_container.append(self._source_scroll)
+
+        self._preview_container = Gtk.Box()
+        if self._preview:
+            self._preview_container.append(self._preview.widget)
+
         # --- Empty-pane placeholder (§7.4) ---
         self.placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.placeholder.set_valign(Gtk.Align.CENTER)
@@ -136,16 +148,23 @@ class Editor:
         hint_label.set_justify(Gtk.Justification.CENTER)
         self.placeholder.append(hint_label)
 
-        # --- Content stack: placeholder / source / preview ---
+        # --- Split view ---
+        self._split_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self._split_paned.set_wide_handle(True)
+        self._split_paned.set_hexpand(True)
+        self._split_paned.set_vexpand(True)
+
+        # --- Content stack: placeholder / source / preview / split ---
         self._stack = Gtk.Stack()
         self._stack.set_hexpand(True)
         self._stack.set_vexpand(True)
         self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self._stack.set_transition_duration(120)
         self._stack.add_named(self.placeholder, "placeholder")
-        self._stack.add_named(self._source_scroll, "source")
+        self._stack.add_named(self._source_container, "source")
         if self._preview is not None:
-            self._stack.add_named(self._preview.widget, "preview")
+            self._stack.add_named(self._preview_container, "preview")
+            self._stack.add_named(self._split_paned, "split")
 
         # --- Mode toggle buttons (SPEC §8.1: float in pane top-right) ---
         self._btn_source = Gtk.ToggleButton()
@@ -158,9 +177,15 @@ class Editor:
         self._btn_read.set_tooltip_text("Read (preview)")
         self._btn_read.set_group(self._btn_source)
 
+        self._btn_split = Gtk.ToggleButton()
+        self._btn_split.set_icon_name("view-dual-symbolic")
+        self._btn_split.set_tooltip_text("Split view")
+        self._btn_split.set_group(self._btn_source)
+
         self._toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self._toggle_box.append(self._btn_source)
         self._toggle_box.append(self._btn_read)
+        self._toggle_box.append(self._btn_split)
         self._toggle_box.set_halign(Gtk.Align.END)
         self._toggle_box.set_valign(Gtk.Align.START)
         self._toggle_box.set_margin_top(8)
@@ -201,9 +226,25 @@ class Editor:
 
         self._btn_source.connect("toggled", self._on_source_toggled)
         self._btn_read.connect("toggled", self._on_read_toggled)
+        self._btn_split.connect("toggled", self._on_split_toggled)
 
-        event_bus.subscribe(StateUpdated, self._on_state_updated)
+        # Synchronized scrolling
+        self._source_scroll.get_vadjustment().connect(
+            "value-changed", self._on_source_scrolled
+        )
+
         event_bus.subscribe(FileModified, self._on_file_modified)
+
+    def _on_source_scrolled(self, adj: Gtk.Adjustment) -> None:
+        if self._scrolling_locked:
+            return
+        if self._read_mode or self._split_mode:
+            upper = adj.get_upper() - adj.get_page_size()
+            if upper > 0:
+                fraction = adj.get_value() / upper
+                self._scroll_fraction = fraction
+                if self._preview:
+                    self._preview._apply_scroll(self._preview._active_wv, fraction)
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
         """Handle Ctrl+MouseScroll to zoom editor (§19)."""
@@ -266,7 +307,7 @@ class Editor:
         self._theme_css = css
         self._theme_id = theme_id
         if (
-            self._read_mode
+            (self._read_mode or self._split_mode)
             and self._preview is not None
             and self._current_path is not None
         ):
@@ -297,34 +338,40 @@ class Editor:
         """Flip between source and read mode (Ctrl+E / SPEC §10.2)."""
         self._command_router.dispatch(ToggleMode())
 
+    def toggle_split(self) -> None:
+        """Toggle side-by-side edit/preview split mode."""
+        self._command_router.dispatch(ToggleSplit())
+
     def _apply_fraction_to_source(self, fraction: float) -> None:
         """Apply scroll fraction to the source view (called async from preview)."""
         self._scroll_fraction = fraction
+        self._scrolling_locked = True
         adj = self._source_scroll.get_vadjustment()
         upper = adj.get_upper() - adj.get_page_size()
         if upper > 0:
             adj.set_value(fraction * upper)
-
-    def _set_read_mode(self, read: bool) -> None:
-        self._read_mode = read
-        if self._current_path is None:
-            return
-        if read:
-            if self._preview is not None:
-                self._preview.render(
-                    self._current_content, self._current_path, theme_css=self._theme_css
-                )
-                self._stack.set_visible_child_name("preview")
-        else:
-            self._stack.set_visible_child_name("source")
+        self._scrolling_locked = False
 
     def _on_source_toggled(self, btn: Gtk.ToggleButton) -> None:
         if btn.get_active():
-            self._command_router.dispatch(ToggleMode())
+            if self._read_mode:
+                self._command_router.dispatch(ToggleMode())
+            elif self._split_mode:
+                self._command_router.dispatch(ToggleSplit())
 
     def _on_read_toggled(self, btn: Gtk.ToggleButton) -> None:
         if btn.get_active():
-            self._command_router.dispatch(ToggleMode())
+            if not self._read_mode:
+                if self._split_mode:
+                    self._command_router.dispatch(ToggleSplit())
+                self._command_router.dispatch(ToggleMode())
+
+    def _on_split_toggled(self, btn: Gtk.ToggleButton) -> None:
+        if btn.get_active():
+            if not self._split_mode:
+                if self._read_mode:
+                    self._command_router.dispatch(ToggleMode())
+                self._command_router.dispatch(ToggleSplit())
 
     # ------------------------------------------------------------------
     # Vim IM context callbacks
@@ -366,6 +413,26 @@ class Editor:
         self._current_content = self.buffer.get_text(start, end, True)
         self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
         self._command_router.dispatch(SetDirty(dirty=True))
+
+        if self._split_mode:
+            self._debounce_render()
+
+    def _debounce_render(self) -> None:
+        if self._render_timeout_id:
+            GLib.source_remove(self._render_timeout_id)
+        self._render_timeout_id = GLib.timeout_add(300, self._do_render)
+
+    def _do_render(self) -> bool:
+        self._render_timeout_id = None
+        if self._preview and self._current_path:
+            self._preview.render(
+                self._current_content,
+                self._current_path,
+                scroll_to=self._scroll_fraction,
+                theme_css=self._theme_css,
+                theme_id=self._theme_id,
+            )
+        return False
 
     def _on_focus_leave(self, _ctrl: Gtk.EventControllerFocus) -> None:
         self._save()
@@ -430,28 +497,28 @@ class Editor:
         self.buffer.set_text(content)
         self._current_content = content
         self._loading = False
-        self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
+        self._command_router.dispatch(UpdateWordCount(count=0))
         return False
 
-    def _on_state_updated(self, event: StateUpdated) -> None:
-        GLib.idle_add(self._update_ui, event)
+    def update_from_state(self, tab_state: TabState, app_state: AppState) -> None:
+        """Update UI from specific tab state and global app state."""
+        self._update_ui_impl(tab_state, app_state)
 
     def _update_language(self, path: VaultPath) -> None:
         lang = self._language_manager.guess_language(str(path), None)
         self.buffer.set_language(lang)
 
-    def _update_ui(self, event: StateUpdated) -> bool:
-        new_path = event.state.editor.open_file
-        new_read_mode = event.state.editor.read_mode
+    def _update_ui_impl(self, tab_state: TabState, app_state: AppState) -> None:
+        new_path = tab_state.open_file
 
         # Apply zoom (§19)
         base_size = 13.0
-        new_size = base_size * event.state.editor.zoom
+        new_size = base_size * app_state.editor_zoom
         css = f".oatbrain-editor {{ font-size: {new_size:.1f}pt; }}"
         self._zoom_provider.load_from_string(css)
 
         if self._preview:
-            self._preview.set_zoom(event.state.editor.preview_zoom)
+            self._preview.set_zoom(app_state.preview_zoom)
 
         self.placeholder.set_visible(new_path is None)
         is_markdown = new_path is not None and str(new_path).endswith(
@@ -460,6 +527,12 @@ class Editor:
         is_image = new_path is not None and any(
             str(new_path).lower().endswith(ext) for ext in IMAGE_EXTS
         )
+
+        effective_read_mode = (
+            tab_state.read_mode if (is_markdown or is_image) else False
+        )
+        effective_split_mode = tab_state.split_mode if is_markdown else False
+
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
         if new_path != self._current_path:
@@ -494,65 +567,94 @@ class Editor:
                 self.buffer.set_language(None)
                 self._command_router.dispatch(UpdateWordCount(count=0))
 
-        # If the new file is an image, force preview mode
-        if is_image and not self._read_mode:
-            self._read_mode = True
-            new_read_mode = True
-        # If the new file isn't Markdown or Image, drop out of read mode
-        elif not is_markdown and not is_image and self._read_mode:
-            self._read_mode = False
-            new_read_mode = False
-            self._command_router.dispatch(ToggleMode())
+        # Mode logic
+        self._read_mode = effective_read_mode
+        self._split_mode = effective_split_mode
 
-        # Sync mode (may change independently of file)
-        mode_changed = new_read_mode != self._read_mode
-        if mode_changed:
-            if self._read_mode:
-                # Leaving preview → capture scroll fraction asynchronously;
-                # apply it to the source view once the value arrives.
-                if self._preview is not None:
-                    self._preview.get_scroll_fraction(self._apply_fraction_to_source)
-            else:
-                # Leaving source → capture fraction synchronously from vadjustment.
-                adj = self._source_scroll.get_vadjustment()
-                upper = adj.get_upper() - adj.get_page_size()
-                self._scroll_fraction = adj.get_value() / upper if upper > 0 else 0.0
+        # Sync buttons
+        self._btn_read.handler_block_by_func(self._on_read_toggled)
+        self._btn_source.handler_block_by_func(self._on_source_toggled)
+        self._btn_split.handler_block_by_func(self._on_split_toggled)
 
-            self._read_mode = new_read_mode
-            self._btn_read.handler_block_by_func(self._on_read_toggled)
-            self._btn_source.handler_block_by_func(self._on_source_toggled)
-            self._btn_read.set_active(new_read_mode)
-            self._btn_source.set_active(not new_read_mode)
-            self._btn_read.handler_unblock_by_func(self._on_read_toggled)
-            self._btn_source.handler_unblock_by_func(self._on_source_toggled)
+        self._btn_read.set_active(effective_read_mode)
+        self._btn_source.set_active(
+            not effective_read_mode and not effective_split_mode
+        )
+        self._btn_split.set_active(effective_split_mode)
 
-        # Switch view
-        self._stack.set_visible_child_name("preview" if new_read_mode else "source")
-        if new_path is None:
-            self._stack.set_visible_child_name("placeholder")
-        elif is_image:
-            if self._preview is not None:
-                abs_path = self._filestore.get_path(new_path)
-                self._preview.render_image(
-                    abs_path,
-                    theme_css=self._theme_css,
-                    theme_id=event.state.theme_id,
-                )
-                self._stack.set_visible_child_name("preview")
-        elif new_read_mode:
-            if self._preview is not None and new_path is not None:
-                self._preview.render(
-                    self._current_content,
-                    new_path,
-                    scroll_to=self._scroll_fraction,
-                    theme_css=self._theme_css,
-                    theme_id=event.state.theme_id,
-                )
+        self._btn_read.handler_unblock_by_func(self._on_read_toggled)
+        self._btn_source.handler_unblock_by_func(self._on_source_toggled)
+        self._btn_split.handler_unblock_by_func(self._on_split_toggled)
 
-                self._stack.set_visible_child_name("preview")
-            else:
-                self._stack.set_visible_child_name("source")
+        # Reparenting logic: ensure children are in the right places
+        if effective_split_mode:
+            if self._source_scroll.get_parent() != self._split_paned:
+                if self._source_scroll.get_parent():
+                    self._source_scroll.unparent()
+                if self._preview and self._preview.widget.get_parent():
+                    self._preview.widget.unparent()
+                self._split_paned.set_start_child(self._source_scroll)
+                if self._preview:
+                    self._split_paned.set_end_child(self._preview.widget)
+
+                def set_split_pos() -> bool:
+                    width = self._split_paned.get_width()
+                    if width > 0:
+                        self._split_paned.set_position(width // 2)
+                        return False
+                    return True
+
+                GLib.timeout_add(50, set_split_pos)
+            self._stack.set_visible_child_name("split")
+        elif is_image or effective_read_mode:
+            if self._preview:
+                if self._preview.widget.get_parent() != self._preview_container:
+                    if self._preview.widget.get_parent() == self._split_paned:
+                        self._split_paned.set_end_child(None)
+                    if self._preview.widget.get_parent():
+                        self._preview.widget.unparent()
+                    self._preview_container.append(self._preview.widget)
+            if self._source_scroll.get_parent() != self._source_container:
+                if self._source_scroll.get_parent() == self._split_paned:
+                    self._split_paned.set_start_child(None)
+                if self._source_scroll.get_parent():
+                    self._source_scroll.unparent()
+                self._source_container.append(self._source_scroll)
+            self._stack.set_visible_child_name("preview")
         else:
+            if self._source_scroll.get_parent() != self._source_container:
+                if self._source_scroll.get_parent() == self._split_paned:
+                    self._split_paned.set_start_child(None)
+                if self._source_scroll.get_parent():
+                    self._source_scroll.unparent()
+                self._source_container.append(self._source_scroll)
+            if self._preview and self._preview.widget.get_parent():
+                if self._preview.widget.get_parent() != self._preview_container:
+                    if self._preview.widget.get_parent() == self._split_paned:
+                        self._split_paned.set_end_child(None)
+                    if self._preview.widget.get_parent():
+                        self._preview.widget.unparent()
+                    self._preview_container.append(self._preview.widget)
             self._stack.set_visible_child_name("source")
 
-        return False
+        # Perform render if needed
+        if (
+            (effective_read_mode or effective_split_mode)
+            and self._preview
+            and new_path
+            and not is_image
+        ):
+            self._preview.render(
+                self._current_content,
+                new_path,
+                scroll_to=self._scroll_fraction,
+                theme_css=self._theme_css,
+                theme_id=app_state.theme_id,
+            )
+        elif is_image and self._preview and new_path:
+            abs_path = self._filestore.get_path(new_path)
+            self._preview.render_image(
+                abs_path,
+                theme_css=self._theme_css,
+                theme_id=app_state.theme_id,
+            )

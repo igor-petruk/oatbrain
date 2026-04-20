@@ -83,9 +83,7 @@ def test_standard_image_resolution() -> None:
     # Mock filestore and resolver
     renderer._filestore.exists = MagicMock(return_value=True)  # type: ignore
     renderer._filestore.get_path = MagicMock(return_value="/vault/img.png")
-    renderer._resolver.resolve = MagicMock(
-        return_value=VaultPath.from_str("img.png")
-    )
+    renderer._resolver.resolve = MagicMock(return_value=VaultPath.from_str("img.png"))
 
     html = renderer.render("![alt](img.png)", VaultPath.from_str("test.md"))
     assert '<img src="file:///vault/img.png" alt="alt" />' in html

@@ -14,6 +14,7 @@ from .ui import (
 @dataclass(frozen=True)
 class OpenFile:
     path: VaultPath
+    new_tab: bool = False
 
 
 __all__ = [

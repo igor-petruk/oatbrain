@@ -38,11 +38,11 @@ def test_zoom_command_updates_state():
 
     # 3. Zoom Editor
     command_router.dispatch(Zoom(component="editor", delta=0.5))
-    assert app._state.editor.zoom == 1.5
+    assert app._state.editor_zoom == 1.5
 
     # 4. Zoom Preview
     command_router.dispatch(Zoom(component="preview", delta=-0.1))
-    assert app._state.editor.preview_zoom == 0.9
+    assert app._state.preview_zoom == 0.9
 
     # 5. Reset Zoom
     command_router.dispatch(Zoom(component="tree", reset=True))

@@ -43,15 +43,17 @@ class StatusBar:
 
     def _update_ui(self, event: StateUpdated) -> bool:
         state = event.state
+        active_tab = state.active_tab
 
-        if state.editor.open_file:
-            self._path_label.set_text(str(state.editor.open_file))
-            self._unsaved_dot.set_visible(state.editor.is_dirty)
+        if active_tab.open_file:
+            self._path_label.set_text(str(active_tab.open_file))
+            self._unsaved_dot.set_visible(active_tab.is_dirty)
         else:
             self._path_label.set_text("No file open")
             self._unsaved_dot.set_visible(False)
             self._readonly_lock.set_visible(False)
 
-        self._word_count_label.set_text(f"{state.editor.word_count} words")
+        self._word_count_label.set_text(f"{active_tab.word_count} words")
+        self._theme_label.set_text(state.theme_name)
 
         return False

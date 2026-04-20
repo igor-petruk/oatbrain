@@ -21,9 +21,28 @@ class ToggleMode:
 
 
 @dataclass(frozen=True)
+class ToggleSplit:
+    """Toggle side-by-side edit/preview split mode."""
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "ToggleSplit"]]:
+        return [("Toggle Split Mode", cls())]
+
+
+@dataclass(frozen=True)
 class ToggleZen:
     """Enter or exit Zen (distraction-free) mode (SPEC §7.5)."""
 
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "ToggleZen"]]:
         return [("Toggle Zen Mode", cls())]
+
+
+@dataclass(frozen=True)
+class CloseTab:
+    index: int
+
+
+@dataclass(frozen=True)
+class SwitchTab:
+    index: int

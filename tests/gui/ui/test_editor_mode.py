@@ -108,8 +108,9 @@ def test_toggle_box_shown_for_markdown_file() -> None:
     editor._current_path = VaultPath.from_str("note.md")
     # Simulate update_ui with a markdown file open
     state = AppState(vault_root=Path("/tmp"))
-    new_editor_state = replace(state.editor, open_file=VaultPath.from_str("note.md"))
-    state = replace(state, editor=new_editor_state)
+    tabs = list(state.tabs)
+    tabs[0] = replace(tabs[0], open_file=VaultPath.from_str("note.md"))
+    state = replace(state, tabs=tabs)
     # Directly call the path/toggle logic that _update_ui uses
     is_markdown = str(VaultPath.from_str("note.md")).endswith((".md", ".markdown"))
     editor._toggle_box.set_visible(is_markdown and editor._preview is not None)
@@ -211,12 +212,12 @@ def test_window_toggle_mode_flips_read_mode() -> None:
     )
     app.on_activate(app)
 
-    assert not app._state.editor.read_mode
+    assert not app._state.active_tab.read_mode
     command_router.dispatch(ToggleMode())
-    assert app._state.editor.read_mode
+    assert app._state.active_tab.read_mode
 
     command_router.dispatch(ToggleMode())
-    assert not app._state.editor.read_mode
+    assert not app._state.active_tab.read_mode
 
 
 def test_toggle_mode_publishes_state_updated() -> None:

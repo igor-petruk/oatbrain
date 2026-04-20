@@ -11,18 +11,20 @@ def _base_state() -> AppState:
 
 def test_set_dirty_true() -> None:
     state = _base_state()
-    new_editor = replace(state.editor, is_dirty=True)
-    state = replace(state, editor=new_editor)
-    assert state.editor.is_dirty is True
+    tabs = list(state.tabs)
+    tabs[0] = replace(tabs[0], is_dirty=True)
+    state = replace(state, tabs=tabs)
+    assert state.active_tab.is_dirty is True
 
 
 def test_set_dirty_false() -> None:
     state = _base_state()
-    new_editor = replace(state.editor, is_dirty=True)
-    state = replace(state, editor=new_editor)
-    new_editor = replace(state.editor, is_dirty=False)
-    state = replace(state, editor=new_editor)
-    assert state.editor.is_dirty is False
+    tabs = list(state.tabs)
+    tabs[0] = replace(tabs[0], is_dirty=True)
+    state = replace(state, tabs=tabs)
+    tabs[0] = replace(tabs[0], is_dirty=False)
+    state = replace(state, tabs=tabs)
+    assert state.active_tab.is_dirty is False
 
 
 def test_set_dirty_command_fields() -> None:
@@ -42,10 +44,11 @@ def test_toggle_mode_command_instantiates() -> None:
 
 def test_toggle_mode_state_transition() -> None:
     state = _base_state()
-    assert state.editor.read_mode is False
-    new_editor = replace(state.editor, read_mode=True)
-    state = replace(state, editor=new_editor)
-    assert state.editor.read_mode is True
-    new_editor = replace(state.editor, read_mode=False)
-    state = replace(state, editor=new_editor)
-    assert state.editor.read_mode is False
+    assert state.active_tab.read_mode is False
+    tabs = list(state.tabs)
+    tabs[0] = replace(tabs[0], read_mode=True)
+    state = replace(state, tabs=tabs)
+    assert state.active_tab.read_mode is True
+    tabs[0] = replace(tabs[0], read_mode=False)
+    state = replace(state, tabs=tabs)
+    assert state.active_tab.read_mode is False

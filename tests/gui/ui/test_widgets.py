@@ -127,7 +127,7 @@ def test_app_shell_activation_smoke() -> None:
     app.on_activate(app)
 
     assert isinstance(app.main_window, Adw.ApplicationWindow)
-    assert isinstance(app.editor, Editor)
+    assert isinstance(app.tab_view, Adw.TabView)
     assert isinstance(app.tree_pane, FileTree)
 
 
