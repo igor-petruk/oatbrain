@@ -51,11 +51,16 @@ def test_widget_hierarchy() -> None:
     right_paned = main_paned.get_end_child()
     assert isinstance(right_paned, Gtk.Paned)
 
-    # TabView and Terminal
-    editor_container = right_paned.get_start_child()
+    # Box and Terminal
+    editor_box = right_paned.get_start_child()
     terminal_widget = right_paned.get_end_child()
 
-    assert isinstance(editor_container, Adw.TabView)
+    assert isinstance(editor_box, Gtk.Box)
+    # Inside editor_box there should be TabBar and TabView
+    tab_bar = editor_box.get_first_child()
+    assert isinstance(tab_bar, Adw.TabBar)
+    tab_view = tab_bar.get_next_sibling()
+    assert isinstance(tab_view, Adw.TabView)
     assert isinstance(terminal_widget, Gtk.Widget)
 
 

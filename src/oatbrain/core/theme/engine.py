@@ -53,16 +53,27 @@ textview.oatbrain-editor gutter {
 .oatbrain-statusbar {
     background-color: var(--color-bg-alt);
     color: var(--color-fg-muted, var(--color-fg));
-    border-top: 1px solid var(--color-border);
+    border: none;
+    box-shadow: none;
 }
 tabbar {
     background-color: var(--color-bg-alt);
+    border: none;
+    box-shadow: none;
 }
 tabbar tab {
     background-color: var(--color-bg-alt);
+    border: none;
+    box-shadow: none;
 }
 tabbar tab:checked {
     background-color: var(--color-bg);
+}
+/* Hide separators between toolbars and content */
+toolbarview > separator {
+    opacity: 0;
+    min-height: 0;
+    min-width: 0;
 }
 :backdrop .oatbrain-headerbar,
 :backdrop .oatbrain-statusbar,
