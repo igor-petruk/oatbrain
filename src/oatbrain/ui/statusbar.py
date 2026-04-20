@@ -9,10 +9,7 @@ class StatusBar:
     def __init__(self, event_bus: EventBus) -> None:
         self.widget = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.widget.add_css_class("oatbrain-statusbar")
-        self.widget.set_margin_start(12)
-        self.widget.set_margin_end(12)
-        self.widget.set_margin_top(6)
-        self.widget.set_margin_bottom(6)
+        # Margins are removed here and handled via CSS padding/margins to avoid parent bleed
         self.widget.set_spacing(12)
 
         self._path_label = Gtk.Label(label="No file open")

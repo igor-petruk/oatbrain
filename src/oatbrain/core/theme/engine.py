@@ -55,29 +55,52 @@ textview.oatbrain-editor gutter {
     color: var(--color-fg-muted, var(--color-fg));
     border: none;
     box-shadow: none;
+    padding: 6px 12px;
 }
 tabbar {
     background-color: var(--color-bg-alt);
     border: none;
     box-shadow: none;
+    padding: 0;
+    margin: 0;
+}
+tabbar > box,
+tabbar tabbox {
+    background-color: var(--color-bg-alt);
 }
 tabbar tab {
     background-color: var(--color-bg-alt);
     border: none;
     box-shadow: none;
+    padding: 4px 8px;
 }
 tabbar tab:checked {
     background-color: var(--color-bg);
 }
-/* Hide separators between toolbars and content */
+/* Hide separators and ensure toolbarview bars match background */
 toolbarview > separator {
     opacity: 0;
     min-height: 0;
     min-width: 0;
 }
+toolbarview header,
+toolbarview footer,
+toolbarview .top-bar,
+toolbarview .bottom-bar {
+    background-color: var(--color-bg-alt);
+    border: none;
+    box-shadow: none;
+}
+paned > separator {
+    background-color: var(--color-border);
+    min-width: 1px;
+    min-height: 1px;
+}
 :backdrop .oatbrain-headerbar,
 :backdrop .oatbrain-statusbar,
 :backdrop tabbar,
+:backdrop tabbar > box,
+:backdrop tabbar tabbox,
 :backdrop .oatbrain-filetree,
 :backdrop .oatbrain-filetree row {
     background-color: var(--color-bg-alt-bd);

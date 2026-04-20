@@ -169,7 +169,60 @@ class Preview:
                 escaped_html = (
                     html.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                 )
-                script = f"document.body.innerHTML = '{escaped_html}';"
+                # Use surgical update via JS morphing
+                script = f"""
+                    (function() {{
+                        const newHtml = '{escaped_html}';
+                        const temp = document.createElement('div');
+                        temp.innerHTML = newHtml;
+                        
+                        function morph(oldNode, newNode) {{
+                            if (oldNode.nodeType !== newNode.nodeType || oldNode.tagName !== newNode.tagName) {{
+                                oldNode.parentNode.replaceChild(newNode.cloneNode(true), oldNode);
+                                return;
+                            }}
+                            if (oldNode.nodeType === Node.TEXT_NODE) {{
+                                if (oldNode.textContent !== newNode.textContent) {{
+                                    oldNode.textContent = newNode.textContent;
+                                }}
+                                return;
+                            }}
+                            // Attributes
+                            const oldAttrs = oldNode.attributes;
+                            const newAttrs = newNode.attributes;
+                            for (let i = 0; i < newAttrs.length; i++) {{
+                                const attr = newAttrs[i];
+                                if (oldNode.getAttribute(attr.name) !== attr.value) {{
+                                    oldNode.setAttribute(attr.name, attr.value);
+                                }}
+                            }}
+                            for (let i = 0; i < oldAttrs.length; i++) {{
+                                const attr = oldAttrs[i];
+                                if (!newNode.hasAttribute(attr.name)) {{
+                                    oldNode.removeAttribute(attr.name);
+                                }}
+                            }}
+                            // Children
+                            const oldChildren = Array.from(oldNode.childNodes);
+                            const newChildren = Array.from(newNode.childNodes);
+                            
+                            let i = 0;
+                            while (i < newChildren.length) {{
+                                if (i < oldChildren.length) {{
+                                    morph(oldChildren[i], newChildren[i]);
+                                }} else {{
+                                    oldNode.appendChild(newChildren[i].cloneNode(true));
+                                }}
+                                i++;
+                            }}
+                            while (oldNode.childNodes.length > newChildren.length) {{
+                                oldNode.removeChild(oldNode.lastChild);
+                            }}
+                        }}
+                        
+                        morph(document.body, temp);
+                    }})();
+                """
                 self._active_wv.evaluate_javascript(
                     script, -1, None, None, None, None, None
                 )
