@@ -157,7 +157,7 @@ class Terminal:
                     clipboard = display.get_clipboard()
 
                 decoded = base64.b64decode(b64_data).decode("utf-8")
-                clipboard.set_text(decoded)
+                clipboard.set_content(Gdk.ContentProvider.new_for_value(decoded))
             except Exception as e:
                 # Log error but don't crash
                 print(f"OSC 52 clipboard error: {e}")
