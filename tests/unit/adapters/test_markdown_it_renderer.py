@@ -76,3 +76,18 @@ def test_mermaid_block_rendering() -> None:
         'onclick="expandMermaid(this)">' in html
     )
     assert "graph TD; A--&gt;B;\n" in html
+
+
+def test_standard_image_resolution() -> None:
+    renderer = make_renderer()
+    # Mock filestore and resolver
+    renderer._filestore.exists = MagicMock(return_value=True)  # type: ignore
+    renderer._filestore.get_path = MagicMock(
+        return_value="/vault/img.png"
+    )  # type: ignore
+    renderer._resolver.resolve = MagicMock(
+        return_value=VaultPath.from_str("img.png")
+    )  # type: ignore
+
+    html = renderer.render("![alt](img.png)", VaultPath.from_str("test.md"))
+    assert '<img src="file:///vault/img.png" alt="alt" />' in html

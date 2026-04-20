@@ -106,15 +106,8 @@ def transclude_renderer(
     lower_path = str(target_path).lower()
     if any(lower_path.endswith(ext) for ext in IMAGE_EXTS):
         # We need the absolute path for WebKit to load it.
-        # This currently relies on LocalFileStore having a _get_path method.
-        # In a more robust implementation, the FileStore protocol would
-        # provide a way to get a URL/Path for external display.
         try:
-            if hasattr(filestore, "_get_path"):
-                abs_path = filestore._get_path(target_path)
-            else:
-                # Fallback or error for other filestores
-                abs_path = str(target_path)
+            abs_path = filestore.get_path(target_path)
 
             style = ""
             if alias.isdigit():

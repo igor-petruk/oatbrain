@@ -30,8 +30,7 @@ def test_markdown_polish_features() -> None:
     # 4. Image Sizing
     image_path = VaultPath.from_str("image.png")
     resolver.resolve.return_value = image_path
-    # LocalFileStore has _get_path, mock it specifically
-    filestore._get_path = MagicMock(return_value="/vault/image.png")
+    filestore.get_path = MagicMock(return_value="/vault/image.png")
 
     html = renderer.render("![[image.png|300]]", path)
     assert '<img src="file:///vault/image.png" alt="300" style="width: 300px;">' in html

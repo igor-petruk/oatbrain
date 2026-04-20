@@ -40,6 +40,10 @@ class LocalFileStore(FileStore):
         except (FileNotFoundError, PermissionError):
             return None
 
+    def get_path(self, p: VaultPath) -> str:
+        """Resolve VaultPath to an absolute local path string."""
+        return str(self._to_local(p))
+
     def exists(self, p: VaultPath) -> bool:
         return self._to_local(p).exists()
 
@@ -60,6 +64,10 @@ class LocalFileStore(FileStore):
             dir=target.parent, prefix=".", suffix=".oatbrain.tmp"
         )
         try:
+            # Preserve original permissions if file exists
+            if target.exists():
+                os.fchmod(fd, target.stat().st_mode)
+
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
             os.replace(tmp_path, target)

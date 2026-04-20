@@ -128,6 +128,21 @@ class Preview:
             self._wrap_html(html, theme_css, mermaid_js, theme_id), "file:///"
         )
 
+    def render_image(
+        self,
+        image_abs_path: str,
+        theme_css: str = "",
+        theme_id: str = "solarized-light",
+    ) -> None:
+        """Render a single image full-width."""
+        self._pending_fraction = None
+        html = f'<img src="file://{image_abs_path}" />'
+        self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
+        self._inactive_wv.load_html(
+            self._wrap_html(html, theme_css, None, theme_id, is_full_page=True),
+            "file:///",
+        )
+
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
         script = (
             "(function(){"
@@ -184,6 +199,7 @@ class Preview:
         theme_css: str = "",
         mermaid_js: Optional[str] = None,
         theme_id: str = "solarized-light",
+        is_full_page: bool = False,
     ) -> str:
         mermaid_script = ""
         mermaid_modal = ""
@@ -219,15 +235,27 @@ class Preview:
                 "</div>"
             )
 
+        body_style = (
+            "body { font-family: var(--font-sans, Arimo, sans-serif); "
+            "color: var(--color-fg, #1a1a1a); background: var(--color-bg, #fff); "
+            "margin: 0; padding: 2em; display: flex; justify-content: center; "
+            "align-items: flex-start; min-height: 100vh; box-sizing: border-box; }"
+        )
+        if not is_full_page:
+            body_style = (
+                "body { font-family: var(--font-sans, Arimo, sans-serif);"
+                " color: var(--color-fg, #1a1a1a);"
+                " background: var(--color-bg, #fff);"
+                " max-width: 72ch; margin: 2em auto; padding: 0 1.5em; "
+                "line-height: 1.6; }"
+            )
+
         return (
             "<!DOCTYPE html><html><head>"
             "<meta charset='utf-8'>"
             f"<style>{theme_css}</style>"
             "<style>"
-            "body { font-family: var(--font-sans, Arimo, sans-serif);"
-            " color: var(--color-fg, #1a1a1a);"
-            " background: var(--color-bg, #fff);"
-            " max-width: 72ch; margin: 2em auto; padding: 0 1.5em; line-height: 1.6; }"
+            f"{body_style}"
             "a { color: var(--color-link, #268bd2); }"
             "code { font-family: var(--font-mono, Cousine, monospace);"
             " background: var(--color-code-bg, #f4f4f4);"
@@ -239,6 +267,7 @@ class Preview:
             " padding: 0.4em 0.8em; }"
             "a.wikilink.broken { color: var(--color-link-broken, #f44336); "
             "text-decoration: underline dashed; }"
+            "img, svg { max-width: 100%; height: auto; }"
             "mark { background: var(--color-bg-alt, #fff59d); "
             "color: var(--color-fg, #000); padding: 0 2px; }"
             ".callout { margin: 1em 0; padding: 0.8em; border-radius: 4px; "

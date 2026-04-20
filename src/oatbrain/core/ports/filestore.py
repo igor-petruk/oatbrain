@@ -40,6 +40,9 @@ class FileEntry:
 
 
 class FileStore(Protocol):
+    def get_path(self, p: VaultPath) -> str:
+        ...
+
     def exists(self, p: VaultPath) -> bool:
         ...
 
