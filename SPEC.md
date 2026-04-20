@@ -1051,6 +1051,8 @@ results.
 | `Ctrl+Shift+Y` | app | Send current file path to terminal stdin |
 | `Ctrl+Shift+U` | app | Send editor selection to terminal stdin |
 | `Ctrl+Shift+Z` | app | Toggle Zen mode (§7.5) |
+| `Ctrl+Plus` | app | Zoom in focused component (§19.3) |
+| `Ctrl+Minus` | app | Zoom out focused component (§19.3) |
 
 Focus targets above are `tree`, `editor/preview` (same slot, whichever mode),
 `terminal`. There is no fourth focusable zone in steady state; the palette
@@ -1108,7 +1110,31 @@ preview and terminal each remember their zoom level across restarts (§27).
 - No font bundling. Fonts are system-provided.
 - Per-language fonts: deferred.
 - Editor proportional mode: no. Monospace only.
-- Zoom: `Ctrl++` / `Ctrl+-` / `Ctrl+0` per pane, remembered.
+### 19.3 Zooming
+
+All major UI components support individual zoom levels that are persisted across
+restarts (§27).
+
+#### 19.3.1 Interaction
+
+- **Keyboard**:
+    - `Ctrl + Plus`: Zoom in the focused component.
+    - `Ctrl + Minus`: Zoom out the focused component.
+- **Mouse**:
+    - `Ctrl + MouseScroll`: Zoom the component currently under the pointer.
+- **Range**:
+    - Zoom levels are clamped from **0.5x** to **3.0x** scaling.
+    - This roughly corresponds to font sizes from **8 pt** to **32 pt** (relative
+      to the defaults in §19).
+
+#### 19.3.2 Component Implementation
+
+- **File Tree**: Uses CSS `font-size` on the `TreeView` widget. This ensures
+  that row heights, padding, and icons scale proportionally with the text.
+- **Editor**: Uses CSS `font-size` on the `GtkSourceView` widget.
+- **Preview**: Uses `WebKitWebView.set_zoom_level`.
+- **Terminal**: Dynamically updates the font description size used by the
+  `Vte.Terminal` widget.
 
 ---
 
@@ -1663,20 +1689,18 @@ fullscreen = false
 tree_width = 240
 tree_visible = true
 tree_expanded = ["Projects", "Projects/oatbrain", "Daily"]
+tree_zoom = 1.0
 terminal_width = 480
 terminal_visible = true
+terminal_zoom = 1.0
 
 [editor]
 open_file = "Projects/oatbrain/SPEC.md"
-mode = "source"
-scroll_line = 120
-vim_enabled = true
+read_mode = false
+mru = ["a.md", "b.md"]
 zoom = 1.0
 
 [preview]
-zoom = 1.0
-
-[terminal]
 zoom = 1.0
 
 [theme]
