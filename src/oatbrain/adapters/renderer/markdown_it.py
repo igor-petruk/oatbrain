@@ -13,21 +13,52 @@ from oatbrain.core.markdown.callout import callout_plugin
 from oatbrain.core.wikilink.resolver import WikilinkResolver
 
 
+def _highlight_code(code: str, lang: str, _attrs: str) -> str:
+    """Highlight code using Pygments (SPEC §11.2)."""
+    if not lang:
+        return ""
+
+    try:
+        from pygments import highlight  # type: ignore[import-untyped]
+        from pygments.formatters import HtmlFormatter  # type: ignore[import-untyped]
+        from pygments.lexers import (  # type: ignore[import-untyped]
+            get_lexer_by_name,
+            ClassNotFound,
+        )
+
+        lexer = get_lexer_by_name(lang, stripall=True)
+        # nowrap=True prevents Pygments from wrapping in <div class="highlight"><pre>
+        # because markdown-it-py will wrap it in <pre><code class="language-...">
+        formatter = HtmlFormatter(nowrap=True)
+        return str(highlight(code, lexer, formatter))
+    except (ClassNotFound, ImportError):
+        return ""
+
+
 class MarkdownItRenderer:
     """Renders Markdown to HTML using markdown-it-py (SPEC §11.2).
-    ...
-    - YAML frontmatter (stripped; not rendered)
+    Extensions enabled:
+    - Strikethrough (~~)
+    - Tables
+    - Frontmatter (YAML)
+    - Footnotes
+    - Tasklists
+    - Subscript
     - Wikilinks ([[Name]])
+    - Transclusions (![[Name]])
+    - Mark (==mark==)
+    - Callouts (> [!INFO])
+    - Syntax highlighting (Pygments)
 
     Extensions NOT available in python3-mdit-py-plugins (Debian bookworm):
-    ...
+    - Mermaid (handled via custom fence rule)
     """
 
     def __init__(self, filestore: FileStore, resolver: WikilinkResolver) -> None:
         self._filestore = filestore
         self._resolver = resolver
         self._md = (
-            MarkdownIt("commonmark")
+            MarkdownIt("commonmark", {"highlight": _highlight_code})
             .enable("strikethrough")
             .enable("table")
             .use(front_matter_plugin)
@@ -39,6 +70,7 @@ class MarkdownItRenderer:
             .use(mark_plugin)
             .use(callout_plugin)
         )
+        self._default_fence = cast(Any, self._md.renderer).rules["fence"]
         self._md.add_render_rule("fence", self._render_mermaid)
         self._md.add_render_rule("image", self._render_image)
         self._md.add_render_rule("link_open", self._render_link_open)
@@ -74,7 +106,7 @@ class MarkdownItRenderer:
         for attr, value in token.attrs.items():
             val = href if attr == "href" else value
             attrs_str += f' {attr}="{val}"'
-        
+
         return f"<a{attrs_str}>"
 
     def _render_image(
@@ -128,7 +160,7 @@ class MarkdownItRenderer:
                 f'onclick="expandMermaid(this)">{content}</div>'
                 "</div>"
             )
-        return str(cast(Any, self._md.renderer).renderToken(tokens, idx, options, env))
+        return str(self._default_fence(tokens, idx, options, env))
 
     def render(self, markdown: str, from_path: VaultPath) -> str:
         frontmatter_html = ""

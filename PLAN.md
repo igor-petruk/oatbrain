@@ -96,3 +96,14 @@ The following scenarios are verified by `tests/gui/ui/test_tree_expansion_harnes
 | **C** | **Stability**| C1-C3: Collapse stability (no auto-re-expand loops); C5: Rapid toggle race conditions. | **PASS** |
 | **D** | **Watcher** | D1-D2: File/Dir creation adds rows; D4: Deletion prunes state; D6: Rename remaps state. | **PASS** |
 | **E** | **Load** | E1-E2: Correct expansion order and depth during app startup. | **PASS** |
+
+---
+
+## Phase 16: Syntax Highlighting [DONE]
+Goal: Implement programming language highlighting in Markdown code blocks.
+Details: See [PLAN_HIGHLIGHT.md](PLAN_HIGHLIGHT.md)
+- [x] Update dependencies in `pyproject.toml`.
+- [x] Integrate Pygments into `MarkdownItRenderer`.
+- [x] Inject CSS styles into `Preview`.
+- [x] Add unit tests for highlighting.
+

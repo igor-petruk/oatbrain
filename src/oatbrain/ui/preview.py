@@ -194,6 +194,30 @@ class Preview:
         return False
 
     @staticmethod
+    def _get_pygments_css(theme_id: str) -> str:
+        """Generate Pygments CSS for the given theme (SPEC §11.2)."""
+        try:
+            from pygments.formatters import (  # type: ignore[import-untyped]
+                HtmlFormatter,
+            )
+            from pygments.styles import (  # type: ignore[import-untyped]
+                get_style_by_name,
+            )
+
+            # Map our theme IDs to Pygments style names
+            style_map = {
+                "solarized-light": "solarized-light",
+                "monokai-dark": "monokai",
+                "high-contrast-dark": "monokai",  # Good enough for high-contrast
+            }
+            style_name = style_map.get(theme_id, "friendly")
+            style = get_style_by_name(style_name)
+            formatter = HtmlFormatter(style=style)
+            return str(formatter.get_style_defs("pre code"))
+        except (ImportError, Exception):
+            return ""
+
+    @staticmethod
     def _wrap_html(
         body: str,
         theme_css: str = "",
@@ -201,6 +225,7 @@ class Preview:
         theme_id: str = "solarized-light",
         is_full_page: bool = False,
     ) -> str:
+        pygments_css = Preview._get_pygments_css(theme_id)
         mermaid_script = ""
         mermaid_modal = ""
         if mermaid_js:
@@ -253,7 +278,7 @@ class Preview:
         return (
             "<!DOCTYPE html><html><head>"
             "<meta charset='utf-8'>"
-            f"<style>{theme_css}</style>"
+            f"<style>{theme_css}\n{pygments_css}</style>"
             "<style>"
             f"{body_style}"
             "a { color: var(--color-link, #268bd2); }"
