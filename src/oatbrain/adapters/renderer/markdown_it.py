@@ -40,6 +40,74 @@ class MarkdownItRenderer:
             .use(callout_plugin)
         )
         self._md.add_render_rule("fence", self._render_mermaid)
+        self._md.add_render_rule("image", self._render_image)
+        self._md.add_render_rule("link_open", self._render_link_open)
+
+    def _render_link_open(
+        self,
+        tokens: list[Any],
+        idx: int,
+        options: dict[str, Any],
+        env: dict[str, Any],
+    ) -> str:
+        token = tokens[idx]
+        href = ""
+
+        for attr, value in token.attrs.items():
+            if attr == "href":
+                href = value
+
+        resolver = env.get("resolver")
+        from_path = env.get("from_path")
+
+        if (
+            href
+            and not href.startswith(("http://", "https://", "#"))
+            and resolver
+            and from_path
+        ):
+            target_path = resolver.resolve(href, from_path)
+            if target_path:
+                href = f"oatbrain://vault/{target_path}"
+
+        attrs_str = ""
+        for attr, value in token.attrs.items():
+            val = href if attr == "href" else value
+            attrs_str += f' {attr}="{val}"'
+        
+        return f"<a{attrs_str}>"
+
+    def _render_image(
+        self,
+        tokens: list[Any],
+        idx: int,
+        options: dict[str, Any],
+        env: dict[str, Any],
+    ) -> str:
+        token = tokens[idx]
+        src = ""
+        alt = token.content
+        title = ""
+
+        for attr, value in token.attrs.items():
+            if attr == "src":
+                src = value
+            elif attr == "title":
+                title = value
+
+        resolver = env.get("resolver")
+        filestore = env.get("filestore")
+        from_path = env.get("from_path")
+
+        if src and resolver and filestore and from_path:
+            # Try to resolve the image path
+            target_path = resolver.resolve(src, from_path)
+            if target_path:
+                abs_path = filestore.get_path(target_path)
+                src = f"file://{abs_path}"
+
+        title_attr = f' title="{title}"' if title else ""
+        return f'<img src="{src}" alt="{alt}"{title_attr} />'
 
     def _render_mermaid(
         self,

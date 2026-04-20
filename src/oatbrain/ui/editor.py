@@ -24,6 +24,8 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     ToggleMode,
 )
 
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+
 
 class Editor:
     """Markdown editor/preview pane with Vim mode and autosave (SPEC §10, §11)."""
@@ -380,6 +382,13 @@ class Editor:
     def _save(self) -> None:
         if self._current_path is None:
             return
+        # Never save binary files as text (§10)
+        is_image = any(
+            str(self._current_path).lower().endswith(ext) for ext in IMAGE_EXTS
+        )
+        if is_image:
+            return
+
         start = self.buffer.get_start_iter()
         end = self.buffer.get_end_iter()
         content = self.buffer.get_text(start, end, True)
@@ -448,35 +457,49 @@ class Editor:
         is_markdown = new_path is not None and str(new_path).endswith(
             (".md", ".markdown")
         )
+        is_image = new_path is not None and any(
+            str(new_path).lower().endswith(ext) for ext in IMAGE_EXTS
+        )
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
         if new_path != self._current_path:
             self._cancel_autosave()
             self._current_path = new_path
             if new_path:
-                try:
-                    self._update_language(new_path)
-                    self._loading = True
-                    content = self._filestore.read_text(new_path)
-                    self._current_content = content
-                    self.buffer.set_text(content)
-                    self._loading = False
-                    self._command_router.dispatch(
-                        UpdateWordCount(count=self._count_words())
-                    )
-                    self._command_router.dispatch(SetDirty(dirty=False))
-                except Exception as e:
+                if is_image:
                     self._loading = False
                     self._current_content = ""
-                    self.buffer.set_text(f"Error loading file: {e}")
+                    self.buffer.set_text("")
+                    self._command_router.dispatch(UpdateWordCount(count=0))
+                    self._command_router.dispatch(SetDirty(dirty=False))
+                else:
+                    try:
+                        self._update_language(new_path)
+                        self._loading = True
+                        content = self._filestore.read_text(new_path)
+                        self._current_content = content
+                        self.buffer.set_text(content)
+                        self._loading = False
+                        self._command_router.dispatch(
+                            UpdateWordCount(count=self._count_words())
+                        )
+                        self._command_router.dispatch(SetDirty(dirty=False))
+                    except Exception as e:
+                        self._loading = False
+                        self._current_content = ""
+                        self.buffer.set_text(f"Error loading file: {e}")
             else:
                 self._current_content = ""
                 self.buffer.set_text("")
                 self.buffer.set_language(None)
                 self._command_router.dispatch(UpdateWordCount(count=0))
 
-        # If the new file isn't Markdown, drop out of read mode
-        if not is_markdown and self._read_mode:
+        # If the new file is an image, force preview mode
+        if is_image and not self._read_mode:
+            self._read_mode = True
+            new_read_mode = True
+        # If the new file isn't Markdown or Image, drop out of read mode
+        elif not is_markdown and not is_image and self._read_mode:
             self._read_mode = False
             new_read_mode = False
             self._command_router.dispatch(ToggleMode())
@@ -507,6 +530,15 @@ class Editor:
         self._stack.set_visible_child_name("preview" if new_read_mode else "source")
         if new_path is None:
             self._stack.set_visible_child_name("placeholder")
+        elif is_image:
+            if self._preview is not None:
+                abs_path = self._filestore.get_path(new_path)
+                self._preview.render_image(
+                    abs_path,
+                    theme_css=self._theme_css,
+                    theme_id=event.state.theme_id,
+                )
+                self._stack.set_visible_child_name("preview")
         elif new_read_mode:
             if self._preview is not None and new_path is not None:
                 self._preview.render(

@@ -188,3 +188,17 @@ The following scenarios are verified by `tests/gui/ui/test_tree_expansion_harnes
 | **D** | **Watcher** | D1-D2: File/Dir creation adds rows; D4: Deletion prunes state; D6: Rename remaps state. | **PASS** |
 | **E** | **Load** | E1-E2: Correct expansion order and depth during app startup. | **PASS** |
 
+---
+
+## Phase 14: Zoom Support [DONE]
+Goal: Implement per-component zoom levels with persistence.
+
+### Step 14.1: Individual Component Zoom [DONE]
+- **Task**: Implement Ctrl+/- and Ctrl+MouseScroll zooming (§19).
+- **Action**:
+    - Added `tree_zoom`, `terminal_zoom`, `editor_zoom`, `preview_zoom` to state.
+    - Implemented `Zoom` command and global shortcuts in `window.py`.
+    - Wired zooming for Tree (CSS), Editor (CSS + WebKit), and Terminal (Font size).
+    - Updated `TomlStateStore` for persistence.
+- **Verification**: `tests/unit/core/test_zoom.py` passed; zoom levels remembered across restarts.
+

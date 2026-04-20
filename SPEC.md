@@ -728,12 +728,12 @@ the fences and render them as a neutral placeholder in MVP.
 
 - **Name-only** (`[[Name]]`): scan the vault for a file whose basename (minus
   `.md`) equals `Name`. If there are many, resolve by:
-  1. **Shortest path** from vault root (fewest directory segments).
-  2. **Same-folder** priority (if tied in depth, prefer the one in the same
-     folder as the linking note).
+  1. **Same-folder** priority (prefer the one in the same folder as the
+     linking note).
+  2. **Shortest path** from vault root (fewest directory segments).
   3. **Alphabetical** tie-breaker.
-  This "Absolute resolution" ensures consistent behavior across the vault while
-  making links as concise as possible.
+  This "Local-First" resolution ensures that links behave predictably when
+  files are moved together, while still allowing global discovery.
 - **Path-bearing** (`[[folder/Name]]` or `[[../x/Name]]`): resolve as vault-
   relative first (starting from root). If it does not exist, try file-relative
   (relative to the directory of the linking note). Whichever hits first wins.

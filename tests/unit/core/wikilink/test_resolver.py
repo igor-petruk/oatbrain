@@ -61,6 +61,17 @@ def test_resolver_same_folder_priority() -> None:
     assert str(result) == "folder2/foo.md"
 
 
+def test_resolver_local_first_over_depth() -> None:
+    # Multiple files with same basename, root (depth 0) vs local (depth 1)
+    # The local one should win (Local-First)
+    store = FakeFileStore(["foo.md", "folder/foo.md"])
+    resolver = WikilinkResolver(store)  # type: ignore
+
+    result = resolver.resolve("foo", VaultPath.from_str("folder/note.md"))
+    assert result is not None
+    assert str(result) == "folder/foo.md"
+
+
 def test_resolver_root_relative_via_slash() -> None:
     # Explicitly ask for root using leading slash
     store = FakeFileStore(["folder1/foo.md", "foo.md"])
