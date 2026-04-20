@@ -19,13 +19,15 @@ class Preview:
         self._pending_fraction: Optional[float] = None
         self.on_wikilink_clicked: Optional[Callable[[str], None]] = None
         self.on_zoom: Optional[Callable[[float], None]] = None
+        self.on_scroll: Optional[Callable[[float], None]] = None
+        self._last_rendered_html: str = ""
+        self._scrolling_locked = False
 
-        # --- Dual WebView setup for flicker-free swaps (Option B) ---
         self._stack = Gtk.Stack()
         self._stack.set_hexpand(True)
         self._stack.set_vexpand(True)
         self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self._stack.set_transition_duration(50)  # Very fast crossfade
+        self._stack.set_transition_duration(50)
 
         self._wv1 = self._create_webview("wv1")
         self._wv2 = self._create_webview("wv2")
@@ -33,22 +35,43 @@ class Preview:
         self._stack.add_named(self._wv1, "wv1")
         self._stack.add_named(self._wv2, "wv2")
 
-        # Start with wv1
         self._active_wv = self._wv1
         self._stack.set_visible_child_name("wv1")
 
         self.widget = self._stack
 
     def _create_webview(self, name: str) -> WebKit.WebView:
-        wv = WebKit.WebView()
+        # Setup Content Manager for bidirectional communication
+        cm = WebKit.UserContentManager()
+        cm.register_script_message_handler("oatbrain")
+        cm.connect("script-message-received::oatbrain", self._on_script_message)
+
+        # Inject scroll listener
+        script = WebKit.UserScript.new(
+            """
+            window.addEventListener('scroll', function() {
+                var h = document.documentElement.scrollHeight - window.innerHeight;
+                var frac = h > 0 ? window.scrollY / h : 0;
+                window.webkit.messageHandlers.oatbrain.postMessage({
+                    type: 'scroll',
+                    fraction: frac
+                });
+            });
+            """,
+            WebKit.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit.UserScriptInjectionTime.END,
+            None,
+            None,
+        )
+        cm.add_script(script)
+
+        wv = WebKit.WebView.new_with_user_content_manager(cm)
         wv.set_hexpand(True)
         wv.set_vexpand(True)
-        # Use transparent background to avoid white flashes
         wv.set_background_color(Gdk.RGBA(0, 0, 0, 0))
         wv.connect("load-changed", self._on_load_changed, name)
         wv.connect("decide-policy", self._on_decide_policy)
 
-        # Ctrl+MouseScroll zooming (§19)
         scroll_ctrl = Gtk.EventControllerScroll.new(
             Gtk.EventControllerScrollFlags.VERTICAL
         )
@@ -57,20 +80,35 @@ class Preview:
 
         return wv
 
+    def _on_script_message(
+        self,
+        _cm: WebKit.UserContentManager,
+        message: WebKit.JavascriptResult,
+    ) -> None:
+        try:
+            val = message.get_js_value()
+            if val.is_object():
+                obj = val.to_json(0)
+                import json
+
+                data = json.loads(obj)
+                if data.get("type") == "scroll" and self.on_scroll:
+                    if not self._scrolling_locked:
+                        self.on_scroll(data.get("fraction", 0.0))
+        except Exception:
+            pass
+
     def set_zoom(self, zoom: float) -> None:
-        """Apply zoom level to both webviews."""
         self._wv1.set_zoom_level(zoom)
         self._wv2.set_zoom_level(zoom)
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
-        """Handle Ctrl+MouseScroll to zoom."""
         event = ctrl.get_current_event()
         if not event:
             return False
         modifiers = event.get_modifier_state()
         if modifiers & Gdk.ModifierType.CONTROL_MASK:
             if self.on_zoom:
-                # dy is positive for scroll down, negative for scroll up
                 delta = -0.1 if dy > 0 else 0.1
                 self.on_zoom(delta)
                 return True
@@ -118,15 +156,31 @@ class Preview:
         self._pending_fraction = scroll_to
         html = self._renderer.render(markdown, from_path)
 
-        # Check for cached Mermaid library (§15.1)
+        # Check for cached Mermaid library
         mermaid_path = self._env.get_xdg_cache_home() / "oatbrain" / "mermaid.min.js"
         mermaid_js = str(mermaid_path) if mermaid_path.exists() else None
 
-        # Render to the INACTIVE webview
+        full_html = self._wrap_html(html, theme_css, mermaid_js, theme_id)
+
+        # If it's the same base document, just update body to avoid flicker
+        # We check if theme or mermaid js changed too by just comparing full HTML
+        # but realistically, even if body changed, we want to avoid full reload.
+        if self._last_rendered_html and len(full_html) > 0:
+            # We use a trick: only update if the wrap remains similar enough.
+            # For now, let's try evaluating JS to update body.
+            # If there's Mermaid, we might need full reload to re-run it though.
+            if not mermaid_js:
+                escaped_html = (
+                    html.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                )
+                script = f"document.body.innerHTML = '{escaped_html}';"
+                self._active_wv.evaluate_javascript(script, -1, None, None, None, None, None)
+                self._last_rendered_html = full_html
+                return
+
+        self._last_rendered_html = full_html
         self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
-        self._inactive_wv.load_html(
-            self._wrap_html(html, theme_css, mermaid_js, theme_id), "file:///"
-        )
+        self._inactive_wv.load_html(full_html, "file:///")
 
     def render_image(
         self,
@@ -134,7 +188,6 @@ class Preview:
         theme_css: str = "",
         theme_id: str = "solarized-light",
     ) -> None:
-        """Render a single image full-width."""
         self._pending_fraction = None
         html = f'<img src="file://{image_abs_path}" />'
         self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
@@ -142,6 +195,7 @@ class Preview:
             self._wrap_html(html, theme_css, None, theme_id, is_full_page=True),
             "file:///",
         )
+        self._last_rendered_html = ""
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
         script = (
@@ -153,7 +207,6 @@ class Preview:
 
         def _on_result(_wv: WebKit.WebView, result: Gio.AsyncResult, _ud: None) -> None:
             try:
-                # Always evaluate on the ACTIVE webview
                 js_val = self._active_wv.evaluate_javascript_finish(result)
                 fraction = js_val.to_double() if js_val is not None else 0.0
             except Exception:
@@ -167,12 +220,12 @@ class Preview:
     def clear(self) -> None:
         self._wv1.load_html("", "file:///")
         self._wv2.load_html("", "file:///")
+        self._last_rendered_html = ""
 
     def _on_load_changed(
         self, wv: WebKit.WebView, event: WebKit.LoadEvent, name: str
     ) -> None:
         if event == WebKit.LoadEvent.FINISHED:
-            # If this is the one we were loading in the background, swap it in
             if wv != self._active_wv:
                 self._active_wv = wv
                 self._stack.set_visible_child_name(name)
@@ -184,6 +237,7 @@ class Preview:
                     GLib.timeout_add(80, self._apply_scroll, wv, frac)
 
     def _apply_scroll(self, wv: WebKit.WebView, frac: float) -> bool:
+        self._scrolling_locked = True
         script = (
             f"(function(){{"
             f"var h=document.documentElement.scrollHeight-window.innerHeight;"
@@ -191,24 +245,23 @@ class Preview:
             f"}})()"
         )
         wv.evaluate_javascript(script, -1, None, None, None, None, None)
+        GLib.timeout_add(100, self._unlock_scrolling)
+        return False
+
+    def _unlock_scrolling(self) -> bool:
+        self._scrolling_locked = False
         return False
 
     @staticmethod
     def _get_pygments_css(theme_id: str) -> str:
-        """Generate Pygments CSS for the given theme (SPEC §11.2)."""
         try:
-            from pygments.formatters import (  # type: ignore[import-untyped]
-                HtmlFormatter,
-            )
-            from pygments.styles import (  # type: ignore[import-untyped]
-                get_style_by_name,
-            )
+            from pygments.formatters import HtmlFormatter  # type: ignore[import-untyped]
+            from pygments.styles import get_style_by_name  # type: ignore[import-untyped]
 
-            # Map our theme IDs to Pygments style names
             style_map = {
                 "solarized-light": "solarized-light",
                 "monokai-dark": "monokai",
-                "high-contrast-dark": "monokai",  # Good enough for high-contrast
+                "high-contrast-dark": "monokai",
             }
             style_name = style_map.get(theme_id, "friendly")
             style = get_style_by_name(style_name)

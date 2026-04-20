@@ -565,7 +565,11 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.tab_view = Adw.TabView()
         self.tab_bar = Adw.TabBar(view=self.tab_view)
         self.tab_bar.set_autohide(False)
-        self.toolbar_view.add_top_bar(self.tab_bar)
+
+        # Editor area (TabBar + TabView)
+        self.editor_area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.editor_area.append(self.tab_bar)
+        self.editor_area.append(self.tab_view)
 
         self.main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self.right_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -580,7 +584,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._state.vault_root, self._event_bus, self._command_router
         )
 
-        self.right_paned.set_start_child(self.tab_view)
+        self.right_paned.set_start_child(self.editor_area)
         self.right_paned.set_end_child(self.terminal_placeholder.widget)
         self.right_paned.set_resize_start_child(True)
         self.right_paned.set_resize_end_child(False)

@@ -8,6 +8,7 @@ class StatusBar:
 
     def __init__(self, event_bus: EventBus) -> None:
         self.widget = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.widget.add_css_class("oatbrain-statusbar")
         self.widget.set_margin_start(12)
         self.widget.set_margin_end(12)
         self.widget.set_margin_top(6)

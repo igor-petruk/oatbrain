@@ -119,6 +119,7 @@ class Editor:
 
             self._preview: Optional["Preview"] = Preview(renderer, self._env)
             self._preview.on_wikilink_clicked = self._on_wikilink_clicked
+            self._preview.on_scroll = self._apply_fraction_to_source
             self._preview.on_zoom = lambda delta: self._command_router.dispatch(
                 Zoom("preview", delta)
             )

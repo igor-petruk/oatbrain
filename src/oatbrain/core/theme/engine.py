@@ -50,7 +50,23 @@ textview.oatbrain-editor gutter {
     box-shadow: none;
     border: none;
 }
+.oatbrain-statusbar {
+    background-color: var(--color-bg-alt);
+    color: var(--color-fg-muted, var(--color-fg));
+    border-top: 1px solid var(--color-border);
+}
+tabbar {
+    background-color: var(--color-bg-alt);
+}
+tabbar tab {
+    background-color: var(--color-bg-alt);
+}
+tabbar tab:checked {
+    background-color: var(--color-bg);
+}
 :backdrop .oatbrain-headerbar,
+:backdrop .oatbrain-statusbar,
+:backdrop tabbar,
 :backdrop .oatbrain-filetree,
 :backdrop .oatbrain-filetree row {
     background-color: var(--color-bg-alt-bd);
