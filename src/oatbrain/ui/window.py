@@ -17,6 +17,7 @@ from oatbrain.core.commands import (  # noqa: E402
     SendToTerminal,
     DismissMermaidWarning,
     SetTreeExpanded,
+    Zoom,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     UpdateWordCount,
@@ -111,6 +112,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             SetTreeExpanded, self._handle_set_tree_expanded, visible=False
         )
+        self._command_router.register(Zoom, self._handle_zoom, visible=False)
 
         self._zen_mode: bool = False
         self._pre_zen_tree_visible: bool = True
@@ -325,6 +327,41 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
         GLib.idle_add(self._apply_zen_toggle)
 
+    def _calculate_zoom(self, current: float, command: Zoom) -> float:
+        """Calculate new zoom level with clamping (§19)."""
+        new_zoom = 1.0 if command.reset else current + command.delta
+        return max(0.5, min(3.0, new_zoom))
+
+    def _handle_zoom(self, command: Zoom) -> None:
+        """Handle zoom command for different components."""
+        if command.component == "tree":
+            self._state = replace(
+                self._state,
+                tree_zoom=self._calculate_zoom(self._state.tree_zoom, command),
+            )
+        elif command.component == "terminal":
+            self._state = replace(
+                self._state,
+                terminal_zoom=self._calculate_zoom(self._state.terminal_zoom, command),
+            )
+        elif command.component == "editor":
+            new_editor = replace(
+                self._state.editor,
+                zoom=self._calculate_zoom(self._state.editor.zoom, command),
+            )
+            self._state = replace(self._state, editor=new_editor)
+        elif command.component == "preview":
+            new_editor = replace(
+                self._state.editor,
+                preview_zoom=self._calculate_zoom(
+                    self._state.editor.preview_zoom, command
+                ),
+            )
+            self._state = replace(self._state, editor=new_editor)
+
+        self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
+
     def _apply_zen_toggle(self) -> bool:
         self._zen_mode = not self._zen_mode
         if self._zen_mode:
@@ -436,7 +473,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             renderer=self._renderer,
             resolver=self._resolver,
         )
-        self.terminal_placeholder = Terminal(self._state.vault_root)
+        self.terminal_placeholder = Terminal(
+            self._state.vault_root, self._event_bus, self._command_router
+        )
 
         # 3. Assemble hierarchy (Bottom-Up)
         self.right_paned.set_start_child(self.editor.widget)
@@ -770,6 +809,39 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 ),
             )
         )
+
+        # Zoom shortcuts (§19)
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>plus"),
+                action=Gtk.CallbackAction.new(lambda *_: self._shortcut_zoom(0.1)),
+            )
+        )
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>minus"),
+                action=Gtk.CallbackAction.new(lambda *_: self._shortcut_zoom(-0.1)),
+            )
+        )
+
+    def _shortcut_zoom(self, delta: float, reset: bool = False) -> bool:
+        current = self.main_window.get_focus()
+        if not current:
+            return False
+
+        if current == self.tree_pane or current.is_ancestor(self.tree_pane):
+            self._command_router.dispatch(Zoom("tree", delta, reset))
+        elif current == self.editor.widget or current.is_ancestor(self.editor.widget):
+            # Decide between editor and preview based on read_mode
+            if self._state.editor.read_mode:
+                self._command_router.dispatch(Zoom("preview", delta, reset))
+            else:
+                self._command_router.dispatch(Zoom("editor", delta, reset))
+        elif current == self.terminal_placeholder.widget or current.is_ancestor(
+            self.terminal_placeholder.widget
+        ):
+            self._command_router.dispatch(Zoom("terminal", delta, reset))
+        return True
 
     def _shortcut_open_palette(self, *_: Any) -> bool:
         from oatbrain.ui.palette import Palette

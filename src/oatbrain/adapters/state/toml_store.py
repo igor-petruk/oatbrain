@@ -25,12 +25,18 @@ class TomlStateStore:
                 "tree_width": state.tree_width,
                 "tree_visible": state.tree_visible,
                 "tree_expanded": state.tree_expanded,
+                "tree_zoom": state.tree_zoom,
                 "terminal_width": state.terminal_width,
                 "terminal_visible": state.terminal_visible,
+                "terminal_zoom": state.terminal_zoom,
             },
             "editor": {
                 "read_mode": state.editor.read_mode,
                 "mru": state.editor.mru,
+                "zoom": state.editor.zoom,
+            },
+            "preview": {
+                "zoom": state.editor.preview_zoom,
             },
             "theme": {
                 "theme_id": state.theme_id,
@@ -57,6 +63,7 @@ class TomlStateStore:
         window = data.get("window", {})
         panes = data.get("panes", {})
         editor_data = data.get("editor", {})
+        preview_data = data.get("preview", {})
         theme_data = data.get("theme", {})
         mermaid_data = data.get("mermaid", {})
 
@@ -66,6 +73,8 @@ class TomlStateStore:
             open_file=VaultPath.from_str(open_file_str) if open_file_str else None,
             read_mode=editor_data.get("read_mode", False),
             mru=editor_data.get("mru", []),
+            zoom=editor_data.get("zoom", 1.0),
+            preview_zoom=preview_data.get("zoom", 1.0),
         )
 
         return AppState(
@@ -76,8 +85,10 @@ class TomlStateStore:
             tree_width=panes.get("tree_width", 180),
             tree_visible=panes.get("tree_visible", True),
             tree_expanded=panes.get("tree_expanded", []),
+            tree_zoom=panes.get("tree_zoom", 1.0),
             terminal_width=panes.get("terminal_width", 360),
             terminal_visible=panes.get("terminal_visible", True),
+            terminal_zoom=panes.get("terminal_zoom", 1.0),
             editor=editor,
             theme_id=theme_data.get("theme_id", "solarized-light"),
             mermaid_dismissed=mermaid_data.get("dismissed", False),

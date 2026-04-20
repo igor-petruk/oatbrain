@@ -38,3 +38,12 @@ class SetTreeExpanded:
 
     path: str
     is_expanded: bool
+
+
+@dataclass(frozen=True)
+class Zoom:
+    """Zoom in/out or reset zoom for a specific component."""
+
+    component: str  # "tree", "editor", "preview", "terminal"
+    delta: float = 0.0
+    reset: bool = False

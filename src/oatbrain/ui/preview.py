@@ -18,6 +18,7 @@ class Preview:
         self._env = env
         self._pending_fraction: Optional[float] = None
         self.on_wikilink_clicked: Optional[Callable[[str], None]] = None
+        self.on_zoom: Optional[Callable[[float], None]] = None
 
         # --- Dual WebView setup for flicker-free swaps (Option B) ---
         self._stack = Gtk.Stack()
@@ -46,7 +47,34 @@ class Preview:
         wv.set_background_color(Gdk.RGBA(0, 0, 0, 0))
         wv.connect("load-changed", self._on_load_changed, name)
         wv.connect("decide-policy", self._on_decide_policy)
+
+        # Ctrl+MouseScroll zooming (§19)
+        scroll_ctrl = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.VERTICAL
+        )
+        scroll_ctrl.connect("scroll", self._on_scroll)
+        wv.add_controller(scroll_ctrl)
+
         return wv
+
+    def set_zoom(self, zoom: float) -> None:
+        """Apply zoom level to both webviews."""
+        self._wv1.set_zoom_level(zoom)
+        self._wv2.set_zoom_level(zoom)
+
+    def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
+        """Handle Ctrl+MouseScroll to zoom."""
+        event = ctrl.get_current_event()
+        if not event:
+            return False
+        modifiers = event.get_modifier_state()
+        if modifiers & Gdk.ModifierType.CONTROL_MASK:
+            if self.on_zoom:
+                # dy is positive for scroll down, negative for scroll up
+                delta = -0.1 if dy > 0 else 0.1
+                self.on_zoom(delta)
+                return True
+        return False
 
     def _on_decide_policy(
         self,

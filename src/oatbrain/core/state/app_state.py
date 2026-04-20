@@ -11,6 +11,8 @@ class EditorState:
     read_mode: bool = False
     word_count: int = 0
     mru: List[str] = field(default_factory=list)
+    zoom: float = 1.0
+    preview_zoom: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -26,8 +28,10 @@ class AppState:
     tree_width: int = 180
     tree_visible: bool = True
     tree_expanded: List[str] = field(default_factory=list)
+    tree_zoom: float = 1.0
     terminal_width: int = 360
     terminal_visible: bool = True
+    terminal_zoom: float = 1.0
 
     editor: EditorState = field(default_factory=EditorState)
     status_message: str = "Ready"

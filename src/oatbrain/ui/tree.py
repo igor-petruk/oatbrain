@@ -8,7 +8,7 @@ from gi.repository import Gtk, GLib, Gio, Gdk  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
+from oatbrain.core.commands import OpenFile, SetTreeExpanded, Zoom  # noqa: E402
 
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.events.watcher import (  # noqa: E402
@@ -64,6 +64,12 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.tree_view.set_headers_visible(False)
         self.tree_view.add_css_class("oatbrain-filetree")
 
+        # Zoom provider for FileTree (§19)
+        self._zoom_provider = Gtk.CssProvider()
+        self.tree_view.get_style_context().add_provider(
+            self._zoom_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
         # Enable single-click activation (SPEC §9.2 updated)
         self.tree_view.set_activate_on_single_click(True)
 
@@ -71,25 +77,32 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         column = Gtk.TreeViewColumn("Name")
 
         # Icon
-        icon_renderer = Gtk.CellRendererPixbuf()
-        icon_renderer.set_property("xpad", 6)
-        column.pack_start(icon_renderer, False)
-        column.add_attribute(icon_renderer, "icon-name", COL_ICON)
+        self.icon_renderer = Gtk.CellRendererPixbuf()
+        self.icon_renderer.set_property("xpad", 6)
+        column.pack_start(self.icon_renderer, False)
+        column.add_attribute(self.icon_renderer, "icon-name", COL_ICON)
 
         # Name
-        text_renderer = Gtk.CellRendererText()
-        text_renderer.set_property("xpad", 4)
-        column.pack_start(text_renderer, True)
-        column.add_attribute(text_renderer, "text", COL_NAME)
+        self.text_renderer = Gtk.CellRendererText()
+        self.text_renderer.set_property("xpad", 4)
+        column.pack_start(self.text_renderer, True)
+        column.add_attribute(self.text_renderer, "text", COL_NAME)
 
         # Unsaved dot
-        dot_renderer = Gtk.CellRendererText()
-        column.pack_start(dot_renderer, False)
-        column.set_cell_data_func(dot_renderer, self._render_unsaved_dot)
+        self.dot_renderer = Gtk.CellRendererText()
+        column.pack_start(self.dot_renderer, False)
+        column.set_cell_data_func(self.dot_renderer, self._render_unsaved_dot)
 
         self.tree_view.append_column(column)
 
         self.scrolled.set_child(self.tree_view)
+
+        # Ctrl+MouseScroll zooming (§19)
+        scroll_ctrl = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.VERTICAL
+        )
+        scroll_ctrl.connect("scroll", self._on_scroll)
+        self.tree_view.add_controller(scroll_ctrl)
 
         # Signals for lazy loading and single-click interaction
         self.tree_view.connect("row-expanded", self.on_row_expanded)
@@ -167,6 +180,19 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.popover.set_pointing_to(rect)
         self.popover.popup()
 
+    def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
+        """Handle Ctrl+MouseScroll to zoom tree (§19)."""
+        event = ctrl.get_current_event()
+        if not event:
+            return False
+        modifiers = event.get_modifier_state()
+        if modifiers & Gdk.ModifierType.CONTROL_MASK:
+            # dy is positive for scroll down, negative for scroll up
+            delta = -0.1 if dy > 0 else 0.1
+            self._command_router.dispatch(Zoom("tree", delta))
+            return True
+        return False
+
     def _render_unsaved_dot(
         self,
         column: Gtk.TreeViewColumn,
@@ -194,6 +220,14 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _sync_with_state(self, event: StateUpdated) -> bool:
         self._sync_idle_id = None
         new_expanded = set(event.state.tree_expanded)
+
+        # Apply zoom (§19)
+        # Use CSS for font-size so that row height and icons scale together.
+        # Adwaita default UI font size is ~11pt.
+        base_size = 11.0
+        new_size = base_size * event.state.tree_zoom
+        css = f".oatbrain-filetree {{ font-size: {new_size:.1f}pt; }}"
+        self._zoom_provider.load_from_string(css)
 
         # Apply expansion state on initial sync or if it changes externally
         if self._expanded_state != new_expanded:

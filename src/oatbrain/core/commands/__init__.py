@@ -6,6 +6,7 @@ from .ui import (
     SendToTerminal,
     DismissMermaidWarning,
     SetTreeExpanded,
+    Zoom,
 )
 
 
@@ -21,4 +22,5 @@ __all__ = [
     "SendToTerminal",
     "DismissMermaidWarning",
     "SetTreeExpanded",
+    "Zoom",
 ]
