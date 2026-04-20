@@ -327,30 +327,35 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
         GLib.idle_add(self._apply_zen_toggle)
 
+    def _calculate_zoom(self, current: float, command: Zoom) -> float:
+        """Calculate new zoom level with clamping (§19)."""
+        new_zoom = 1.0 if command.reset else current + command.delta
+        return max(0.5, min(3.0, new_zoom))
+
     def _handle_zoom(self, command: Zoom) -> None:
         """Handle zoom command for different components."""
         if command.component == "tree":
-            new_zoom = 1.0 if command.reset else self._state.tree_zoom + command.delta
-            self._state = replace(self._state, tree_zoom=max(0.5, min(3.0, new_zoom)))
-        elif command.component == "terminal":
-            new_zoom = (
-                1.0 if command.reset else self._state.terminal_zoom + command.delta
-            )
             self._state = replace(
-                self._state, terminal_zoom=max(0.5, min(3.0, new_zoom))
+                self._state,
+                tree_zoom=self._calculate_zoom(self._state.tree_zoom, command),
+            )
+        elif command.component == "terminal":
+            self._state = replace(
+                self._state,
+                terminal_zoom=self._calculate_zoom(self._state.terminal_zoom, command),
             )
         elif command.component == "editor":
-            new_zoom = 1.0 if command.reset else self._state.editor.zoom + command.delta
-            new_editor = replace(self._state.editor, zoom=max(0.5, min(3.0, new_zoom)))
+            new_editor = replace(
+                self._state.editor,
+                zoom=self._calculate_zoom(self._state.editor.zoom, command),
+            )
             self._state = replace(self._state, editor=new_editor)
         elif command.component == "preview":
-            new_zoom = (
-                1.0
-                if command.reset
-                else self._state.editor.preview_zoom + command.delta
-            )
             new_editor = replace(
-                self._state.editor, preview_zoom=max(0.5, min(3.0, new_zoom))
+                self._state.editor,
+                preview_zoom=self._calculate_zoom(
+                    self._state.editor.preview_zoom, command
+                ),
             )
             self._state = replace(self._state, editor=new_editor)
 
@@ -814,22 +819,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         controller.add_shortcut(
             Gtk.Shortcut.new(
-                trigger=Gtk.ShortcutTrigger.parse_string("<Control>equal"),
-                action=Gtk.CallbackAction.new(lambda *_: self._shortcut_zoom(0.1)),
-            )
-        )
-        controller.add_shortcut(
-            Gtk.Shortcut.new(
                 trigger=Gtk.ShortcutTrigger.parse_string("<Control>minus"),
                 action=Gtk.CallbackAction.new(lambda *_: self._shortcut_zoom(-0.1)),
-            )
-        )
-        controller.add_shortcut(
-            Gtk.Shortcut.new(
-                trigger=Gtk.ShortcutTrigger.parse_string("<Control>0"),
-                action=Gtk.CallbackAction.new(
-                    lambda *_: self._shortcut_zoom(0.0, True)
-                ),
             )
         )
 
