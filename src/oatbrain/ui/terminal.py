@@ -2,6 +2,7 @@ import gi
 import os
 import time
 import signal
+import base64
 from pathlib import Path
 from typing import Optional
 
@@ -64,6 +65,12 @@ class Terminal:
         # §16.12 Lifecycle: Auto-restart on exit
         self._vte.connect("child-exited", self._on_child_exited)
 
+        # §16.4 Remote Clipboard (OSC 52)
+        # VTE 0.74+ handles OSC 52 by updating the 'clipboard' termprop.
+        # It requires the 'copy-clipboard' action to be enabled.
+        self._vte.action_set_enabled("copy-clipboard", True)
+        self._vte.connect("termprop-changed", self._on_termprop_changed)
+
         # Ctrl+MouseScroll zooming (§19)
         scroll_ctrl = Gtk.EventControllerScroll.new(
             Gtk.EventControllerScrollFlags.VERTICAL
@@ -123,6 +130,37 @@ class Terminal:
             delay = 1000  # 1 second
 
         GLib.timeout_add(delay, self._spawn_if_needed)
+
+    def _on_termprop_changed(self, vte: Vte.Terminal, prop_name: str) -> None:
+        """Handle OSC 52 remote clipboard updates (§16.4)."""
+        if prop_name == "clipboard":
+            # The 'clipboard' termprop contains base64 encoded data from OSC 52.
+            # Format is typically 'c;<base64>' or 'p;<base64>'.
+            payload = vte.get_termprop_string(prop_name)
+            if not payload:
+                return
+
+            try:
+                display = Gdk.Display.get_default()
+                if not display:
+                    return
+
+                if payload.startswith("c;"):
+                    b64_data = payload[2:]
+                    clipboard = display.get_clipboard()
+                elif payload.startswith("p;"):
+                    b64_data = payload[2:]
+                    clipboard = display.get_primary_clipboard()
+                else:
+                    # Fallback to default clipboard
+                    b64_data = payload
+                    clipboard = display.get_clipboard()
+
+                decoded = base64.b64decode(b64_data).decode("utf-8")
+                clipboard.set_text(decoded)
+            except Exception as e:
+                # Log error but don't crash
+                print(f"OSC 52 clipboard error: {e}")
 
     def _spawn_if_needed(self) -> bool:
         # Check if we already restarted manually or via another signal
