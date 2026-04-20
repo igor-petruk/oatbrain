@@ -949,6 +949,18 @@ app wins. Users inside tmux should rebind their tmux prefix if they want to
 reach tmux from within oatbrain. The default app bindings (§18) are chosen to
 minimise clashes.
 
+### 16.12 Lifecycle
+
+- **Auto-restart**: If the shell process exits, the terminal pane SHOULD
+  automatically restart it after a short delay (e.g., 1-2 seconds) to ensure
+  continuity.
+- **Flood protection**: If a shell process exits within 2 seconds of being
+  spawned, subsequent restart attempts SHOULD be throttled (e.g., to 5 seconds)
+  to prevent tight crash loops.
+- **Manual Restart**: A "Restart" button (refresh icon) MUST be available in the
+  header bar, next to the terminal toggle button, to manually kill the current
+  shell, clear the terminal buffer, and spawn a new shell.
+
 ---
 
 ## 17. Fuzzy Search Palette

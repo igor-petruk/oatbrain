@@ -14,6 +14,7 @@ from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
     ToggleTree,
     ToggleTerminal,
+    RestartTerminal,
     SendToTerminal,
     DismissMermaidWarning,
     SetTreeExpanded,
@@ -102,6 +103,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         self._command_router.register(
             ToggleTerminal, self._handle_toggle_terminal, "Toggle Terminal"
+        )
+        self._command_router.register(
+            RestartTerminal, self._handle_restart_terminal, "Restart Terminal"
         )
         self._command_router.register(
             SendToTerminal, self._handle_send_to_terminal, visible=False
@@ -256,6 +260,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.terminal_placeholder.widget.set_visible(visible)
         self._state = replace(self._state, terminal_visible=visible)
         self._save_state()
+
+    def _handle_restart_terminal(self, _command: RestartTerminal) -> None:
+        self.terminal_placeholder.restart()
 
     def _handle_send_to_terminal(self, command: SendToTerminal) -> None:
         if not self.terminal_placeholder.widget.get_visible():
@@ -505,6 +512,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # 5. Wire non-critical signals
         self.header_bar.tree_toggle.connect("toggled", self._on_tree_toggled)
         self.header_bar.terminal_toggle.connect("toggled", self._on_terminal_toggled)
+        self.header_bar.terminal_restart.connect(
+            "clicked", self._on_terminal_restart_clicked
+        )
         self.header_bar.zen_toggle.connect("toggled", self._on_zen_toggled)
         # Window blur → autosave (§10.3)
         self.main_window.connect("notify::is-active", self._on_window_active_changed)
@@ -681,6 +691,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         visible = btn.get_active()
         self.terminal_placeholder.widget.set_visible(visible)
         self._save_state()
+
+    def _on_terminal_restart_clicked(self, _btn: Gtk.Button) -> None:
+        self._command_router.dispatch(RestartTerminal())
 
     def _on_zen_toggled(self, _btn: Gtk.ToggleButton) -> None:
         self._command_router.dispatch(ToggleZen())

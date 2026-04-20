@@ -3,6 +3,7 @@ from oatbrain.core.ports.filestore import VaultPath
 from .ui import (
     ToggleTree,
     ToggleTerminal,
+    RestartTerminal,
     SendToTerminal,
     DismissMermaidWarning,
     SetTreeExpanded,
@@ -19,6 +20,7 @@ __all__ = [
     "OpenFile",
     "ToggleTree",
     "ToggleTerminal",
+    "RestartTerminal",
     "SendToTerminal",
     "DismissMermaidWarning",
     "SetTreeExpanded",

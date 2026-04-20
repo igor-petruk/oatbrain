@@ -57,11 +57,19 @@ class HeaderBar:
         self.widget.set_title_widget(title_box)
 
         # --- Right (End) ---
-        # Terminal toggle
+        # Terminal group
         self.terminal_toggle = Gtk.ToggleButton(icon_name="utilities-terminal-symbolic")
         self.terminal_toggle.set_active(True)
         self.terminal_toggle.set_tooltip_text("Toggle Terminal (Ctrl+`)")
-        self.widget.pack_end(self.terminal_toggle)
+
+        self.terminal_restart = Gtk.Button(icon_name="view-refresh-symbolic")
+        self.terminal_restart.set_tooltip_text("Restart Terminal")
+
+        terminal_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        terminal_box.add_css_class("linked")
+        terminal_box.append(self.terminal_toggle)
+        terminal_box.append(self.terminal_restart)
+        self.widget.pack_end(terminal_box)
 
         # Zen mode toggle
         self.zen_toggle = Gtk.ToggleButton(icon_name="view-fullscreen-symbolic")

@@ -1,5 +1,7 @@
 import gi
 import os
+import time
+import signal
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +44,8 @@ class Terminal:
         self._event_bus = event_bus
         self._command_router = command_router
         self._current_zoom = 1.0
+        self._child_pid: Optional[int] = None
+        self._last_spawn_time = 0.0
 
         self._vte = Vte.Terminal()
         self._vte.set_hexpand(True)
@@ -56,6 +60,9 @@ class Terminal:
 
         # §16.5 Font: first available from the editor's preferred font list (§19)
         self._vte.set_font(_resolve_terminal_font())
+
+        # §16.12 Lifecycle: Auto-restart on exit
+        self._vte.connect("child-exited", self._on_child_exited)
 
         # Ctrl+MouseScroll zooming (§19)
         scroll_ctrl = Gtk.EventControllerScroll.new(
@@ -80,15 +87,48 @@ class Terminal:
         click.connect("released", self._on_click)
         self._vte.add_controller(click)
 
-        self.widget = Gtk.ScrolledWindow()
-        self.widget.set_child(self._vte)
-        self.widget.set_hexpand(True)
-        self.widget.set_vexpand(True)
+        self._scrolled = Gtk.ScrolledWindow()
+        self._scrolled.set_child(self._vte)
+        self._scrolled.set_hexpand(True)
+        self._scrolled.set_vexpand(True)
+
+        self.widget = self._scrolled
 
         if self._event_bus:
             self._event_bus.subscribe(StateUpdated, self._on_state_updated)
 
         self._spawn()
+
+    def restart(self) -> None:
+        """Manually kill current shell, clear buffer and spawn a new one (§16.12)."""
+        if self._child_pid:
+            try:
+                os.kill(self._child_pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        # Clear the buffer and reset terminal state
+        self._vte.reset(True, True)
+        self._spawn()
+
+    def _on_child_exited(self, _vte: Vte.Terminal, _status: int) -> None:
+        """Restart shell after a delay when it exits (§16.12)."""
+        # Clear the buffer on auto-exit as well
+        self._vte.reset(True, True)
+
+        now = time.time()
+        # Flood protection: if crashed immediately, wait longer
+        if now - self._last_spawn_time < 2.0:
+            delay = 5000  # 5 seconds
+        else:
+            delay = 1000  # 1 second
+
+        GLib.timeout_add(delay, self._spawn_if_needed)
+
+    def _spawn_if_needed(self) -> bool:
+        # Check if we already restarted manually or via another signal
+        # VTE clears child-pid when it exits.
+        self._spawn()
+        return False
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_zoom, event.state.terminal_zoom)
@@ -225,7 +265,20 @@ class Terminal:
         return [f"{k}={v}" for k, v in merged.items()]
 
     def _spawn(self) -> None:
+        self._last_spawn_time = time.time()
         shell = os.environ.get("SHELL", "/bin/sh")
+
+        def _on_spawned(
+            _vte: Vte.Terminal,
+            pid: int,
+            error: Optional[GLib.Error],
+            _user_data: object,
+        ) -> None:
+            if error:
+                print(f"Terminal spawn error: {error}")
+                return
+            self._child_pid = pid
+
         self._vte.spawn_async(
             pty_flags=Vte.PtyFlags.DEFAULT,
             working_directory=str(self._vault_root),
@@ -235,6 +288,6 @@ class Terminal:
             child_setup=None,
             timeout=-1,
             cancellable=None,
-            callback=lambda _t, _pid, _err, _ud: None,
+            callback=_on_spawned,
             user_data=None,
         )

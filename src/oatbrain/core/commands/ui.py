@@ -20,6 +20,15 @@ class ToggleTerminal:
 
 
 @dataclass(frozen=True)
+class RestartTerminal:
+    """Restart the terminal session and clear the buffer."""
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "RestartTerminal"]]:
+        return [("Restart Terminal", cls())]
+
+
+@dataclass(frozen=True)
 class SendToTerminal:
     """Send text to the terminal stdin."""
 
