@@ -70,6 +70,9 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             self._zoom_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
+        # Enable single-click activation (SPEC §9.2 updated)
+        self.tree_view.set_activate_on_single_click(True)
+
         # Create columns
         column = Gtk.TreeViewColumn("Name")
 
@@ -101,17 +104,10 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         scroll_ctrl.connect("scroll", self._on_scroll)
         self.tree_view.add_controller(scroll_ctrl)
 
-        # Signals for lazy loading
+        # Signals for lazy loading and single-click interaction
         self.tree_view.connect("row-expanded", self.on_row_expanded)
         self.tree_view.connect("row-collapsed", self.on_row_collapsed)
-        # We manually handle clicks instead of row-activated to prevent flicker
-        # and support single-click vs right-click more reliably.
-
-        # Click handling for Single-click activation and Right-click context menu
-        self.click_gesture = Gtk.GestureClick.new()
-        self.click_gesture.set_button(0)  # Listen for all buttons
-        self.click_gesture.connect("released", self._on_click_released)
-        self.tree_view.add_controller(self.click_gesture)
+        self.tree_view.connect("row-activated", self.on_row_activated)
 
         # Context Menu (§9.2)
         self._setup_context_menu()
@@ -128,59 +124,22 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
         self._event_bus.subscribe(FileRenamed, self._on_file_renamed)
 
-    def _on_click_released(
-        self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float
-    ) -> None:
-        button = gesture.get_current_button()
-        res = self.tree_view.get_path_at_pos(int(x), int(y))
-
-        if res:
-            path, col, cell_x, cell_y = res
-            tree_iter = self.store.get_iter(path)
-            is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
-            path_str = self.store.get_value(tree_iter, COL_PATH)
-
-            if button == 1:  # Left click
-                self.tree_view.get_selection().select_path(path)
-                if is_dir:
-                    GLib.idle_add(self._toggle_row_expansion, path)
-                else:
-                    self._command_router.dispatch(
-                        OpenFile(path=VaultPath.from_str(path_str))
-                    )
-            elif button == 3:  # Right click
-                self.tree_view.get_selection().select_path(path)
-                self._show_context_menu(x, y)
-
     def _setup_context_menu(self) -> None:
         """Sets up the right-click context menu."""
         self.menu = Gio.Menu()
-        self.menu.append("New Note", "tree_app.new_note")
-        self.menu.append("New Folder", "tree_app.new_folder")
-        self.menu.append("Rename", "tree_app.rename_file")
-        self.menu.append("Delete", "tree_app.delete_file")
+        self.menu.append("New Note", "app.new_note")
+        self.menu.append("New Folder", "app.new_folder")
+        self.menu.append("Rename", "app.rename_file")
+        self.menu.append("Delete", "app.delete_file")
 
         self.popover = Gtk.PopoverMenu.new_from_model(self.menu)
-        self.popover.set_parent(self.tree_view)
+        self.popover.set_parent(self)
         self.popover.set_has_arrow(False)
 
-        # Register actions
-        action_group = Gio.SimpleActionGroup()
-
-        # Placeholders for actions
-        for act in ["new_note", "new_folder", "rename_file", "delete_file"]:
-            action_group.add_action(Gio.SimpleAction.new(act, None))
-
-        self.insert_action_group("tree_app", action_group)
-
-    def _show_context_menu(self, x: float, y: float) -> None:
-        rect = Gdk.Rectangle()
-        rect.x = int(x)
-        rect.y = int(y)
-        rect.width = 1
-        rect.height = 1
-        self.popover.set_pointing_to(rect)
-        self.popover.popup()
+        gesture = Gtk.GestureClick.new()
+        gesture.set_button(3)  # Right click
+        gesture.connect("pressed", self._on_right_click)
+        self.tree_view.add_controller(gesture)
 
     def _setup_key_controller(self) -> None:
         """Sets up keyboard event handling."""
@@ -208,6 +167,18 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             path_str = model.get_value(tree_iter, COL_PATH)
             # Permanent delete (§22.4) logic will go here
             print(f"Delete permanently: {path_str}")
+
+    def _on_right_click(
+        self, gesture: Gtk.GestureClick, n_press: int, x: float, y: int
+    ) -> None:
+        """Shows the context menu at the click location."""
+        rect = Gdk.Rectangle()
+        rect.x = int(x)
+        rect.y = int(y)
+        rect.width = 0
+        rect.height = 0
+        self.popover.set_pointing_to(rect)
+        self.popover.popup()
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
         """Handle Ctrl+MouseScroll to zoom tree (§19)."""
@@ -251,19 +222,23 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         new_expanded = set(event.state.tree_expanded)
 
         # Apply zoom (§19)
+        # Use CSS for font-size so that row height and icons scale together.
+        # Adwaita default UI font size is ~11pt.
         base_size = 11.0
         new_size = base_size * event.state.tree_zoom
         css = f".oatbrain-filetree {{ font-size: {new_size:.1f}pt; }}"
         self._zoom_provider.load_from_string(css)
 
-        # Apply expansion state
+        # Apply expansion state on initial sync or if it changes externally
         if self._expanded_state != new_expanded:
             to_collapse = self._expanded_state - new_expanded
             self._expanded_state = new_expanded
 
+            # Collapse those that were removed
             for path_str in to_collapse:
                 self._collapse_path(VaultPath.from_str(path_str))
 
+            # Sort by path depth to expand parents before children
             for path_str in sorted(new_expanded, key=lambda p: p.count("/")):
                 self._expand_path(VaultPath.from_str(path_str))
 
@@ -273,10 +248,12 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             if open_path:
                 self._reveal_path(open_path)
 
+        # Also update dirty states (placeholder for now)
         self._update_dirty_states(event)
         return False
 
     def _collapse_path(self, target_path: VaultPath) -> None:
+        """Finds and collapses the given path in the tree."""
         path_str = str(target_path)
         it = self._find_iter_for_path(path_str)
         if it:
@@ -284,67 +261,88 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             self.tree_view.collapse_row(tree_path)
 
     def _expand_path(self, target_path: VaultPath) -> None:
+        """Finds and expands the given path in the tree without selecting it."""
         path_str = str(target_path)
         parts = path_str.split("/")
+
         current_iter = None
         accumulated = ""
+
         for i, part in enumerate(parts):
             if i > 0:
                 accumulated += "/"
             accumulated += part
+
             found = False
             child_iter = self.store.iter_children(current_iter)
             while child_iter:
-                if self.store.get_value(child_iter, COL_PATH) == accumulated:
+                row_path = self.store.get_value(child_iter, COL_PATH)
+                if row_path == accumulated:
                     current_iter = child_iter
                     found = True
-                    if self.store.get_value(current_iter, COL_IS_DIR):
+
+                    is_dir = self.store.get_value(current_iter, COL_IS_DIR)
+                    if is_dir:
                         self._ensure_dir_loaded(current_iter)
-                        self.tree_view.expand_row(
-                            self.store.get_path(current_iter), False
-                        )
+                        tree_path = self.store.get_path(current_iter)
+                        self.tree_view.expand_row(tree_path, False)
                     break
                 child_iter = self.store.iter_next(child_iter)
+
             if not found:
                 return
 
     def _reveal_path(self, target_path: VaultPath) -> None:
+        """Finds, expands, and selects the given path in the tree."""
         path_str = str(target_path)
         parts = path_str.split("/")
+
         current_iter = None
         accumulated = ""
+
         for i, part in enumerate(parts):
             if i > 0:
                 accumulated += "/"
             accumulated += part
+
             found = False
             child_iter = self.store.iter_children(current_iter)
             while child_iter:
-                if self.store.get_value(child_iter, COL_PATH) == accumulated:
+                row_path = self.store.get_value(child_iter, COL_PATH)
+                if row_path == accumulated:
                     current_iter = child_iter
                     found = True
-                    if (
-                        self.store.get_value(current_iter, COL_IS_DIR)
-                        and i < len(parts) - 1
-                    ):
+
+                    # If this is a directory and not the final file, expand it
+                    is_dir = self.store.get_value(current_iter, COL_IS_DIR)
+                    if is_dir and i < len(parts) - 1:
                         self._ensure_dir_loaded(current_iter)
-                        self.tree_view.expand_row(
-                            self.store.get_path(current_iter), False
-                        )
+                        tree_path = self.store.get_path(current_iter)
+                        self.tree_view.expand_row(tree_path, False)
                     break
                 child_iter = self.store.iter_next(child_iter)
+
             if not found:
                 return
+
         if current_iter:
-            self.tree_view.get_selection().select_iter(current_iter)
-            self.tree_view.scroll_to_cell(
-                self.store.get_path(current_iter), None, True, 0.5, 0.0
-            )
+            # Block signal to avoid re-triggering OpenFile from selection change
+            # Actually, activation triggers OpenFile, selection doesn't by default here.
+            selection = self.tree_view.get_selection()
+            selection.select_iter(current_iter)
+            tree_path = self.store.get_path(current_iter)
+            # Scroll to make it visible
+            self.tree_view.scroll_to_cell(tree_path, None, True, 0.5, 0.0)
 
     def _get_icon(self, is_dir: bool) -> str:
         return "folder-symbolic" if is_dir else "text-x-generic-symbolic"
 
+    # ------------------------------------------------------------------
+    # File watcher event handlers
+    # ------------------------------------------------------------------
+
     def _vault_rel(self, abs_path: str) -> Optional[str]:
+        """Convert an absolute path to vault-relative, or None if outside vault."""
         if self._vault_root is None:
             return None
         prefix = str(self._vault_root) + "/"
@@ -353,6 +351,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         return None
 
     def _find_iter_for_path(self, rel_path: str) -> Optional[Gtk.TreeIter]:
+        """Walk the store and return the TreeIter whose COL_PATH matches rel_path."""
         parts = rel_path.split("/")
         current_iter = None
         accumulated = ""
@@ -374,6 +373,15 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         GLib.idle_add(self._handle_file_created, event.path)
 
     def _split_rel_path(self, rel_path: str) -> tuple[str, str]:
+        """
+        Splits a vault-relative path into (parent_rel, name).
+
+        Input: "projects/oatbrain/README.md"
+        Output: ("projects/oatbrain", "README.md")
+
+        Input: "top_level.md"
+        Output: ("", "top_level.md")
+        """
         parts = rel_path.split("/")
         parent_rel = "/".join(parts[:-1]) if len(parts) > 1 else ""
         name = parts[-1]
@@ -383,23 +391,34 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         rel = self._vault_rel(abs_path)
         if rel is None:
             return False
+
         parent_rel, name = self._split_rel_path(rel)
-        is_dir = self._path_is_dir(abs_path)
+        is_dir = not abs_path.endswith(name) or self._path_is_dir(abs_path)
+
         parent_iter = self._find_iter_for_path(parent_rel) if parent_rel else None
-        if parent_rel and (
-            parent_iter is None
-            or (child := self.store.iter_children(parent_iter))
-            and self.store.get_value(child, COL_IS_DUMMY)
-        ):
-            return False
+
+        # Only insert if parent is loaded (no dummy child) or we're at root
+        if parent_rel:
+            if parent_iter is None:
+                return False
+            child = self.store.iter_children(parent_iter)
+            if child and self.store.get_value(child, COL_IS_DUMMY):
+                return False
+        else:
+            # Root: always loaded
+            pass
+
+        # Check not already present
         if self._find_iter_for_path(rel) is not None:
             return False
+
         icon = self._get_icon(is_dir)
         new_iter = self.store.append(
             parent_iter, [icon, name, rel, False, is_dir, False]
         )
         if is_dir:
             self.store.append(new_iter, ["", "Loading...", "", True, False, False])
+
         return False
 
     def _path_is_dir(self, abs_path: str) -> bool:
@@ -410,13 +429,21 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _compare_rows(
         self, model: Gtk.TreeModel, iter1: Gtk.TreeIter, iter2: Gtk.TreeIter, data: Any
     ) -> int:
+        """Custom sort: directories first, then alphabetical name."""
         is_dir1 = model.get_value(iter1, COL_IS_DIR)
         is_dir2 = model.get_value(iter2, COL_IS_DIR)
+
         if is_dir1 != is_dir2:
             return -1 if is_dir1 else 1
+
         name1 = str(model.get_value(iter1, COL_NAME)).lower()
         name2 = str(model.get_value(iter2, COL_NAME)).lower()
-        return -1 if name1 < name2 else (1 if name1 > name2 else 0)
+
+        if name1 < name2:
+            return -1
+        if name1 > name2:
+            return 1
+        return 0
 
     def _on_file_deleted(self, event: FileDeleted) -> None:
         GLib.idle_add(self._handle_file_deleted, event.path)
@@ -434,21 +461,28 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         GLib.idle_add(self._handle_file_renamed, event.old_path, event.new_path)
 
     def _handle_file_renamed(self, old_abs: str, new_abs: str) -> bool:
-        old_rel, new_rel = self._vault_rel(old_abs), self._vault_rel(new_abs)
+        old_rel = self._vault_rel(old_abs)
+        new_rel = self._vault_rel(new_abs)
         if old_rel is None or new_rel is None:
             return False
+
         it = self._find_iter_for_path(old_rel)
         if it is None:
             return False
+
         _, new_name = self._split_rel_path(new_rel)
         self.store.set_value(it, COL_NAME, new_name)
         self.store.set_value(it, COL_PATH, new_rel)
+
+        # Update COL_PATH for all descendants (prefix swap)
         self._repath_descendants(it, old_rel, new_rel)
+
         return False
 
     def _repath_descendants(
         self, it: Gtk.TreeIter, old_prefix: str, new_prefix: str
     ) -> None:
+        """Recursively update COL_PATH for all children after a rename."""
         child = self.store.iter_children(it)
         while child:
             p = self.store.get_value(child, COL_PATH)
@@ -458,35 +492,57 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             child = self.store.iter_next(child)
 
     def _populate_root(self) -> None:
+        """Initial population of the tree's root level."""
+        root_path = VaultPath.from_str(".")
         try:
-            entries = self.filestore.list_dir(VaultPath.from_str("."))
+            entries = self.filestore.list_dir(root_path)
+            # Sort: directories first, then files alphabetically
             entries.sort(key=lambda e: (not e.is_dir, e.path.path.name))
             for entry in entries:
+                name = entry.path.path.name
+                path_str = str(entry.path)
+                icon = self._get_icon(entry.is_dir)
                 iter_ = self.store.append(
-                    None,
-                    [
-                        self._get_icon(entry.is_dir),
-                        entry.path.path.name,
-                        str(entry.path),
-                        False,
-                        entry.is_dir,
-                        False,
-                    ],
+                    None, [icon, name, path_str, False, entry.is_dir, False]
                 )
                 if entry.is_dir:
+                    # Add a dummy child to folders
                     self.store.append(iter_, ["", "Loading...", "", True, False, False])
         except Exception as e:
             print(f"Error loading root: {e}")
 
-    def _toggle_row_expansion(self, path: Gtk.TreePath) -> None:
-        if self.tree_view.row_expanded(path):
-            self.tree_view.collapse_row(path)
+    def on_row_activated(
+        self,
+        tree_view: Gtk.TreeView,
+        path: Gtk.TreePath,
+        column: Gtk.TreeViewColumn,
+    ) -> None:
+        """Toggles expansion for directories, opens files."""
+        tree_iter = self.store.get_iter(path)
+        is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
+
+        if is_dir:
+            GLib.idle_add(self._toggle_row_expansion, path)
         else:
-            self.tree_view.expand_row(path, False)
+            path_str = self.store.get_value(tree_iter, COL_PATH)
+            vault_path = VaultPath.from_str(path_str)
+            self._command_router.dispatch(OpenFile(path=vault_path))
+
+    def _toggle_row_expansion(self, path: Gtk.TreePath) -> None:
+        """Helper to toggle the expansion state of a row."""
+        tree_iter = self.store.get_iter(path)
+        is_dir = self.store.get_value(tree_iter, COL_IS_DIR)
+
+        if is_dir:
+            if self.tree_view.row_expanded(path):
+                self.tree_view.collapse_row(path)
+            else:
+                self.tree_view.expand_row(path, False)
 
     def on_row_expanded(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
     ) -> None:
+        """Loads directory contents if they haven't been loaded yet."""
         self._ensure_dir_loaded(iter_)
         path_str = self.store.get_value(iter_, COL_PATH)
         if path_str not in self._expanded_state:
@@ -497,40 +553,47 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def on_row_collapsed(
         self, tree_view: Gtk.TreeView, iter_: Gtk.TreeIter, path: Gtk.TreePath
     ) -> None:
+        """Unloads directory contents and stores a dummy node."""
         path_str = self.store.get_value(iter_, COL_PATH)
+
+        # Remove all children
         child_iter = self.store.iter_children(iter_)
         while child_iter:
             self.store.remove(child_iter)
             child_iter = self.store.iter_children(iter_)
+
+        # Re-add dummy node
         self.store.append(iter_, ["", "Loading...", "", True, False, False])
+
         if path_str in self._expanded_state:
             self._command_router.dispatch(
                 SetTreeExpanded(path=path_str, is_expanded=False)
             )
 
     def _ensure_dir_loaded(self, iter_: Gtk.TreeIter) -> None:
+        """Checks if a directory is loaded and loads it if needed."""
         child_iter = self.store.iter_children(iter_)
-        if child_iter and self.store.get_value(child_iter, COL_IS_DUMMY):
-            parent_path_str = self.store.get_value(iter_, COL_PATH)
-            try:
-                entries = self.filestore.list_dir(VaultPath.from_str(parent_path_str))
-                entries.sort(key=lambda e: (not e.is_dir, e.path.path.name))
-                for entry in entries:
-                    new_iter = self.store.append(
-                        iter_,
-                        [
-                            self._get_icon(entry.is_dir),
-                            entry.path.path.name,
-                            str(entry.path),
-                            False,
-                            entry.is_dir,
-                            False,
-                        ],
-                    )
-                    if entry.is_dir:
-                        self.store.append(
-                            new_iter, ["", "Loading...", "", True, False, False]
+        if child_iter:
+            is_dummy = self.store.get_value(child_iter, COL_IS_DUMMY)
+            if is_dummy:
+                parent_path_str = self.store.get_value(iter_, COL_PATH)
+                try:
+                    parent_path = VaultPath.from_str(parent_path_str)
+                    entries = self.filestore.list_dir(parent_path)
+                    entries.sort(key=lambda e: (not e.is_dir, e.path.path.name))
+
+                    for entry in entries:
+                        name = entry.path.path.name
+                        path_str = str(entry.path)
+                        icon = self._get_icon(entry.is_dir)
+                        new_iter = self.store.append(
+                            iter_, [icon, name, path_str, False, entry.is_dir, False]
                         )
-                self.store.remove(child_iter)
-            except Exception as e:
-                print(f"Error loading dir {parent_path_str}: {e}")
+                        if entry.is_dir:
+                            self.store.append(
+                                new_iter, ["", "Loading...", "", True, False, False]
+                            )
+
+                    self.store.remove(child_iter)
+                except Exception as e:
+                    print(f"Error loading dir {parent_path_str}: {e}")

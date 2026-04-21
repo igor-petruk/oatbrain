@@ -378,12 +378,20 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         elif command.component == "editor":
             self._state = replace(
                 self._state,
-                editor_zoom=self._calculate_zoom(self._state.editor_zoom, command),
+                editor=replace(
+                    self._state.editor,
+                    zoom=self._calculate_zoom(self._state.editor.zoom, command),
+                ),
             )
         elif command.component == "preview":
             self._state = replace(
                 self._state,
-                preview_zoom=self._calculate_zoom(self._state.preview_zoom, command),
+                editor=replace(
+                    self._state.editor,
+                    preview_zoom=self._calculate_zoom(
+                        self._state.editor.preview_zoom, command
+                    ),
+                ),
             )
 
         self._event_bus.publish(StateUpdated(self._state))
@@ -464,8 +472,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def on_activate(self, app: Adw.Application) -> None:
         self.main_window = Adw.ApplicationWindow(application=app)
-        vault_path = str(self._state.vault_root)
-        self.main_window.set_title(f"oatbrain — {vault_path}")
+        self.main_window.set_title("oatbrain")
         self.main_window.set_default_size(
             self._state.window_width, self._state.window_height
         )

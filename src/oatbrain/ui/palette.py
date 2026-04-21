@@ -267,7 +267,7 @@ class Palette(Adw.Dialog):  # type: ignore[misc]
         if prefix == "":
             # Files mode
             if not self.search_entry.get_text():
-                # MRU (TODO: Implement for multitab)
+                # MRU
                 return []
             else:
                 # All files

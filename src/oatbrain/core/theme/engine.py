@@ -57,26 +57,6 @@ textview.oatbrain-editor gutter {
     box-shadow: none;
     padding: 6px 12px;
 }
-tabbar {
-    background-color: var(--color-bg-alt);
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    margin: 0;
-}
-tabbar > box,
-tabbar tabbox {
-    background-color: var(--color-bg-alt);
-}
-tabbar tab {
-    background-color: var(--color-bg-alt);
-    border: none;
-    box-shadow: none;
-    padding: 4px 8px;
-}
-tabbar tab:checked {
-    background-color: var(--color-bg);
-}
 /* Hide separators and ensure toolbarview bars match background */
 toolbarview > separator {
     opacity: 0;
@@ -98,9 +78,6 @@ paned > separator {
 }
 :backdrop .oatbrain-headerbar,
 :backdrop .oatbrain-statusbar,
-:backdrop tabbar,
-:backdrop tabbar > box,
-:backdrop tabbar tabbox,
 :backdrop .oatbrain-filetree,
 :backdrop .oatbrain-filetree row {
     background-color: var(--color-bg-alt-bd);

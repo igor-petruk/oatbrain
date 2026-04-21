@@ -544,12 +544,12 @@ class Editor:
 
         # Apply zoom (§19)
         base_size = 13.0
-        new_size = base_size * app_state.editor_zoom
+        new_size = base_size * editor_state.zoom
         css = f".oatbrain-editor {{ font-size: {new_size:.1f}pt; }}"
         self._zoom_provider.load_from_string(css)
 
         if self._preview:
-            self._preview.set_zoom(app_state.preview_zoom)
+            self._preview.set_zoom(editor_state.preview_zoom)
 
         self.placeholder.set_visible(new_path is None)
         is_markdown = new_path is not None and str(new_path).endswith(

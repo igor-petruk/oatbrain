@@ -1468,7 +1468,7 @@ Core exposes:
 - `dispatch(Command)` — returns a `Result[None, Error]`.
 - `subscribe(EventType, callback)` — returns an `Unsubscribe` callable.
 
-Subscribers MUST unsubscribe when their lifecycle ends (e.g., closing a tab) 
+Subscribers MUST unsubscribe when their lifecycle ends (e.g., when a widget is destroyed) 
 to prevent memory leaks and "ghost" event processing.
 
 Commands are typed dataclasses. Events are typed dataclasses.

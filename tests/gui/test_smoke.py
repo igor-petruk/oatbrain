@@ -33,8 +33,7 @@ def test_widget_hierarchy() -> None:
 
     window = app.get_active_window()
     assert window is not None
-    assert "oatbrain" in window.get_title()
-    assert "Vault" in window.get_title()
+    assert window.get_title() == "oatbrain"
 
     # Traverse to find panes
     content = window.get_content()
@@ -52,15 +51,12 @@ def test_widget_hierarchy() -> None:
     right_paned = main_paned.get_end_child()
     assert isinstance(right_paned, Gtk.Paned)
 
-    # Box and Terminal
+    # Editor and Terminal
     editor_widget = right_paned.get_start_child()
     terminal_widget = right_paned.get_end_child()
 
     assert isinstance(editor_widget, Gtk.Box)
-    # Inside editor_widget there should be Overlay
-    overlay = editor_widget.get_first_child()
-    assert isinstance(overlay, Gtk.Overlay)
-    assert isinstance(terminal_widget, Gtk.Widget)
+    assert isinstance(terminal_widget, Gtk.ScrolledWindow)
 
 
 def test_app_shutdown_saves_state(tmp_path: Path) -> None:
@@ -97,15 +93,5 @@ def test_no_gtk_log_output(capfd: Any) -> None:
 
     out, err = capfd.readouterr()
 
-    # Filter out known harmless/environmental GTK criticals
-    err_lines = [
-        line
-        for line in err.splitlines()
-        if "gtk_css_node_insert_after" not in line
-        and "DRI3" not in line
-        and "vulkan" not in line
-    ]
-    filtered_err = "\n".join(err_lines)
-
-    assert "CRITICAL" not in filtered_err, f"Captured GTK Criticals: {filtered_err}"
+    assert "CRITICAL" not in err, f"Captured GTK Criticals: {err}"
     assert "WARNING" not in err, f"Captured GTK Warnings: {err}"

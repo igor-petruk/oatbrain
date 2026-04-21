@@ -9,6 +9,8 @@ class EditorState:
     open_file: Optional[VaultPath] = None
     read_mode: bool = False
     split_mode: bool = False
+    zoom: float = 1.0
+    preview_zoom: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -31,8 +33,6 @@ class AppState:
 
     # Editor state
     editor: EditorState = field(default_factory=EditorState)
-    editor_zoom: float = 1.0
-    preview_zoom: float = 1.0
 
     theme_name: str = "Solarized Light"
     theme_id: str = "solarized-light"
