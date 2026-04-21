@@ -177,8 +177,13 @@ class Preview:
                         temp.innerHTML = newHtml;
                         
                         function morph(oldNode, newNode) {{
-                            if (oldNode.nodeType !== newNode.nodeType || oldNode.tagName !== newNode.tagName) {{
-                                oldNode.parentNode.replaceChild(newNode.cloneNode(true), oldNode);
+                            if (
+                                oldNode.nodeType !== newNode.nodeType
+                                || oldNode.tagName !== newNode.tagName
+                            ) {{
+                                oldNode.parentNode.replaceChild(
+                                    newNode.cloneNode(true), oldNode
+                                );
                                 return;
                             }}
                             if (oldNode.nodeType === Node.TEXT_NODE) {{

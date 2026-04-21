@@ -279,7 +279,7 @@ class Terminal:
         state: Gdk.ModifierType,
     ) -> bool:
         ctrl_shift = Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK
-        if keyval == Gdk.KEY_v and (state & ctrl_shift) == ctrl_shift:
+        if keyval in (Gdk.KEY_v, Gdk.KEY_V) and (state & ctrl_shift) == ctrl_shift:
             self._paste_from_clipboard()
             return True
         return False
@@ -297,7 +297,7 @@ class Terminal:
         _user_data: object,
     ) -> None:
         try:
-            text = clipboard.read_text_finish(result)  # type: ignore[arg-type]
+            text = clipboard.read_text_finish(result)
             if text:
                 self._feed(text)
         except Exception as e:
