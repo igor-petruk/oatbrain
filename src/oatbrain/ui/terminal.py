@@ -94,6 +94,12 @@ class Terminal:
         click.connect("released", self._on_click)
         self._vte.add_controller(click)
 
+        # Ctrl+Shift+V paste — VTE's built-in keybinding doesn't fire reliably
+        # in GTK4 when the window has a CAPTURE-phase shortcut controller.
+        key_ctrl = Gtk.EventControllerKey.new()
+        key_ctrl.connect("key-pressed", self._on_key_pressed)
+        self._vte.add_controller(key_ctrl)
+
         self._scrolled = Gtk.ScrolledWindow()
         self._scrolled.set_child(self._vte)
         self._scrolled.set_hexpand(True)
@@ -260,6 +266,42 @@ class Terminal:
             c.parse(theme.ansi.get(str(i), "#000000"))
             palette.append(c)
         self._vte.set_colors(fg, bg, palette)
+
+    # ------------------------------------------------------------------
+    # Keyboard (§16.9)
+    # ------------------------------------------------------------------
+
+    def _on_key_pressed(
+        self,
+        _ctrl: Gtk.EventControllerKey,
+        keyval: int,
+        _keycode: int,
+        state: Gdk.ModifierType,
+    ) -> bool:
+        ctrl_shift = Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK
+        if keyval == Gdk.KEY_v and (state & ctrl_shift) == ctrl_shift:
+            self._paste_from_clipboard()
+            return True
+        return False
+
+    def _paste_from_clipboard(self) -> None:
+        display = Gdk.Display.get_default()
+        if not display:
+            return
+        display.get_clipboard().read_text_async(None, self._on_paste_text_ready, None)
+
+    def _on_paste_text_ready(
+        self,
+        clipboard: Gdk.Clipboard,
+        result: object,
+        _user_data: object,
+    ) -> None:
+        try:
+            text = clipboard.read_text_finish(result)  # type: ignore[arg-type]
+            if text:
+                self._feed(text)
+        except Exception as e:
+            print(f"Paste error: {e}")
 
     # ------------------------------------------------------------------
     # Hyperlinks (§16.6)
