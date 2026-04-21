@@ -17,7 +17,7 @@ from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
-from oatbrain.core.state.app_state import TabState, AppState  # noqa: E402
+from oatbrain.core.state.app_state import AppState, EditorState  # noqa: E402
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
     Zoom,
@@ -531,16 +531,16 @@ class Editor:
         )
         return False
 
-    def update_from_state(self, tab_state: TabState, app_state: AppState) -> None:
-        """Update UI from specific tab state and global app state."""
-        self._update_ui_impl(tab_state, app_state)
+    def update_from_state(self, editor_state: EditorState, app_state: AppState) -> None:
+        """Update UI from specific editor state and global app state."""
+        self._update_ui_impl(editor_state, app_state)
 
     def _update_language(self, path: VaultPath) -> None:
         lang = self._language_manager.guess_language(str(path), None)
         self.buffer.set_language(lang)
 
-    def _update_ui_impl(self, tab_state: TabState, app_state: AppState) -> None:
-        new_path = tab_state.open_file
+    def _update_ui_impl(self, editor_state: EditorState, app_state: AppState) -> None:
+        new_path = editor_state.open_file
 
         # Apply zoom (§19)
         base_size = 13.0
@@ -560,9 +560,9 @@ class Editor:
         )
 
         effective_read_mode = (
-            tab_state.read_mode if (is_markdown or is_image) else False
+            editor_state.read_mode if (is_markdown or is_image) else False
         )
-        effective_split_mode = tab_state.split_mode if is_markdown else False
+        effective_split_mode = editor_state.split_mode if is_markdown else False
 
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
@@ -593,11 +593,11 @@ class Editor:
                         self._word_count = self._count_words()
                         self._is_dirty = False
                         self._event_bus.publish(
-            WordCountChanged(count=self._word_count, sender_id=id(self))
-        )
+                            WordCountChanged(count=self._word_count, sender_id=id(self))
+                        )
                         self._event_bus.publish(
-                        DirtyStateChanged(dirty=False, sender_id=id(self))
-                    )
+                            DirtyStateChanged(dirty=False, sender_id=id(self))
+                        )
                     except Exception as e:
                         self._loading = False
                         self._current_content = ""

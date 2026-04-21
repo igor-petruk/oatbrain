@@ -26,13 +26,3 @@ class ToggleZen:
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "ToggleZen"]]:
         return [("Toggle Zen Mode", cls())]
-
-
-@dataclass(frozen=True)
-class CloseTab:
-    index: int
-
-
-@dataclass(frozen=True)
-class SwitchTab:
-    index: int

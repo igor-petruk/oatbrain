@@ -61,10 +61,10 @@ class StatusBar:
 
     def _update_ui(self, event: StateUpdated) -> bool:
         state = event.state
-        active_tab = state.active_tab
+        editor = state.editor
 
-        if active_tab.open_file:
-            self._path_label.set_text(str(active_tab.open_file))
+        if editor.open_file:
+            self._path_label.set_text(str(editor.open_file))
         else:
             self._path_label.set_text("No file open")
             self._unsaved_dot.set_visible(False)

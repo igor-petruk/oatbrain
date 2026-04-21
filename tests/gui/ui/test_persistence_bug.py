@@ -25,22 +25,24 @@ def test_editor_mode_recovers_to_preview_when_returning_to_markdown() -> None:
 
     # 1. Open MD file in Preview mode
     md_path = VaultPath("test.md")
-    tabs = list(state.tabs)
-    tabs[0] = replace(tabs[0], open_file=md_path, read_mode=True)
-    state = replace(state, tabs=tabs)
+    state = replace(
+        state, editor=replace(state.editor, open_file=md_path, read_mode=True)
+    )
 
-    editor.update_from_state(state.active_tab, state)
+    editor.update_from_state(state.editor, state)
     assert editor._stack.get_visible_child_name() == "preview"
 
     # 2. Open non-MD file (forces 'source')
     txt_path = VaultPath("test.txt")
-    tabs[0] = replace(tabs[0], open_file=txt_path, read_mode=True)
-    state = replace(state, tabs=tabs)
-    editor.update_from_state(state.active_tab, state)
+    state = replace(
+        state, editor=replace(state.editor, open_file=txt_path, read_mode=True)
+    )
+    editor.update_from_state(state.editor, state)
     assert editor._stack.get_visible_child_name() == "source"
 
     # 3. Back to MD (should restore Preview mode based on state)
-    tabs[0] = replace(tabs[0], open_file=md_path, read_mode=True)
-    state = replace(state, tabs=tabs)
-    editor.update_from_state(state.active_tab, state)
+    state = replace(
+        state, editor=replace(state.editor, open_file=md_path, read_mode=True)
+    )
+    editor.update_from_state(state.editor, state)
     assert editor._stack.get_visible_child_name() == "preview"

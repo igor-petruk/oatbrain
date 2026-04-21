@@ -83,7 +83,7 @@ def test_editor_save_emits_dirty_state_changed() -> None:
     event_bus = EventBus()
     events = []
     event_bus.subscribe(DirtyStateChanged, events.append)
-    
+
     command_router = CommandRouter()
     env = MagicMock()
     editor = Editor(filestore, event_bus, command_router, env, vim_enabled=False)
@@ -123,7 +123,7 @@ def test_app_shell_activation_smoke() -> None:
     app.on_activate(app)
 
     assert isinstance(app.main_window, Adw.ApplicationWindow)
-    assert isinstance(app.tab_view, Adw.TabView)
+    assert isinstance(app.editor, Editor)
     assert isinstance(app.tree_pane, FileTree)
 
 

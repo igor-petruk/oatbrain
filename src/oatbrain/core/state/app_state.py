@@ -5,11 +5,10 @@ from oatbrain.core.ports.filestore import VaultPath
 
 
 @dataclass(frozen=True)
-class TabState:
+class EditorState:
     open_file: Optional[VaultPath] = None
     read_mode: bool = False
     split_mode: bool = False
-    title: str = "Untitled"
 
 
 @dataclass(frozen=True)
@@ -31,17 +30,10 @@ class AppState:
     terminal_zoom: float = 1.0
 
     # Editor state
-    tabs: List[TabState] = field(default_factory=lambda: [TabState()])
-    active_tab_index: int = 0
+    editor: EditorState = field(default_factory=EditorState)
     editor_zoom: float = 1.0
     preview_zoom: float = 1.0
 
     theme_name: str = "Solarized Light"
     theme_id: str = "solarized-light"
     mermaid_dismissed: bool = False
-
-    @property
-    def active_tab(self) -> TabState:
-        if 0 <= self.active_tab_index < len(self.tabs):
-            return self.tabs[self.active_tab_index]
-        return TabState()

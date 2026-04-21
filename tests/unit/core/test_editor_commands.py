@@ -16,11 +16,8 @@ def test_toggle_mode_command_instantiates() -> None:
 
 def test_toggle_mode_state_transition() -> None:
     state = _base_state()
-    assert state.active_tab.read_mode is False
-    tabs = list(state.tabs)
-    tabs[0] = replace(tabs[0], read_mode=True)
-    state = replace(state, tabs=tabs)
-    assert state.active_tab.read_mode is True
-    tabs[0] = replace(tabs[0], read_mode=False)
-    state = replace(state, tabs=tabs)
-    assert state.active_tab.read_mode is False
+    assert state.editor.read_mode is False
+    state = replace(state, editor=replace(state.editor, read_mode=True))
+    assert state.editor.read_mode is True
+    state = replace(state, editor=replace(state.editor, read_mode=False))
+    assert state.editor.read_mode is False

@@ -1,7 +1,7 @@
 import tomllib
 import tomli_w
 from pathlib import Path
-from oatbrain.core.state.app_state import AppState, TabState
+from oatbrain.core.state.app_state import AppState, EditorState
 from oatbrain.core.ports.filestore import VaultPath
 
 
@@ -31,17 +31,15 @@ class TomlStateStore:
                 "terminal_zoom": state.terminal_zoom,
             },
             "editor": {
-                "active_tab_index": state.active_tab_index,
+                **(
+                    {"open_file": str(state.editor.open_file)}
+                    if state.editor.open_file
+                    else {}
+                ),
+                "read_mode": state.editor.read_mode,
+                "split_mode": state.editor.split_mode,
                 "zoom": state.editor_zoom,
                 "preview_zoom": state.preview_zoom,
-                "tabs": [
-                    {
-                        **({"open_file": str(tab.open_file)} if tab.open_file else {}),
-                        "read_mode": tab.read_mode,
-                        "split_mode": tab.split_mode,
-                    }
-                    for tab in state.tabs
-                ],
             },
             "theme": {
                 "theme_id": state.theme_id,
@@ -69,33 +67,22 @@ class TomlStateStore:
         theme_data = data.get("theme", {})
         mermaid_data = data.get("mermaid", {})
 
-        tabs_data = editor_data.get("tabs", [])
-        tabs = []
-        for tab_d in tabs_data:
-            open_file_str = tab_d.get("open_file")
-            tabs.append(
-                TabState(
-                    open_file=VaultPath.from_str(open_file_str)
-                    if open_file_str
-                    else None,
-                    read_mode=tab_d.get("read_mode", False),
-                    split_mode=tab_d.get("split_mode", False),
-                    title=open_file_str.split("/")[-1] if open_file_str else "Untitled",
-                )
-            )
+        open_file_str = editor_data.get("open_file")
+        # Handle migration from list-based tabs
+        if not open_file_str and "tabs" in editor_data and editor_data["tabs"]:
+            first_tab = editor_data["tabs"][0]
+            open_file_str = first_tab.get("open_file")
+            read_mode = first_tab.get("read_mode", False)
+            split_mode = first_tab.get("split_mode", False)
+        else:
+            read_mode = editor_data.get("read_mode", False)
+            split_mode = editor_data.get("split_mode", False)
 
-        if not tabs:
-            # Fallback for old state format
-            open_file_str = editor_data.get("open_file")
-            tabs = [
-                TabState(
-                    open_file=VaultPath.from_str(open_file_str)
-                    if open_file_str
-                    else None,
-                    read_mode=editor_data.get("read_mode", False),
-                    title=open_file_str.split("/")[-1] if open_file_str else "Untitled",
-                )
-            ]
+        editor = EditorState(
+            open_file=VaultPath.from_str(open_file_str) if open_file_str else None,
+            read_mode=read_mode,
+            split_mode=split_mode,
+        )
 
         return AppState(
             vault_root=Path(general.get("last_vault", ".")),
@@ -109,8 +96,7 @@ class TomlStateStore:
             terminal_width=panes.get("terminal_width", 360),
             terminal_visible=panes.get("terminal_visible", True),
             terminal_zoom=panes.get("terminal_zoom", 1.0),
-            tabs=tabs,
-            active_tab_index=editor_data.get("active_tab_index", 0),
+            editor=editor,
             editor_zoom=editor_data.get("zoom", 1.0),
             preview_zoom=editor_data.get("preview_zoom", 1.0),
             theme_id=theme_data.get("theme_id", "solarized-light"),

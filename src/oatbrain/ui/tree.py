@@ -148,11 +148,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                     self._command_router.dispatch(
                         OpenFile(path=VaultPath.from_str(path_str))
                     )
-            elif button == 2:  # Middle click
-                if not is_dir:
-                    self._command_router.dispatch(
-                        OpenFile(path=VaultPath.from_str(path_str), new_tab=True)
-                    )
             elif button == 3:  # Right click
                 self.tree_view.get_selection().select_path(path)
                 self._show_context_menu(x, y)
@@ -160,7 +155,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _setup_context_menu(self) -> None:
         """Sets up the right-click context menu."""
         self.menu = Gio.Menu()
-        self.menu.append("Open in New Tab", "tree_app.open_new_tab")
         self.menu.append("New Note", "tree_app.new_note")
         self.menu.append("New Folder", "tree_app.new_folder")
         self.menu.append("Rename", "tree_app.rename_file")
@@ -173,11 +167,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Register actions
         action_group = Gio.SimpleActionGroup()
 
-        open_new_tab = Gio.SimpleAction.new("open_new_tab", None)
-        open_new_tab.connect("activate", self._on_open_new_tab_activated)
-        action_group.add_action(open_new_tab)
-
-        # Placeholders for other actions
+        # Placeholders for actions
         for act in ["new_note", "new_folder", "rename_file", "delete_file"]:
             action_group.add_action(Gio.SimpleAction.new(act, None))
 
@@ -191,19 +181,6 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         rect.height = 1
         self.popover.set_pointing_to(rect)
         self.popover.popup()
-
-    def _on_open_new_tab_activated(
-        self, _action: Gio.SimpleAction, _param: Any
-    ) -> None:
-        selection = self.tree_view.get_selection()
-        model, tree_iter = selection.get_selected()
-        if tree_iter:
-            is_dir = model.get_value(tree_iter, COL_IS_DIR)
-            if not is_dir:
-                path_str = model.get_value(tree_iter, COL_PATH)
-                self._command_router.dispatch(
-                    OpenFile(path=VaultPath.from_str(path_str), new_tab=True)
-                )
 
     def _setup_key_controller(self) -> None:
         """Sets up keyboard event handling."""
@@ -290,7 +267,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             for path_str in sorted(new_expanded, key=lambda p: p.count("/")):
                 self._expand_path(VaultPath.from_str(path_str))
 
-        open_path = event.state.active_tab.open_file
+        open_path = event.state.editor.open_file
         if open_path != self._last_synced_path:
             self._last_synced_path = open_path
             if open_path:

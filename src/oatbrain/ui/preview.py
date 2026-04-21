@@ -28,7 +28,7 @@ class Preview:
 
     def _create_webview(self) -> WebKit.WebView:
         cm = WebKit.UserContentManager()
-        
+
         wv = WebKit.WebView(user_content_manager=cm)
         wv.set_hexpand(True)
         wv.set_vexpand(True)
@@ -130,9 +130,7 @@ class Preview:
         self._wv.load_html("", "file:///")
         self._last_rendered_html = ""
 
-    def _on_load_changed(
-        self, wv: WebKit.WebView, event: WebKit.LoadEvent
-    ) -> None:
+    def _on_load_changed(self, wv: WebKit.WebView, event: WebKit.LoadEvent) -> None:
         if event == WebKit.LoadEvent.FINISHED:
             if self._pending_fraction is not None:
                 frac = self._pending_fraction
