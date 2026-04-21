@@ -75,29 +75,25 @@ def test_editor_vim_context_disabled() -> None:
     assert editor._vim_key_ctrl is None
 
 
-def test_editor_save_dispatches_set_dirty() -> None:
+def test_editor_save_emits_dirty_state_changed() -> None:
     from oatbrain.core.ports.filestore import VaultPath
-    from oatbrain.core.commands.editor import SetDirty
+    from oatbrain.core.events.ui import DirtyStateChanged
 
     filestore = MagicMock(spec=FileStore)
     event_bus = EventBus()
-    dispatched = []
+    events = []
+    event_bus.subscribe(DirtyStateChanged, events.append)
+    
     command_router = CommandRouter()
-    # Register a capture handler
-    from oatbrain.core.commands.editor import UpdateWordCount
-
-    command_router.register(UpdateWordCount, lambda c: dispatched.append(c))
-    command_router.register(SetDirty, lambda c: dispatched.append(c))
-
     env = MagicMock()
     editor = Editor(filestore, event_bus, command_router, env, vim_enabled=False)
     editor._current_path = VaultPath.from_str("test.md")
+    editor._is_dirty = True
 
     editor._save()
 
     filestore.write_text.assert_called_once()
-    set_dirty_calls = [c for c in dispatched if isinstance(c, SetDirty)]
-    assert any(not c.dirty for c in set_dirty_calls)
+    assert any(not e.dirty for e in events if isinstance(e, DirtyStateChanged))
 
 
 def test_app_shell_activation_smoke() -> None:

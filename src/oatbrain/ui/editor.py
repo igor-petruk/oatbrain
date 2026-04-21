@@ -9,6 +9,10 @@ from gi.repository import Gtk, Gdk, GtkSource, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.events.watcher import FileModified  # noqa: E402
+from oatbrain.core.events.ui import (  # noqa: E402
+    WordCountChanged,
+    DirtyStateChanged,
+)
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
@@ -19,11 +23,11 @@ from oatbrain.core.commands import (  # noqa: E402
     Zoom,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
-    UpdateWordCount,
-    SetDirty,
     ToggleMode,
     ToggleSplit,
 )
+from oatbrain.ui.preview import Preview  # noqa: E402
+
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
@@ -60,7 +64,10 @@ class Editor:
         self._theme_css: str = ""
         self._theme_id: str = "solarized-light"
         self._render_timeout_id: Optional[int] = None
+        self._stats_timeout_id: Optional[int] = None
         self._scrolling_locked = False
+        self._is_dirty = False
+        self._word_count = 0
 
         # --- Source view ---
         self.buffer = GtkSource.Buffer()
@@ -409,14 +416,30 @@ class Editor:
     def _on_buffer_changed(self, _buffer: GtkSource.Buffer) -> None:
         if self._loading:
             return
-        start = self.buffer.get_start_iter()
-        end = self.buffer.get_end_iter()
-        self._current_content = self.buffer.get_text(start, end, True)
-        self._command_router.dispatch(UpdateWordCount(count=self._count_words()))
-        self._command_router.dispatch(SetDirty(dirty=True))
+
+        if not self._is_dirty:
+            self._is_dirty = True
+            self._event_bus.publish(DirtyStateChanged(dirty=True, sender_id=id(self)))
+
+        if self._stats_timeout_id:
+            GLib.source_remove(self._stats_timeout_id)
+        self._stats_timeout_id = GLib.timeout_add(500, self._update_stats)
 
         if self._split_mode:
             self._debounce_render()
+
+    def _update_stats(self) -> bool:
+        self._stats_timeout_id = None
+        start = self.buffer.get_start_iter()
+        end = self.buffer.get_end_iter()
+        self._current_content = self.buffer.get_text(start, end, True)
+        self._word_count = (
+            len(self._current_content.split()) if self._current_content.strip() else 0
+        )
+        self._event_bus.publish(
+            WordCountChanged(count=self._word_count, sender_id=id(self))
+        )
+        return False
 
     def _debounce_render(self) -> None:
         if self._render_timeout_id:
@@ -462,7 +485,8 @@ class Editor:
         content = self.buffer.get_text(start, end, True)
         try:
             self._filestore.write_text(self._current_path, content)
-            self._command_router.dispatch(SetDirty(dirty=False))
+            self._is_dirty = False
+            self._event_bus.publish(DirtyStateChanged(dirty=False, sender_id=id(self)))
         except Exception:
             pass
 
@@ -501,7 +525,10 @@ class Editor:
         self.buffer.set_text(content)
         self._current_content = content
         self._loading = False
-        self._command_router.dispatch(UpdateWordCount(count=0))
+        self._word_count = self._count_words()
+        self._event_bus.publish(
+            WordCountChanged(count=self._word_count, sender_id=id(self))
+        )
         return False
 
     def update_from_state(self, tab_state: TabState, app_state: AppState) -> None:
@@ -547,8 +574,14 @@ class Editor:
                     self._loading = False
                     self._current_content = ""
                     self.buffer.set_text("")
-                    self._command_router.dispatch(UpdateWordCount(count=0))
-                    self._command_router.dispatch(SetDirty(dirty=False))
+                    self._word_count = 0
+                    self._is_dirty = False
+                    self._event_bus.publish(
+                        WordCountChanged(count=0, sender_id=id(self))
+                    )
+                    self._event_bus.publish(
+                        DirtyStateChanged(dirty=False, sender_id=id(self))
+                    )
                 else:
                     try:
                         self._update_language(new_path)
@@ -557,10 +590,14 @@ class Editor:
                         self._current_content = content
                         self.buffer.set_text(content)
                         self._loading = False
-                        self._command_router.dispatch(
-                            UpdateWordCount(count=self._count_words())
-                        )
-                        self._command_router.dispatch(SetDirty(dirty=False))
+                        self._word_count = self._count_words()
+                        self._is_dirty = False
+                        self._event_bus.publish(
+            WordCountChanged(count=self._word_count, sender_id=id(self))
+        )
+                        self._event_bus.publish(
+                        DirtyStateChanged(dirty=False, sender_id=id(self))
+                    )
                     except Exception as e:
                         self._loading = False
                         self._current_content = ""
@@ -569,7 +606,8 @@ class Editor:
                 self._current_content = ""
                 self.buffer.set_text("")
                 self.buffer.set_language(None)
-                self._command_router.dispatch(UpdateWordCount(count=0))
+                self._word_count = 0
+                self._event_bus.publish(WordCountChanged(count=0, sender_id=id(self)))
 
         # Mode logic
         self._read_mode = effective_read_mode

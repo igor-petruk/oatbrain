@@ -1,5 +1,6 @@
 from gi.repository import Adw, Gtk, GLib, Gio
 from oatbrain.core.events.state import StateUpdated
+from oatbrain.core.events.ui import DirtyStateChanged
 from oatbrain.core.bus import EventBus
 
 
@@ -78,6 +79,10 @@ class HeaderBar:
         self.widget.pack_end(self.zen_toggle)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
+        event_bus.subscribe(DirtyStateChanged, self._on_dirty_state_changed)
+
+    def _on_dirty_state_changed(self, event: DirtyStateChanged) -> None:
+        GLib.idle_add(lambda: self._unsaved_dot.set_visible(event.dirty))
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)
@@ -87,7 +92,6 @@ class HeaderBar:
         active_tab = state.active_tab
         if active_tab.open_file:
             self._title_label.set_text(active_tab.title)
-            self._unsaved_dot.set_visible(active_tab.is_dirty)
         else:
             self._title_label.set_text("oatbrain")
             self._unsaved_dot.set_visible(False)

@@ -7,10 +7,8 @@ from oatbrain.core.ports.filestore import VaultPath
 @dataclass(frozen=True)
 class TabState:
     open_file: Optional[VaultPath] = None
-    is_dirty: bool = False
     read_mode: bool = False
     split_mode: bool = False
-    word_count: int = 0
     title: str = "Untitled"
 
 
@@ -38,7 +36,6 @@ class AppState:
     editor_zoom: float = 1.0
     preview_zoom: float = 1.0
 
-    status_message: str = "Ready"
     theme_name: str = "Solarized Light"
     theme_id: str = "solarized-light"
     mermaid_dismissed: bool = False

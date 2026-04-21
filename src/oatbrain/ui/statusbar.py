@@ -1,5 +1,10 @@
 from gi.repository import Gtk, GLib
 from oatbrain.core.events.state import StateUpdated
+from oatbrain.core.events.ui import (
+    WordCountChanged,
+    DirtyStateChanged,
+    StatusMessageRequested,
+)
 from oatbrain.core.bus import EventBus
 
 
@@ -35,6 +40,20 @@ class StatusBar:
         self.widget.append(self._theme_label)
 
         event_bus.subscribe(StateUpdated, self._on_state_updated)
+        event_bus.subscribe(WordCountChanged, self._on_word_count_changed)
+        event_bus.subscribe(DirtyStateChanged, self._on_dirty_state_changed)
+        event_bus.subscribe(StatusMessageRequested, self._on_status_message_requested)
+
+    def _on_word_count_changed(self, event: WordCountChanged) -> None:
+        GLib.idle_add(lambda: self._word_count_label.set_text(f"{event.count} words"))
+
+    def _on_dirty_state_changed(self, event: DirtyStateChanged) -> None:
+        GLib.idle_add(lambda: self._unsaved_dot.set_visible(event.dirty))
+
+    def _on_status_message_requested(self, event: StatusMessageRequested) -> None:
+        # For now, just show it in the path label or similar
+        # Real status message support could be a separate label
+        pass
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         # Update UI on main thread
@@ -46,13 +65,11 @@ class StatusBar:
 
         if active_tab.open_file:
             self._path_label.set_text(str(active_tab.open_file))
-            self._unsaved_dot.set_visible(active_tab.is_dirty)
         else:
             self._path_label.set_text("No file open")
             self._unsaved_dot.set_visible(False)
             self._readonly_lock.set_visible(False)
 
-        self._word_count_label.set_text(f"{active_tab.word_count} words")
         self._theme_label.set_text(state.theme_name)
 
         return False

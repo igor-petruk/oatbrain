@@ -1,15 +1,21 @@
-from typing import Any, List, Optional, Dict
-from dataclasses import replace
 import gi
+import urllib.request
+from typing import Optional, Dict, Any, List
+from dataclasses import replace
+from concurrent.futures import ThreadPoolExecutor
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state.app_state import AppState, TabState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
+from oatbrain.core.events.ui import (  # noqa: E402
+    StatusMessageRequested,
+    WordCountChanged,
+    DirtyStateChanged,
+)
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
     ToggleTree,
@@ -21,13 +27,11 @@ from oatbrain.core.commands import (  # noqa: E402
     Zoom,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
-    UpdateWordCount,
-    SetDirty,
     ToggleMode,
     ToggleSplit,
     ToggleZen,
-    CloseTab,
     SwitchTab,
+    CloseTab,
 )
 from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
@@ -40,23 +44,17 @@ from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
 from oatbrain.adapters.theme.loader import load_theme  # noqa: E402
+from oatbrain.core.events.mermaid import MermaidFetchResult  # noqa: E402
 from oatbrain.core.ports.config import AppConfig  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
-from oatbrain.ui.editor import Editor  # noqa: E402
 from oatbrain.ui.terminal import Terminal  # noqa: E402
-
-
-from concurrent.futures import ThreadPoolExecutor  # noqa: E402
-import urllib.request  # noqa: E402
-from oatbrain.core.events.mermaid import MermaidFetchResult  # noqa: E402
+from oatbrain.ui.editor import Editor  # noqa: E402
 
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
-    """Main application shell using Libadwaita."""
-
-    _css_provider: Optional[Gtk.CssProvider] = None
+    """Main application shell using Libadwaita (SPEC §7)."""
 
     def __init__(
         self,
@@ -67,12 +65,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         state_store: StateStore,
         config: AppConfig,
         env: Env,
-        watcher: Optional[FileWatcher] = None,
         renderer: Optional[Renderer] = None,
         resolver: Optional[WikilinkResolver] = None,
-        **kwargs: Any,
+        watcher: Optional[FileWatcher] = None,
+        application_id: str = "org.oatbrain.Oatbar",
+        flags: Gio.ApplicationFlags = Gio.ApplicationFlags.FLAGS_NONE,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(
+            application_id=application_id, flags=flags
+        )
         self._event_bus = event_bus
         self._command_router = command_router
         self._state = initial_state
@@ -90,13 +91,24 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._editors: Dict[Adw.TabPage, Editor] = {}
         self._syncing_tabs = False
 
+        self._setup_commands()
+
+        self._event_bus.subscribe(WordCountChanged, self._on_word_count_changed)
+        self._event_bus.subscribe(DirtyStateChanged, self._on_dirty_state_changed)
+        self._event_bus.subscribe(
+            StatusMessageRequested, self._on_status_message_requested
+        )
+
+        self._setup_initialization()
+
+        self._zen_mode: bool = False
+        self._pre_zen_tree_visible: bool = True
+        self._pre_zen_terminal_visible: bool = True
+
+    def _setup_commands(self) -> None:
         self._command_router.register(
             OpenFile, self._handle_open_file, "Open File", visible=False
         )
-        self._command_router.register(
-            UpdateWordCount, self._handle_update_word_count, visible=False
-        )
-        self._command_router.register(SetDirty, self._handle_set_dirty, visible=False)
         self._command_router.register(
             ToggleMode, self._handle_toggle_mode, "Toggle Read Mode"
         )
@@ -129,10 +141,26 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(CloseTab, self._handle_close_tab, visible=False)
         self._command_router.register(SwitchTab, self._handle_switch_tab, visible=False)
 
-        self._zen_mode: bool = False
-        self._pre_zen_tree_visible: bool = True
-        self._pre_zen_terminal_visible: bool = True
+    def _on_word_count_changed(self, event: WordCountChanged) -> None:
+        pass
 
+    def _on_dirty_state_changed(self, event: DirtyStateChanged) -> None:
+        if event.sender_id is None:
+            return
+
+        def update_ui() -> bool:
+            for page, editor in self._editors.items():
+                if id(editor) == event.sender_id:
+                    page.set_indicator_activatable(event.dirty)
+                    break
+            return False
+
+        GLib.idle_add(update_ui)
+
+    def _on_status_message_requested(self, event: StatusMessageRequested) -> None:
+        pass
+
+    def _setup_initialization(self) -> None:
         self._mermaid_banner: Optional[Adw.Banner] = None
         self._event_bus.subscribe(MermaidFetchResult, self._on_mermaid_fetch_result)
         self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
@@ -191,8 +219,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._state = replace(
                 self._state,
                 active_tab_index=existing_index,
-                status_message=f"Focused {command.path}",
             )
+            self._event_bus.publish(StatusMessageRequested(f"Focused {command.path}"))
         elif command.new_tab or not tabs[self._state.active_tab_index].open_file:
             # Create new tab if requested or if current tab is empty
             new_tab = TabState(
@@ -210,22 +238,20 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 self._state,
                 tabs=tabs,
                 active_tab_index=idx,
-                status_message=f"Opened {command.path}",
             )
+            self._event_bus.publish(StatusMessageRequested(f"Opened {command.path}"))
         else:
             # Replace current tab
             tabs[self._state.active_tab_index] = replace(
                 tabs[self._state.active_tab_index],
                 open_file=command.path,
-                word_count=0,
-                is_dirty=False,
                 title=command.path.path.name,
             )
             self._state = replace(
                 self._state,
                 tabs=tabs,
-                status_message=f"Opened {command.path}",
             )
+            self._event_bus.publish(StatusMessageRequested(f"Opened {command.path}"))
 
         self._event_bus.publish(StateUpdated(self._state))
         self._save_state()
@@ -251,20 +277,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._state = replace(self._state, active_tab_index=command.index)
             self._event_bus.publish(StateUpdated(self._state))
             self._save_state()
-
-    def _handle_update_word_count(self, command: UpdateWordCount) -> None:
-        tabs = list(self._state.tabs)
-        idx = self._state.active_tab_index
-        tabs[idx] = replace(tabs[idx], word_count=command.count)
-        self._state = replace(self._state, tabs=tabs)
-        self._event_bus.publish(StateUpdated(self._state))
-
-    def _handle_set_dirty(self, command: SetDirty) -> None:
-        tabs = list(self._state.tabs)
-        idx = self._state.active_tab_index
-        tabs[idx] = replace(tabs[idx], is_dirty=command.dirty)
-        self._state = replace(self._state, tabs=tabs)
-        self._event_bus.publish(StateUpdated(self._state))
 
     def _handle_toggle_mode(self, _command: ToggleMode) -> None:
         tabs = list(self._state.tabs)
@@ -681,7 +693,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             for i, tab_state in enumerate(state.tabs):
                 page = self.tab_view.get_nth_page(i)
                 page.set_title(tab_state.title)
-                page.set_indicator_activatable(tab_state.is_dirty)
                 self._editors[page].update_from_state(tab_state, state)
 
             # Sync active tab

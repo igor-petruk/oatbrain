@@ -8,7 +8,6 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.commands.editor import SetDirty, UpdateWordCount  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
 
@@ -23,8 +22,6 @@ NEW_CONTENT = "# Hello\nNew line"
 def _make_editor(vault_root: Path, filestore: MagicMock) -> Editor:
     event_bus = EventBus()
     command_router = CommandRouter()
-    command_router.register(UpdateWordCount, lambda _: None, visible=False)
-    command_router.register(SetDirty, lambda _: None, visible=False)
 
     return Editor(
         filestore=filestore,
@@ -106,8 +103,6 @@ def test_reload_skipped_when_no_vault_root() -> None:
     filestore = MagicMock()
     event_bus = EventBus()
     command_router = CommandRouter()
-    command_router.register(UpdateWordCount, lambda _: None, visible=False)
-    command_router.register(SetDirty, lambda _: None, visible=False)
     editor = Editor(
         filestore=filestore,
         event_bus=event_bus,

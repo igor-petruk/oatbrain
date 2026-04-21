@@ -17,8 +17,6 @@ from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.commands.editor import (  # noqa: E402
     ToggleMode,
-    SetDirty,
-    UpdateWordCount,
 )
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
@@ -49,8 +47,6 @@ def make_editor(
     event_bus = EventBus()
     dispatched: list[object] = []
     command_router = CommandRouter()
-    command_router.register(UpdateWordCount, dispatched.append)
-    command_router.register(SetDirty, dispatched.append)
     command_router.register(ToggleMode, dispatched.append)
     editor = Editor(
         filestore,
