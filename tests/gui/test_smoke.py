@@ -33,7 +33,8 @@ def test_widget_hierarchy() -> None:
 
     window = app.get_active_window()
     assert window is not None
-    assert window.get_title() == "oatbrain"
+    assert "oatbrain" in window.get_title()
+    assert "Vault" in window.get_title()
 
     # Traverse to find panes
     content = window.get_content()

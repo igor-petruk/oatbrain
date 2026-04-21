@@ -56,6 +56,8 @@ from oatbrain.ui.editor import Editor  # noqa: E402
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
     """Main application shell using Libadwaita (SPEC §7)."""
 
+    _css_provider: Optional[Gtk.CssProvider] = None
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -564,7 +566,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def on_activate(self, app: Adw.Application) -> None:
         self.main_window = Adw.ApplicationWindow(application=app)
-        self.main_window.set_title("oatbrain")
+        vault_name = self._state.vault_root.name
+        self.main_window.set_title(f"oatbrain — {vault_name}")
         self.main_window.set_default_size(
             self._state.window_width, self._state.window_height
         )
@@ -576,7 +579,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         # Tab Bar
         self.tab_view = Adw.TabView()
         self.tab_bar = Adw.TabBar(view=self.tab_view)
-        self.tab_bar.set_autohide(False)
+        self.tab_bar.set_autohide(True)
 
         # Editor area (TabBar + TabView)
         self.editor_area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
