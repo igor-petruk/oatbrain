@@ -566,8 +566,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def on_activate(self, app: Adw.Application) -> None:
         self.main_window = Adw.ApplicationWindow(application=app)
-        vault_name = self._state.vault_root.name
-        self.main_window.set_title(f"oatbrain — {vault_name}")
+        vault_path = str(self._state.vault_root)
+        self.main_window.set_title(f"oatbrain — {vault_path}")
         self.main_window.set_default_size(
             self._state.window_width, self._state.window_height
         )
@@ -685,7 +685,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 page = self.tab_view.append(editor.widget)
                 self._editors[page] = editor
 
-            while self.tab_view.get_n_pages() > len(state.tabs):
+            num_to_close = self.tab_view.get_n_pages() - len(state.tabs)
+            for _ in range(num_to_close):
                 page = self.tab_view.get_nth_page(self.tab_view.get_n_pages() - 1)
                 if page in self._editors:
                     self._editors[page].destroy()

@@ -89,11 +89,6 @@ class HeaderBar:
 
     def _update_ui(self, event: StateUpdated) -> bool:
         state = event.state
-        active_tab = state.active_tab
-        if active_tab.open_file:
-            self._title_label.set_text(active_tab.title)
-        else:
-            self._title_label.set_text("oatbrain")
-            self._unsaved_dot.set_visible(False)
-            self._readonly_lock.set_visible(False)
+        vault_path = str(state.vault_root)
+        self._title_label.set_text(f"oatbrain — {vault_path}")
         return False
