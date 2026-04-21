@@ -95,9 +95,9 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Mermaid diagrams in preview (via cached `mermaid.js`, CDN-loaded on first
   render then cached on disk).
 - Terminal pane with `$SHELL` (configurable) rooted at the vault.
-- Filesystem watcher: reload externally-changed files automatically unless the
-  buffer is dirty; warn otherwise.
+- Filesystem watcher: updates File Tree; manual reload (`Ctrl+R`) for editor.
 - Save on blur and pane-leave; explicit `Ctrl+S` / `:w`.
+- Word count and unsaved indicator in status bar.
 - Header bar: hamburger · tree-toggle · new-note (left) ·
   filename · unsaved-dot · read-only-lock (centre) · terminal-toggle · theme
   switcher · window controls (right).
@@ -127,7 +127,7 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Data export / import.
 - Crash-recovery journal for unsaved buffers.
 - Spellcheck.
-- Word count / reading time.
+- Reading time.
 - Which-key popup.
 - Zettelkasten timestamp IDs.
 - Auto-enable privacy mode on screen-share detection.
@@ -411,8 +411,9 @@ Outline, Backlinks, Global Search Results, Tag browser, Graph — deferred (§1.
 
 - Selecting a file in the Tree opens it in Editor/Preview in the same mode as
   before.
-- Flipping between Edit and Read in the pane performs a best-effort scroll jump
-  to the same vertical position. There is **no** continuous scroll sync.
+- Flipping between Edit and Read in the pane performs a best-effort scroll jump. 
+- Source -> Preview synchronization is unidirectional. There is **no** back-sync 
+  from Preview to Source.
 - Clicking a wikilink in Preview opens the target in Editor/Preview, in the
   same pane, without opening a new view.
 - Fuzzy-search and palette-selection open in Editor/Preview.
@@ -586,8 +587,9 @@ There is no split mode. There is no live-preview / typewriter mode.
 
 ### 10.7 Status indicators
 
-The editor reports its state to the status bar via published events:
-unsaved dot, word count, current vim mode.
+The editor reports its state to the status bar via local, non-persistent events:
+unsaved dot, word count, current vim mode. These values are NOT stored in the
+global AppState to avoid redundant update cycles.
 
 ### 10.8 Code-block execution
 
@@ -599,8 +601,8 @@ Out of scope forever. Runnable code blocks are not supported.
 
 ### 11.1 Widget
 
-WebKitGTK 6 `WebView`. The view is read-only — the WebKit caret is hidden;
-text selection is enabled for copy.
+WebKitGTK 6 `WebView`. A single instance is used. The view is read-only — the 
+WebKit caret is hidden; text selection is enabled for copy.
 
 ### 11.2 Rendering pipeline
 
@@ -614,17 +616,15 @@ Renderer port      (core defines; markdown-it-py adapter implements)
 HTML (str) + per-block metadata
   │
   ▼
-WebKitGTK load_html(...) with a stable base URI for relative asset resolution
+WebKitGTK load_html(...)
 ```
 
 The Renderer:
 - MUST be side-effect free and fully unit-testable without any display.
 - MUST resolve transclusion (§14) by reading referenced files via the
   `FileStore` port; the port MUST be injected.
-- MUST emit a stable HTML shape per input; snapshot tests (syrupy) protect
-  regressions.
-- SHOULD cache parsed tokens for the active file to keep mode-switching fast;
-  invalidation on file content change is required.
+- MUST emit a stable HTML shape per input.
+- Render updates MUST be debounced (e.g., 300ms) during typing.
 
 ### 11.3 CSS
 
@@ -637,7 +637,7 @@ See §15.
 
 ### 11.5 Scroll sync
 
-None while both modes are open (they are not both open simultaneously).
+Unidirectional Source -> Preview synchronization is supported.
 Mode-switch jumps to the closest heading or line number — best effort only.
 
 ---
@@ -1330,12 +1330,12 @@ When a file on disk changes externally:
 
 | Buffer state | Action |
 |---|---|
-| Not dirty, not open | Tree updates silently |
-| Not dirty, open in editor | Auto-reload; scroll preserved |
-| Dirty, open in editor | Modal warning: "`<path>` changed on disk. Keep my version / Reload disk version". No automatic merge. |
+| Not dirty | Tree updates silently; no automatic editor reload. |
+| Open in editor | Manual reload (`Ctrl+R`) required to see changes. |
+| Dirty, open in editor | Save will overwrite disk version. Modal warning: "`<path>` changed on disk. Keep my version / Reload disk version" — triggered on manual reload or window focus regain. |
 
-If a file is **deleted** externally while open with a dirty buffer, the same
-dialog offers "Keep my version (re-create on save) / Discard". If the buffer
+If a file is **deleted** externally while open with a dirty buffer, the app
+offers "Keep my version (re-create on save) / Discard". If the buffer
 is clean, the pane falls back to the empty placeholder.
 
 ### 22.3 Rename / move
@@ -1468,6 +1468,9 @@ Core exposes:
 - `dispatch(Command)` — returns a `Result[None, Error]`.
 - `subscribe(EventType, callback)` — returns an `Unsubscribe` callable.
 
+Subscribers MUST unsubscribe when their lifecycle ends (e.g., closing a tab) 
+to prevent memory leaks and "ghost" event processing.
+
 Commands are typed dataclasses. Events are typed dataclasses.
 See §24.
 
@@ -1515,12 +1518,13 @@ names, not widgets.
 
 ### 24.1 Single source of truth
 
-One `AppState` dataclass holds everything. Slices:
+One `AppState` dataclass holds persistent application state. Transient UI 
+state (word counts, dirty flags, cursor position) is NOT in global state.
 
 | Slice | Contents |
 |---|---|
-| `EditorState` | open file path, mode (source/read), dirty, cursor, vim mode |
-| `FileTreeState` | expanded folders, selected row, scroll position, width |
+| `EditorState` | open file path, mode (source/read) |
+| `FileTreeState` | expanded folders, width |
 | `SearchState` | palette open?, mode (files/commands/help), query, result set, selected index |
 | `TerminalState` | visible?, width, spawned process handle |
 | `AppUIState` | window size, fullscreen, theme id, light/dark preference, privacy-mode on/off |
@@ -1700,7 +1704,6 @@ fullscreen = false
 [panes]
 tree_width = 240
 tree_visible = true
-tree_expanded = ["Projects", "Projects/oatbrain", "Daily"]
 tree_zoom = 1.0
 terminal_width = 480
 terminal_visible = true
@@ -1709,7 +1712,6 @@ terminal_zoom = 1.0
 [editor]
 open_file = "Projects/oatbrain/SPEC.md"
 read_mode = false
-mru = ["a.md", "b.md"]
 zoom = 1.0
 
 [preview]

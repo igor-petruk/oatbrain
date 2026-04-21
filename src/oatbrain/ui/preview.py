@@ -1,9 +1,9 @@
 import gi
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 gi.require_version("WebKit", "6.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import WebKit, Gio, GLib, Gtk, Gdk  # noqa: E402
+from gi.repository import WebKit, GLib, Gtk, Gdk  # noqa: E402
 
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
@@ -23,54 +23,17 @@ class Preview:
         self._last_rendered_html: str = ""
         self._scrolling_locked = False
 
-        self._stack = Gtk.Stack()
-        self._stack.set_hexpand(True)
-        self._stack.set_vexpand(True)
-        self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self._stack.set_transition_duration(50)
+        self._wv = self._create_webview()
+        self.widget = self._wv
 
-        self._wv1 = self._create_webview("wv1")
-        self._wv2 = self._create_webview("wv2")
-
-        self._stack.add_named(self._wv1, "wv1")
-        self._stack.add_named(self._wv2, "wv2")
-
-        self._active_wv = self._wv1
-        self._stack.set_visible_child_name("wv1")
-
-        self.widget = self._stack
-
-    def _create_webview(self, name: str) -> WebKit.WebView:
-        # Setup Content Manager for bidirectional communication
+    def _create_webview(self) -> WebKit.WebView:
         cm = WebKit.UserContentManager()
-        cm.register_script_message_handler("oatbrain")
-        cm.connect("script-message-received::oatbrain", self._on_script_message)
-
-        # Inject scroll listener
-        script = WebKit.UserScript.new(
-            """
-            window.addEventListener('scroll', function() {
-                var h = document.documentElement.scrollHeight - window.innerHeight;
-                var frac = h > 0 ? window.scrollY / h : 0;
-                window.webkit.messageHandlers.oatbrain.postMessage({
-                    type: 'scroll',
-                    fraction: frac
-                });
-            });
-            """,
-            WebKit.UserContentInjectedFrames.ALL_FRAMES,
-            WebKit.UserScriptInjectionTime.END,
-            None,
-            None,
-        )
-        cm.add_script(script)
-
-        # WebKit 6.0 constructor (GTK4 compatible)
+        
         wv = WebKit.WebView(user_content_manager=cm)
         wv.set_hexpand(True)
         wv.set_vexpand(True)
         wv.set_background_color(Gdk.RGBA(0, 0, 0, 0))
-        wv.connect("load-changed", self._on_load_changed, name)
+        wv.connect("load-changed", self._on_load_changed)
         wv.connect("decide-policy", self._on_decide_policy)
 
         scroll_ctrl = Gtk.EventControllerScroll.new(
@@ -81,27 +44,8 @@ class Preview:
 
         return wv
 
-    def _on_script_message(
-        self,
-        _cm: WebKit.UserContentManager,
-        message: Any,
-    ) -> None:
-        try:
-            # In WebKit 6.0, the message is a JSC.Value directly
-            if message.is_object():
-                obj = message.to_json(0)
-                import json
-
-                data = json.loads(obj)
-                if data.get("type") == "scroll" and self.on_scroll:
-                    if not self._scrolling_locked:
-                        self.on_scroll(data.get("fraction", 0.0))
-        except Exception:
-            pass
-
     def set_zoom(self, zoom: float) -> None:
-        self._wv1.set_zoom_level(zoom)
-        self._wv2.set_zoom_level(zoom)
+        self._wv.set_zoom_level(zoom)
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
         event = ctrl.get_current_event()
@@ -157,86 +101,13 @@ class Preview:
         self._pending_fraction = scroll_to
         html = self._renderer.render(markdown, from_path)
 
-        # Check for cached Mermaid library
         mermaid_path = self._env.get_xdg_cache_home() / "oatbrain" / "mermaid.min.js"
         mermaid_js = str(mermaid_path) if mermaid_path.exists() else None
 
         full_html = self._wrap_html(html, theme_css, mermaid_js, theme_id)
 
-        # If it's the same base document, just update body to avoid flicker
-        if self._last_rendered_html and len(full_html) > 0:
-            if not mermaid_js:
-                escaped_html = (
-                    html.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-                )
-                # Use surgical update via JS morphing
-                script = f"""
-                    (function() {{
-                        const newHtml = '{escaped_html}';
-                        const temp = document.createElement('div');
-                        temp.innerHTML = newHtml;
-                        
-                        function morph(oldNode, newNode) {{
-                            if (
-                                oldNode.nodeType !== newNode.nodeType
-                                || oldNode.tagName !== newNode.tagName
-                            ) {{
-                                oldNode.parentNode.replaceChild(
-                                    newNode.cloneNode(true), oldNode
-                                );
-                                return;
-                            }}
-                            if (oldNode.nodeType === Node.TEXT_NODE) {{
-                                if (oldNode.textContent !== newNode.textContent) {{
-                                    oldNode.textContent = newNode.textContent;
-                                }}
-                                return;
-                            }}
-                            // Attributes
-                            const oldAttrs = oldNode.attributes;
-                            const newAttrs = newNode.attributes;
-                            for (let i = 0; i < newAttrs.length; i++) {{
-                                const attr = newAttrs[i];
-                                if (oldNode.getAttribute(attr.name) !== attr.value) {{
-                                    oldNode.setAttribute(attr.name, attr.value);
-                                }}
-                            }}
-                            for (let i = 0; i < oldAttrs.length; i++) {{
-                                const attr = oldAttrs[i];
-                                if (!newNode.hasAttribute(attr.name)) {{
-                                    oldNode.removeAttribute(attr.name);
-                                }}
-                            }}
-                            // Children
-                            const oldChildren = Array.from(oldNode.childNodes);
-                            const newChildren = Array.from(newNode.childNodes);
-                            
-                            let i = 0;
-                            while (i < newChildren.length) {{
-                                if (i < oldChildren.length) {{
-                                    morph(oldChildren[i], newChildren[i]);
-                                }} else {{
-                                    oldNode.appendChild(newChildren[i].cloneNode(true));
-                                }}
-                                i++;
-                            }}
-                            while (oldNode.childNodes.length > newChildren.length) {{
-                                oldNode.removeChild(oldNode.lastChild);
-                            }}
-                        }}
-                        
-                        morph(document.body, temp);
-                    }})();
-                """
-                self._active_wv.evaluate_javascript(
-                    script, -1, None, None, None, None, None
-                )
-                self._last_rendered_html = full_html
-                return
-
         self._last_rendered_html = full_html
-        self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
-        self._inactive_wv.load_html(full_html, "file:///")
+        self._wv.load_html(full_html, "file:///")
 
     def render_image(
         self,
@@ -246,46 +117,23 @@ class Preview:
     ) -> None:
         self._pending_fraction = None
         html = f'<img src="file://{image_abs_path}" />'
-        self._inactive_wv = self._wv2 if self._active_wv == self._wv1 else self._wv1
-        self._inactive_wv.load_html(
+        self._wv.load_html(
             self._wrap_html(html, theme_css, None, theme_id, is_full_page=True),
             "file:///",
         )
         self._last_rendered_html = ""
 
     def get_scroll_fraction(self, callback: Callable[[float], None]) -> None:
-        script = (
-            "(function(){"
-            "var h=document.documentElement.scrollHeight-window.innerHeight;"
-            "return h>0?window.scrollY/h:0;"
-            "})()"
-        )
-
-        def _on_result(_wv: WebKit.WebView, result: Gio.AsyncResult, _ud: None) -> None:
-            try:
-                js_val = self._active_wv.evaluate_javascript_finish(result)
-                fraction = js_val.to_double() if js_val is not None else 0.0
-            except Exception:
-                fraction = 0.0
-            callback(fraction)
-
-        self._active_wv.evaluate_javascript(
-            script, -1, None, None, None, _on_result, None
-        )
+        callback(0.0)
 
     def clear(self) -> None:
-        self._wv1.load_html("", "file:///")
-        self._wv2.load_html("", "file:///")
+        self._wv.load_html("", "file:///")
         self._last_rendered_html = ""
 
     def _on_load_changed(
-        self, wv: WebKit.WebView, event: WebKit.LoadEvent, name: str
+        self, wv: WebKit.WebView, event: WebKit.LoadEvent
     ) -> None:
         if event == WebKit.LoadEvent.FINISHED:
-            if wv != self._active_wv:
-                self._active_wv = wv
-                self._stack.set_visible_child_name(name)
-
             if self._pending_fraction is not None:
                 frac = self._pending_fraction
                 self._pending_fraction = None

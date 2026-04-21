@@ -15,6 +15,10 @@ class EventBus:
     def subscribe(self, event_type: type[T], listener: Callable[[T], None]) -> None:
         self._listeners[event_type].append(listener)
 
+    def unsubscribe(self, event_type: type[T], listener: Callable[[T], None]) -> None:
+        if listener in self._listeners[event_type]:
+            self._listeners[event_type].remove(listener)
+
     def publish(self, event: Any) -> None:
         event_type = type(event)
         for listener in self._listeners[event_type]:

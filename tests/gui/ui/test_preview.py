@@ -1,14 +1,15 @@
 import gi
 from unittest.mock import MagicMock
 from pathlib import Path
+
+gi.require_version("WebKit", "6.0")
+gi.require_version("Gtk", "4.0")
+from gi.repository import WebKit  # noqa: E402
+
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.ui.preview import Preview  # noqa: E402
-
-gi.require_version("WebKit", "6.0")
-gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
 
 
 def make_renderer(html: str = "<p>body</p>") -> Renderer:
@@ -32,10 +33,9 @@ def dummy_path() -> VaultPath:
 # ---------------------------------------------------------------------------
 
 
-def test_preview_widget_is_stack() -> None:
+def test_preview_widget_is_webview() -> None:
     p = Preview(make_renderer(), make_env())
-    # widget is now a Gtk.Stack for double-buffering
-    assert isinstance(p.widget, Gtk.Stack)
+    assert isinstance(p.widget, WebKit.WebView)
 
 
 def test_preview_widget_expands() -> None:

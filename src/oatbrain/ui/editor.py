@@ -245,7 +245,7 @@ class Editor:
                 fraction = adj.get_value() / upper
                 self._scroll_fraction = fraction
                 if self._preview:
-                    self._preview._apply_scroll(self._preview._active_wv, fraction)
+                    self._preview._apply_scroll(self._preview._wv, fraction)
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
         """Handle Ctrl+MouseScroll to zoom editor (§19)."""
@@ -469,6 +469,9 @@ class Editor:
     # ------------------------------------------------------------------
     # State update
     # ------------------------------------------------------------------
+
+    def destroy(self) -> None:
+        self._event_bus.unsubscribe(FileModified, self._on_file_modified)
 
     def _on_file_modified(self, event: FileModified) -> None:
         GLib.idle_add(self._reload_if_clean, event.path)

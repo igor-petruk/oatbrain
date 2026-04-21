@@ -673,6 +673,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             while self.tab_view.get_n_pages() > len(state.tabs):
                 page = self.tab_view.get_nth_page(self.tab_view.get_n_pages() - 1)
                 if page in self._editors:
+                    self._editors[page].destroy()
                     del self._editors[page]
                 self.tab_view.close_page(page)
 
