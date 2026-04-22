@@ -229,10 +229,6 @@ class Editor:
         # --- Signals ---
         self.buffer.connect("changed", self._on_buffer_changed)
 
-        focus_ctrl = Gtk.EventControllerFocus.new()
-        focus_ctrl.connect("leave", self._on_focus_leave)
-        self.view.add_controller(focus_ctrl)
-
         self._btn_source.connect("toggled", self._on_source_toggled)
         self._btn_read.connect("toggled", self._on_read_toggled)
         self._btn_split.connect("toggled", self._on_split_toggled)
@@ -459,9 +455,6 @@ class Editor:
             )
         return False
 
-    def _on_focus_leave(self, _ctrl: Gtk.EventControllerFocus) -> None:
-        self._save()
-
     # ------------------------------------------------------------------
     # Save logic
     # ------------------------------------------------------------------
@@ -525,8 +518,9 @@ class Editor:
     def _reload_if_clean(self, abs_path: str) -> bool:
         if self._current_path is None or self._vault_root is None:
             return False
-        expected = self._vault_root / str(self._current_path)
-        if Path(abs_path) != expected:
+        
+        target_abs = str(self._vault_root / str(self._current_path))
+        if abs_path != target_abs:
             return False
         # If the buffer has unsaved edits, don't silently overwrite them.
         if self._loading:

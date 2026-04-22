@@ -9,6 +9,7 @@ gi.require_version("GtkSource", "5")
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
+from oatbrain.core.events.ui import FileChangedOnDisk  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
 
 VAULT = Path("/vault")
@@ -116,9 +117,6 @@ def test_reload_skipped_when_no_vault_root() -> None:
     editor._reload_if_clean(NOTE_ABS)
 
     filestore.read_text.assert_not_called()
-
-
-from oatbrain.core.events.ui import FileChangedOnDisk
 
 
 def test_reload_publishes_event_when_buffer_is_dirty() -> None:

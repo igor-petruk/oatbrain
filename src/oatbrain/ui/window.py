@@ -264,13 +264,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._state = replace(self._state, tree_expanded=expanded)
             state_changed = True
 
-        # Update editor if open file was deleted
-        if self._state.editor.open_file and str(self._state.editor.open_file) == rel:
-            self._state = replace(
-                self._state, editor=replace(self._state.editor, open_file=None)
-            )
-            state_changed = True
-
         if state_changed:
             self._event_bus.publish(StateUpdated(self._state))
             self._save_state()
@@ -706,9 +699,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _on_window_active_changed(
         self, window: Adw.ApplicationWindow, _pspec: object
     ) -> None:
-        if not window.is_active():
-            if self.editor:
-                self.editor._save()
+        pass
 
     def _on_tree_toggled(self, btn: Gtk.ToggleButton) -> None:
         visible = btn.get_active()
