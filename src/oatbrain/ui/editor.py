@@ -34,7 +34,7 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
 
 class Editor:
-    """Markdown editor/preview pane with Vim mode and autosave (SPEC §10, §11)."""
+    """Markdown editor/preview pane with Vim mode (SPEC §10, §11)."""
 
     def __init__(
         self,
@@ -55,7 +55,6 @@ class Editor:
         self._renderer = renderer
         self._resolver = resolver
         self._current_path: Optional[VaultPath] = None
-        self._autosave_timer: Optional[int] = None
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
         self._loading = False
         self._read_mode = False
@@ -459,11 +458,6 @@ class Editor:
     # Save logic
     # ------------------------------------------------------------------
 
-    def _cancel_autosave(self) -> None:
-        if self._autosave_timer is not None:
-            GLib.source_remove(self._autosave_timer)
-            self._autosave_timer = None
-
     def _save(self) -> None:
         if self._current_path is None:
             return
@@ -586,7 +580,6 @@ class Editor:
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
         if new_path != self._current_path:
-            self._cancel_autosave()
             self._current_path = new_path
             if new_path:
                 if is_image:

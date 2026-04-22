@@ -97,7 +97,7 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Terminal pane with `$SHELL` (configurable) rooted at the vault.
 - Filesystem watcher: updates File Tree; automatic reload for clean editor buffers; manual refresh button and keyboard shortcut (`F5`) for dirty buffers.
 - Disk change notification: a libadwaita toast with a "Refresh" action appears if an open file is modified on disk while the editor has unsaved changes.
-- Save on blur and pane-leave; explicit `Ctrl+S` / `:w`.
+- Explicit save via `Ctrl+S` / `:w`; no autosave on blur or unfocus.
 - Word count and unsaved indicator in status bar.
 - Header bar: hamburger · tree-toggle · new-note (left) ·
   filename · unsaved-dot · read-only-lock (centre) · terminal-toggle · theme
@@ -554,15 +554,10 @@ There is no split mode. There is no live-preview / typewriter mode.
 ### 10.3 Save triggers
 
 - Explicit save: `Ctrl+S` and `:w` (vim command-line) flush immediately.
-- Implicit save:
-  - On window blur.
-  - When focus moves out of Editor/Preview (e.g., to Terminal or Tree).
+- There is **no** autosave on window blur or focus leave.
 - Save is atomic: write to a hidden temp file in the same directory, then
   `rename` into place (guarantees same-filesystem atomicity; temp name is
   dot-prefixed so the filesystem watcher can filter it trivially).
-
-> **Future**: idle debounce (5 s after last keystroke) will be added once the
-> filesystem watcher (§22) is in place to avoid re-triggering reload loops.
 
 ### 10.4 Vim mode
 
@@ -934,8 +929,8 @@ readline and tmux conflicts.
 - **AI writes a file in the vault**: the watcher (§22.1) detects the change;
   if the buffer is clean, it reloads. If the buffer is dirty, it warns.
 - **AI reads the current editor buffer**: reads the file directly from disk.
-  This works because a save fires on focus leaving the editor (§10.3), so
-  moving focus to the terminal flushes.
+  This works because the user can explicitly save via `Ctrl+S` before switching
+  to the terminal.
 
 ### 16.10 Notifications
 
@@ -2001,7 +1996,6 @@ numbers; do not invent others.
 | Python minimum | 3.12 | §2.1 |
 | Tree pane default width | 15% of window | §6.2 |
 | Terminal pane default width | 30% of window | §6.2 |
-| Autosave idle debounce | future (post §22) | §10.3 |
 | Smoke-test alive window | 2 s | §30.8 |
 | Smoke-test shutdown budget | 10 s | §30.8 |
 | Transclusion depth limit | 6 | §14 |

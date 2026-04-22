@@ -37,7 +37,6 @@
 ## Phase 9: Markdown Editor (Edit Mode) [DONE]
 - [x] GtkSourceView with Markdown highlighting.
 - [x] Vim mode (GtkSourceVimIMContext).
-- [x] Autosave on focus-out / idle.
 
 ## Phase 10: Markdown Preview (Read Mode) [DONE]
 - [x] WebKitGTK integration.
