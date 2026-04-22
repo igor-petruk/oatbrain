@@ -18,3 +18,10 @@ class DirtyStateChanged:
 class StatusMessageRequested:
     message: str
     timeout_ms: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class FileChangedOnDisk:
+    """Emitted when the current file changed on disk but has unsaved edits."""
+
+    path: str

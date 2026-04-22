@@ -26,3 +26,12 @@ class ToggleZen:
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "ToggleZen"]]:
         return [("Toggle Zen Mode", cls())]
+
+
+@dataclass(frozen=True)
+class RefreshFile:
+    """Reload the current file from disk, discarding unsaved changes."""
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "RefreshFile"]]:
+        return [("Refresh Current File", cls())]

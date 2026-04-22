@@ -12,6 +12,7 @@ from oatbrain.core.events.watcher import FileModified  # noqa: E402
 from oatbrain.core.events.ui import (  # noqa: E402
     WordCountChanged,
     DirtyStateChanged,
+    FileChangedOnDisk,
 )
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
@@ -500,6 +501,27 @@ class Editor:
     def _on_file_modified(self, event: FileModified) -> None:
         GLib.idle_add(self._reload_if_clean, event.path)
 
+    def refresh(self) -> None:
+        """Manually reload current file from disk."""
+        if self._current_path is None:
+            return
+        try:
+            content = self._filestore.read_text(self._current_path)
+            self._loading = True
+            self.buffer.set_text(content)
+            self._current_content = content
+            self._loading = False
+            self._is_dirty = False
+            self._word_count = self._count_words()
+            self._event_bus.publish(
+                WordCountChanged(count=self._word_count, sender_id=id(self))
+            )
+            self._event_bus.publish(DirtyStateChanged(dirty=False, sender_id=id(self)))
+            if self._split_mode or self._read_mode:
+                self._do_render()
+        except Exception as e:
+            print(f"Error refreshing file: {e}")
+
     def _reload_if_clean(self, abs_path: str) -> bool:
         if self._current_path is None or self._vault_root is None:
             return False
@@ -518,9 +540,12 @@ class Editor:
             return False
         if content == current_text:
             return False
+
         # Only reload if the buffer is clean (matches what was last saved).
         if current_text != self._current_content:
+            self._event_bus.publish(FileChangedOnDisk(abs_path))
             return False
+
         self._loading = True
         self.buffer.set_text(content)
         self._current_content = content

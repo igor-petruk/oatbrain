@@ -1,6 +1,7 @@
 import gi
 import urllib.request
 from typing import Optional, Any, List
+from pathlib import Path
 from dataclasses import replace
 from concurrent.futures import ThreadPoolExecutor
 
@@ -15,6 +16,7 @@ from oatbrain.core.events.ui import (  # noqa: E402
     StatusMessageRequested,
     WordCountChanged,
     DirtyStateChanged,
+    FileChangedOnDisk,
 )
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
@@ -30,6 +32,7 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     ToggleMode,
     ToggleSplit,
     ToggleZen,
+    RefreshFile,
 )
 from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
@@ -95,6 +98,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._event_bus.subscribe(
             StatusMessageRequested, self._on_status_message_requested
         )
+        self._event_bus.subscribe(FileChangedOnDisk, self._on_file_changed_on_disk)
 
         self._setup_initialization()
 
@@ -114,6 +118,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         self._command_router.register(
             ToggleZen, self._handle_toggle_zen, "Toggle Zen Mode"
+        )
+        self._command_router.register(
+            RefreshFile, self._handle_refresh_file, "Refresh Current File"
         )
         self._command_router.register(SetTheme, self._handle_set_theme, "Set Theme")
         self._command_router.register(
@@ -144,6 +151,17 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _on_status_message_requested(self, event: StatusMessageRequested) -> None:
         pass
+
+    def _on_file_changed_on_disk(self, event: FileChangedOnDisk) -> None:
+        GLib.idle_add(self._show_refresh_toast, event.path)
+
+    def _show_refresh_toast(self, path: str) -> bool:
+        filename = Path(path).name
+        toast = Adw.Toast.new(f"File '{filename}' changed on disk.")
+        toast.set_button_label("Refresh")
+        toast.set_action_name("app.refresh_file")
+        self.toast_overlay.add_toast(toast)
+        return False
 
     def _setup_initialization(self) -> None:
         self._mermaid_banner: Optional[Adw.Banner] = None
@@ -360,6 +378,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _handle_toggle_zen(self, _command: ToggleZen) -> None:
         GLib.idle_add(self._apply_zen_toggle)
 
+    def _handle_refresh_file(self, _command: RefreshFile) -> None:
+        if self.editor:
+            self.editor.refresh()
+
     def _calculate_zoom(self, current: float, command: Zoom) -> float:
         new_zoom = 1.0 if command.reset else current + command.delta
         return max(0.5, min(3.0, new_zoom))
@@ -477,8 +499,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._state.window_width, self._state.window_height
         )
 
+        self.toast_overlay = Adw.ToastOverlay()
         self.toolbar_view = Adw.ToolbarView()
-        self.header_bar = HeaderBar(self._event_bus)
+        self.header_bar = HeaderBar(self._event_bus, self._command_router)
         self.toolbar_view.add_top_bar(self.header_bar.widget)
 
         # Editor area
@@ -519,7 +542,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.status_bar = StatusBar(self._event_bus)
         self.toolbar_view.add_bottom_bar(self.status_bar.widget)
 
-        self.main_window.set_content(self.toolbar_view)
+        self.toast_overlay.set_child(self.toolbar_view)
+        self.main_window.set_content(self.toast_overlay)
 
         self.tree_pane.set_visible(self._state.tree_visible)
         self.header_bar.tree_toggle.set_active(self._state.tree_visible)
@@ -616,6 +640,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             ("new_folder", self._on_new_folder),
             ("rename_file", self._on_rename_file),
             ("delete_file", self._on_delete_file),
+            ("refresh_file", self._on_refresh_file),
         ]
         for name, callback in actions:
             action = Gio.SimpleAction.new(name, None)
@@ -674,6 +699,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _on_delete_file(self, *args: Any) -> None:
         print("Action: Delete File")
+
+    def _on_refresh_file(self, *args: Any) -> None:
+        self._command_router.dispatch(RefreshFile())
 
     def _on_window_active_changed(
         self, window: Adw.ApplicationWindow, _pspec: object
@@ -758,6 +786,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             Gtk.Shortcut.new(
                 trigger=Gtk.ShortcutTrigger.parse_string("<Control>s"),
                 action=Gtk.CallbackAction.new(self._shortcut_save),
+            )
+        )
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("F5"),
+                action=Gtk.CallbackAction.new(self._shortcut_refresh),
             )
         )
         controller.add_shortcut(
@@ -852,6 +886,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _shortcut_save(self, *_: Any) -> bool:
         if self.editor:
             self.editor._save()
+        return True
+
+    def _shortcut_refresh(self, *_: Any) -> bool:
+        self._command_router.dispatch(RefreshFile())
         return True
 
     def _shortcut_toggle_mode(self, *_: Any) -> bool:

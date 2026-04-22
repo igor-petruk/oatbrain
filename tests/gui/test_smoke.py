@@ -37,10 +37,13 @@ def test_widget_hierarchy() -> None:
 
     # Traverse to find panes
     content = window.get_content()
-    assert isinstance(content, Adw.ToolbarView)
+    assert isinstance(content, Adw.ToastOverlay)
+
+    toolbar_view = content.get_child()
+    assert isinstance(toolbar_view, Adw.ToolbarView)
 
     # Content of ToolbarView is our main_paned
-    main_paned = content.get_content()
+    main_paned = toolbar_view.get_content()
     assert isinstance(main_paned, Gtk.Paned)
 
     # Left child is FileTree

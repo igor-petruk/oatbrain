@@ -118,15 +118,53 @@ def test_reload_skipped_when_no_vault_root() -> None:
     filestore.read_text.assert_not_called()
 
 
-def test_reload_skipped_when_disk_matches_buffer() -> None:
-    """No-op reload when disk content already matches the buffer."""
+from oatbrain.core.events.ui import FileChangedOnDisk
+
+
+def test_reload_publishes_event_when_buffer_is_dirty() -> None:
+    filestore = MagicMock()
+    event_bus = EventBus()
+    command_router = CommandRouter()
+    editor = Editor(
+        filestore=filestore,
+        event_bus=event_bus,
+        command_router=command_router,
+        env=MagicMock(),
+        vault_root=VAULT,
+        vim_enabled=False,
+    )
+
+    _load_file(editor, filestore, INITIAL_CONTENT)
+
+    # Simulate user edits
+    editor._loading = True
+    editor.buffer.set_text("User edited content")
+    editor._loading = False
+
+    received = []
+    event_bus.subscribe(FileChangedOnDisk, lambda e: received.append(e))
+
+    filestore.read_text.return_value = NEW_CONTENT
+    editor._reload_if_clean(NOTE_ABS)
+
+    assert len(received) == 1
+    assert received[0].path == NOTE_ABS
+
+
+def test_refresh_updates_buffer_even_if_dirty() -> None:
     filestore = MagicMock()
     editor = _make_editor(VAULT, filestore)
     _load_file(editor, filestore, INITIAL_CONTENT)
 
-    filestore.read_text.return_value = INITIAL_CONTENT
-    editor._reload_if_clean(NOTE_ABS)
+    # Simulate user edits
+    editor._loading = True
+    editor.buffer.set_text("User edited content")
+    editor._loading = False
+
+    filestore.read_text.return_value = NEW_CONTENT
+    editor.refresh()
 
     start = editor.buffer.get_start_iter()
     end = editor.buffer.get_end_iter()
-    assert editor.buffer.get_text(start, end, True) == INITIAL_CONTENT
+    assert editor.buffer.get_text(start, end, True) == NEW_CONTENT
+    assert editor._current_content == NEW_CONTENT

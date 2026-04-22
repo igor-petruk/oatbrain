@@ -1,13 +1,15 @@
 from gi.repository import Adw, Gtk, GLib, Gio
 from oatbrain.core.events.state import StateUpdated
 from oatbrain.core.events.ui import DirtyStateChanged
-from oatbrain.core.bus import EventBus
+from oatbrain.core.commands.editor import RefreshFile
+from oatbrain.core.bus import EventBus, CommandRouter
 
 
 class HeaderBar:
     """A single header bar for the application."""
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(self, event_bus: EventBus, command_router: CommandRouter) -> None:
+        self._command_router = command_router
         self.widget = Adw.HeaderBar()
         self.widget.add_css_class("oatbrain-headerbar")
 
@@ -31,10 +33,15 @@ class HeaderBar:
         self._new_note_btn = Gtk.Button(icon_name="document-new-symbolic")
         self._new_note_btn.set_tooltip_text("New Note (Ctrl+N)")
 
+        self._refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
+        self._refresh_btn.set_tooltip_text("Refresh File (F5)")
+        self._refresh_btn.connect("clicked", self._on_refresh_clicked)
+
         left_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         left_box.append(self._hamburger_btn)
         left_box.append(self.tree_toggle)
         left_box.append(self._new_note_btn)
+        left_box.append(self._refresh_btn)
         self.widget.pack_start(left_box)
 
         # --- Title ---
@@ -83,6 +90,9 @@ class HeaderBar:
 
     def _on_dirty_state_changed(self, event: DirtyStateChanged) -> None:
         GLib.idle_add(lambda: self._unsaved_dot.set_visible(event.dirty))
+
+    def _on_refresh_clicked(self, _btn: Gtk.Button) -> None:
+        self._command_router.dispatch(RefreshFile())
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)

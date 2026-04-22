@@ -20,7 +20,8 @@ from oatbrain.core.ports.state import StateStore  # noqa: E402
 
 def test_headerbar_instantiation() -> None:
     event_bus = EventBus()
-    header = HeaderBar(event_bus)
+    command_router = CommandRouter()
+    header = HeaderBar(event_bus, command_router)
     assert isinstance(header.widget, Adw.HeaderBar)
     assert hasattr(header, "tree_toggle")
     assert hasattr(header, "terminal_toggle")
