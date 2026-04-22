@@ -1,4 +1,5 @@
 import gi
+import logging
 from typing import Optional
 from pathlib import Path
 
@@ -56,6 +57,7 @@ class Editor:
         self._resolver = resolver
         self._current_path: Optional[VaultPath] = None
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
+        self._logger = logging.getLogger("oatbrain.editor")
         self._loading = False
         self._read_mode = False
         self._split_mode = False
@@ -490,10 +492,12 @@ class Editor:
 
     def refresh(self) -> None:
         """Manually reload current file from disk."""
+        self._logger.debug("refresh requested for: %s", self._current_path)
         if self._current_path is None:
             return
         try:
             content = self._filestore.read_text(self._current_path)
+            self._logger.debug("refresh: read content from disk, len=%d", len(content))
             self._loading = True
             self.buffer.set_text(content)
             self._current_content = content
@@ -507,33 +511,45 @@ class Editor:
             if self._split_mode or self._read_mode:
                 self._do_render()
         except Exception as e:
-            print(f"Error refreshing file: {e}")
+            self._logger.error("Error refreshing file: %s", e)
 
     def _reload_if_clean(self, abs_path: str) -> bool:
+        self._logger.debug("_reload_if_clean: %s", abs_path)
         if self._current_path is None or self._vault_root is None:
+            self._logger.debug("_reload_if_clean: current_path or vault_root is None")
             return False
         
         target_abs = str(self._vault_root / str(self._current_path))
+        self._logger.debug(
+            "_reload_if_clean: target_abs=%s, abs_path=%s", target_abs, abs_path
+        )
         if abs_path != target_abs:
             return False
         # If the buffer has unsaved edits, don't silently overwrite them.
         if self._loading:
+            self._logger.debug("_reload_if_clean: currently loading, skip")
             return False
         start = self.buffer.get_start_iter()
         end = self.buffer.get_end_iter()
         current_text = self.buffer.get_text(start, end, True)
         try:
             content = self._filestore.read_text(self._current_path)
-        except Exception:
+        except Exception as e:
+            self._logger.error("_reload_if_clean: error reading text: %s", e)
             return False
         if content == current_text:
+            self._logger.debug("_reload_if_clean: content matches buffer, skip")
             return False
 
         # Only reload if the buffer is clean (matches what was last saved).
         if current_text != self._current_content:
+            self._logger.debug(
+                "_reload_if_clean: buffer is dirty, publishing FileChangedOnDisk"
+            )
             self._event_bus.publish(FileChangedOnDisk(abs_path))
             return False
 
+        self._logger.info("_reload_if_clean: reloading clean buffer from disk")
         self._loading = True
         self.buffer.set_text(content)
         self._current_content = content

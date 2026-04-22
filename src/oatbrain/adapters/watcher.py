@@ -1,5 +1,6 @@
 import gi
 import threading
+import logging
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
@@ -38,6 +39,7 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
         self._watch_path: Optional[Path] = None
         self._subscribers: list[Callable[[FileEvent], None]] = []
         self._lock = threading.Lock()
+        self._logger = logging.getLogger("oatbrain.watcher")
 
     def subscribe(self, cb: Callable[[FileEvent], None]) -> Unsubscribe:
         """Subscribe to file system events. Returns an unsubscribe callable."""
@@ -54,6 +56,7 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
 
     def _publish_event(self, event: FileEvent) -> None:
         """Marshal event onto the GLib main loop and notify all subscribers."""
+        self._logger.debug("Publishing event: %s", event)
 
         def publish() -> bool:
             with self._lock:
@@ -69,16 +72,19 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
         return path.endswith(".oatbrain.tmp")
 
     def on_created(self, event: Union[DirCreatedEvent, FileCreatedEvent]) -> None:
+        self._logger.debug("on_created: %s", event.src_path)
         if self._is_tmp(str(event.src_path)):
             return
         self._publish_event(FileCreated(str(event.src_path)))
 
     def on_deleted(self, event: Union[DirDeletedEvent, FileDeletedEvent]) -> None:
+        self._logger.debug("on_deleted: %s", event.src_path)
         if self._is_tmp(str(event.src_path)):
             return
         self._publish_event(FileDeleted(str(event.src_path)))
 
     def on_modified(self, event: Union[DirModifiedEvent, FileModifiedEvent]) -> None:
+        self._logger.debug("on_modified: %s", event.src_path)
         if event.is_directory or self._is_tmp(str(event.src_path)):
             return
         self._publish_event(FileModified(str(event.src_path)))
@@ -86,6 +92,7 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
     def on_moved(self, event: Union[DirMovedEvent, FileMovedEvent]) -> None:
         src = str(event.src_path)
         dest = str(event.dest_path)
+        self._logger.debug("on_moved: %s -> %s", src, dest)
         if self._is_tmp(src):
             # Atomic write (mkstemp → rename): report as FileModified on target.
             self._publish_event(FileModified(dest))

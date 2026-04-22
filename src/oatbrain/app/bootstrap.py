@@ -1,3 +1,5 @@
+import logging
+import sys
 from pathlib import Path
 from dataclasses import replace
 import gi
@@ -19,6 +21,13 @@ from oatbrain.adapters.watcher import WatchdogFileWatcher  # noqa: E402
 
 
 def build_app(argv: list[str]) -> Adw.Application:
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
+    logger = logging.getLogger("oatbrain.bootstrap")
+    logger.debug("Building application...")
     env = StdlibEnv()
     state_path = env.get_xdg_state_home() / "oatbrain" / "state.toml"
     state_store = TomlStateStore(state_path)

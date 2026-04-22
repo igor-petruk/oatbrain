@@ -1,5 +1,6 @@
 import gi
 import urllib.request
+import logging
 from typing import Optional, Any, List
 from pathlib import Path
 from dataclasses import replace
@@ -75,6 +76,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         flags: Gio.ApplicationFlags = Gio.ApplicationFlags.FLAGS_NONE,
     ) -> None:
         super().__init__(application_id=application_id, flags=flags)
+        self._logger = logging.getLogger("oatbrain.shell")
         self._event_bus = event_bus
         self._command_router = command_router
         self._state = initial_state
@@ -269,6 +271,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._save_state()
 
     def _on_file_renamed(self, event: FileRenamed) -> None:
+        self._logger.debug("on_file_renamed: %s -> %s", event.old_path, event.new_path)
         vault_prefix = str(self._state.vault_root) + "/"
 
         def to_rel(p: str) -> str:
