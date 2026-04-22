@@ -95,7 +95,8 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Mermaid diagrams in preview (via cached `mermaid.js`, CDN-loaded on first
   render then cached on disk).
 - Terminal pane with `$SHELL` (configurable) rooted at the vault.
-- Filesystem watcher: updates File Tree; manual reload (`Ctrl+R`) for editor.
+- Filesystem watcher: updates File Tree; automatic reload for clean editor buffers; manual refresh button and keyboard shortcut (`F5`) for dirty buffers.
+- Disk change notification: a libadwaita toast with a "Refresh" action appears if an open file is modified on disk while the editor has unsaved changes.
 - Save on blur and pane-leave; explicit `Ctrl+S` / `:w`.
 - Word count and unsaved indicator in status bar.
 - Header bar: hamburger · tree-toggle · new-note (left) ·
@@ -1055,6 +1056,7 @@ results.
 | `F11` | app | Toggle fullscreen |
 | `F1`, `?` | app | Cheatsheet (palette in help mode) |
 | `Ctrl+Tab` | app | Cycle focus: tree → editor → terminal → tree |
+| `F5` | app | Refresh current file from disk |
 | `Escape` | editor | Leave insert mode (vim) |
 | `Ctrl+Shift+Y` | app | Send current file path to terminal stdin |
 | `Ctrl+Shift+U` | app | Send editor selection to terminal stdin |
@@ -1326,9 +1328,10 @@ When a file on disk changes externally:
 
 | Buffer state | Action |
 |---|---|
-| Not dirty | Tree updates silently; no automatic editor reload. |
-| Open in editor | Manual reload (`Ctrl+R`) required to see changes. |
-| Dirty, open in editor | Save will overwrite disk version. Modal warning: "`<path>` changed on disk. Keep my version / Reload disk version" — triggered on manual reload or window focus regain. |
+| Not dirty | Tree updates silently; automatic editor reload. |
+| Dirty, open in editor | Manual reload required to see changes. A libadwaita toast notification appears with a "Refresh" action to force reload from disk. |
+
+Manual reload (`F5` or header-bar button) always reloads the disk version and discards unsaved changes.
 
 If a file is **deleted** externally while open with a dirty buffer, the app
 offers "Keep my version (re-create on save) / Discard". If the buffer
