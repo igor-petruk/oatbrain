@@ -722,12 +722,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         controller.add_shortcut(
             Gtk.Shortcut.new(
-                trigger=Gtk.ShortcutTrigger.parse_string("<Control>b"),
-                action=Gtk.CallbackAction.new(self._shortcut_toggle_tree),
-            )
-        )
-        controller.add_shortcut(
-            Gtk.Shortcut.new(
                 trigger=Gtk.ShortcutTrigger.parse_string("<Control>grave"),
                 action=Gtk.CallbackAction.new(self._shortcut_toggle_terminal),
             )

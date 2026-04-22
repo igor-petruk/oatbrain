@@ -26,7 +26,7 @@ class HeaderBar:
 
         self.tree_toggle = Gtk.ToggleButton(icon_name="sidebar-show-symbolic")
         self.tree_toggle.set_active(True)
-        self.tree_toggle.set_tooltip_text("Toggle File Tree (Ctrl+B)")
+        self.tree_toggle.set_tooltip_text("Toggle File Tree")
 
         self._new_note_btn = Gtk.Button(icon_name="document-new-symbolic")
         self._new_note_btn.set_tooltip_text("New Note (Ctrl+N)")

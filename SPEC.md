@@ -420,7 +420,7 @@ Outline, Backlinks, Global Search Results, Tag browser, Graph — deferred (§1.
 
 ### 7.3 Hiding
 
-- Tree toggled by header-bar button and `Ctrl+B`.
+- Tree toggled by header-bar button.
 - Terminal toggled by header-bar button and `` Ctrl+` ``.
 - Hidden panes retain their saved width and collapse state, and still receive
   background updates (file watcher events, etc.).
@@ -943,11 +943,8 @@ notification via `libnotify` if simple to implement. Not a hard requirement.
 
 ### 16.11 Binding arbitration
 
-When a key combination is claimed by both the app and the terminal (e.g.
-`Ctrl+B` = toggle tree; `Ctrl+B` = tmux prefix for a user inside tmux), the
-app wins. Users inside tmux should rebind their tmux prefix if they want to
-reach tmux from within oatbrain. The default app bindings (§18) are chosen to
-minimise clashes.
+When a key combination is claimed by both the app and the terminal, the
+app wins. The default app bindings (§18) are chosen to minimise clashes.
 
 ### 16.12 Lifecycle
 
@@ -1048,7 +1045,6 @@ results.
 | `Ctrl+Shift+F` | app | Find in vault — deferred |
 | `Ctrl+E` | editor/preview | Toggle edit ↔ read |
 | `Ctrl+,` | app | Open `config.toml` in editor |
-| `Ctrl+B` | app | Toggle tree |
 | `` Ctrl+` `` | app | Toggle terminal |
 | `Ctrl+K V` | editor | Open preview of current file (chord) — see §18.3 |
 | `Ctrl+1` | app | Focus tree |
