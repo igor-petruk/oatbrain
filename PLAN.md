@@ -7,7 +7,7 @@
 
 ## Phase 2: Adapters & Local IO [DONE]
 - [x] LocalFileStore implementation + sandboxing.
-- [x] Watcher implementation (watchdog).
+- [x] Watcher implementation (GioFileWatcher).
 - [x] Markdown-it renderer adapter.
 
 ## Phase 3: Event Bus & Command Router [DONE]

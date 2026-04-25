@@ -60,6 +60,15 @@ class TomlStateStore:
         mermaid_data = data.get("mermaid", {})
 
         open_file_str = editor_data.get("open_file")
+        # Sanitize: if the persisted path was accidentally stored as an absolute
+        # path, strip the vault root prefix to recover a vault-relative path.
+        if open_file_str:
+            vault_root_str = general.get("last_vault", "")
+            if vault_root_str and open_file_str.startswith(vault_root_str):
+                open_file_str = open_file_str[len(vault_root_str) :].lstrip("/")
+            elif open_file_str.lstrip("/") != open_file_str:
+                # Absolute path not matching vault root — discard it
+                open_file_str = None
 
         editor = EditorState(
             open_file=VaultPath.from_str(open_file_str) if open_file_str else None,

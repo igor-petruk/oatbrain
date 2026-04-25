@@ -27,7 +27,6 @@ sudo apt-get install -y \
     python3-markdown-it \
     python3-mdit-py-plugins \
     python3-yaml \
-    python3-watchdog \
     fzf \
     python3-pyfzf \
     ripgrep \

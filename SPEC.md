@@ -190,7 +190,6 @@ python3-markdown-it
 python3-mdit-py-plugins
 python3-yaml
 python3-tomli-w
-python3-watchdog         (for FileWatcher adapter — GLib-only fallback acceptable)
 fzf                      (fuzzy matching engine)
 python3-pyfzf            (fzf python wrapper)
 ripgrep                  (fast search tool)
@@ -277,7 +276,7 @@ oatbrain/
 │       │   └── errors.py
 │       ├── adapters/                # all gi / gtk / filesystem / process code
 │       │   ├── filestore/
-│       │   ├── watcher/
+│       │   ├── watcher/             # GioFileWatcher implementation
 │       │   ├── process/
 │       │   ├── renderer/            # markdown-it-py wrapper
 │       │   ├── config/
@@ -548,7 +547,8 @@ There is no split mode. There is no live-preview / typewriter mode.
 - Default mode on open: the mode the pane was last in for the current session;
   at app launch, Source mode.
 - Mode is not persisted per-file.
-- Toggle via the two small buttons in the pane's top-right corner, or `Ctrl+E`.
+- Toggle via the two small buttons in the pane's top-right corner, or
+  `Ctrl+E`.
 - Flipping MUST attempt a best-effort scroll-to-same-place jump.
 
 ### 10.3 Save triggers
@@ -780,8 +780,6 @@ vault:
 
 ## 15. Mermaid
 
-## 15. Mermaid
-
 ### 15.1 Library caching
 
 - `mermaid.js` is fetched from CDN in the background on startup.
@@ -820,24 +818,6 @@ theme's `--color-bg`.
   centered.
 - Click-to-collapse: clicking anywhere in the modal view or pressing `Esc`
   closes the modal.
-- Right-click → Save as SVG / PNG / PDF. Right-click → Copy as image.
-- Implementation note: export uses mermaid's own SVG output; rasterization
-  to PNG/PDF is via WebKit's print-to-file, not a separate library.
-
-### 15.6 Other diagram dialects
-
-PlantUML, D2, Graphviz — deferred beyond MVP.
-
-Mermaid is rendered only in read mode. There is no live-while-typing preview.
-
-### 15.4 Theme
-
-Use mermaid's built-in theme. Per-diagram override via frontmatter or code-
-block params is deferred.
-
-### 15.5 User actions
-
-- Click-to-enlarge: opens a modal with a larger rendered SVG.
 - Right-click → Save as SVG / PNG / PDF. Right-click → Copy as image.
 - Implementation note: export uses mermaid's own SVG output; rasterization
   to PNG/PDF is via WebKit's print-to-file, not a separate library.
@@ -1313,7 +1293,7 @@ commands or file operations based on privacy state.
 ### 22.1 Watcher
 
 - A `FileWatcher` port watches the entire vault for changes.
-- Default adapter: `watchdog` if available; GLib `GFileMonitor` otherwise.
+- Default adapter: `GioFileWatcher` via native `Gio.FileMonitor`.
 - Watcher events are typed and published into the event bus (§24.4):
   `FileCreated`, `FileDeleted`, `FileModified`, `FileRenamed`.
 
@@ -1380,7 +1360,7 @@ Hexagonal (Ports & Adapters).
 | Port | Purpose | Primary adapter |
 |---|---|---|
 | `FileStore` | vault file I/O (read, write, list, stat, rename, delete) | local FS |
-| `FileWatcher` | subscribe to external file events | watchdog / GFileMonitor |
+| `FileWatcher` | subscribe to external file events | `GioFileWatcher` |
 | `ProcessLauncher` | spawn PTYs for the terminal | VTE |
 | `Renderer` | markdown → HTML | markdown-it-py |
 | `ConfigStore` | load `config.toml` (read-only from core's view) | tomllib |
@@ -1478,7 +1458,7 @@ def build_app(argv: list[str]) -> AdwApplication:
     clock = StdlibClock()
     config = TomlConfigStore(env).load()
     file_store = LocalFileStore(vault_root=resolve_vault(argv, env, config))
-    watcher = WatchdogFileWatcher(file_store)
+    watcher = GioFileWatcher(file_store)
     renderer = MarkdownItRenderer(file_store)
     session = TomlSessionStateStore(env)
     process_launcher = VteProcessLauncher()
@@ -1593,8 +1573,8 @@ Long tasks (vault walk, rename propagation):
 
 ### 25.4 File watcher
 
-Events from `watchdog` arrive on the watchdog thread and are marshalled onto
-the main thread via a queue + `GLib.idle_add`. Reducers handle them like any
+Events from the file watcher arrive via asynchronous GLib signals and are dispatched
+onto the main application thread via `GLib.idle_add`. Reducers handle them like any
 other event.
 
 ### 25.5 IPC single-instance
@@ -2044,7 +2024,7 @@ numbers; do not invent others.
                            ▼             ▼           ▼     ▼
                     ┌─────────────────────────────────────────────┐
                     │               adapters/                      │
-                    │  LocalFileStore · WatchdogFileWatcher        │
+                    │  LocalFileStore · GioFileWatcher             │
                     │  MarkdownItRenderer · TomlConfigStore        │
                     │  TomlSessionStateStore · VteProcessLauncher  │
                     │  StdlibClock · StdlibRandom · StdlibEnv      │

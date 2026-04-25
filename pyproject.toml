@@ -9,7 +9,6 @@ dependencies = [
     "markdown-it-py",
     "mdit-py-plugins",
     "pyyaml",
-    "watchdog",
     "tomli-w",
     "Pygments"
 ]

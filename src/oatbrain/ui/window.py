@@ -28,6 +28,8 @@ from oatbrain.core.commands import (  # noqa: E402
     DismissMermaidWarning,
     SetTreeExpanded,
     Zoom,
+    CloseFile,
+    UpdateOpenFilePath,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     ToggleMode,
@@ -41,7 +43,6 @@ from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.ports.watcher import FileWatcher  # noqa: E402
-from oatbrain.core.events.watcher import FileDeleted, FileRenamed  # noqa: E402
 from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
@@ -112,6 +113,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             OpenFile, self._handle_open_file, "Open File", visible=False
         )
+        self._command_router.register(CloseFile, self._handle_close_file, visible=False)
+        self._command_router.register(
+            UpdateOpenFilePath, self._handle_update_open_file_path, visible=False
+        )
         self._command_router.register(
             ToggleMode, self._handle_toggle_mode, "Toggle Read Mode"
         )
@@ -168,8 +173,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _setup_initialization(self) -> None:
         self._mermaid_banner: Optional[Adw.Banner] = None
         self._event_bus.subscribe(MermaidFetchResult, self._on_mermaid_fetch_result)
-        self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
-        self._event_bus.subscribe(FileRenamed, self._on_file_renamed)
 
         self.connect("startup", self._on_startup)
         self.connect("activate", self.on_activate)
@@ -219,6 +222,25 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._event_bus.publish(StateUpdated(self._state))
         self._save_state()
 
+    def _handle_close_file(self, command: CloseFile) -> None:
+        """Updates state when a file is explicitly closed."""
+        self._state = replace(
+            self._state,
+            editor=replace(self._state.editor, open_file=None),
+        )
+        self._event_bus.publish(StatusMessageRequested("File closed"))
+        self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
+
+    def _handle_update_open_file_path(self, command: UpdateOpenFilePath) -> None:
+        """Updates the open file path without triggering read/load."""
+        self._state = replace(
+            self._state,
+            editor=replace(self._state.editor, open_file=command.path),
+        )
+        self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
+
     def _handle_toggle_mode(self, _command: ToggleMode) -> None:
         new_read_mode = not self._state.editor.read_mode
         self._state = replace(
@@ -248,67 +270,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state = replace(self._state, tree_expanded=expanded)
         self._event_bus.publish(StateUpdated(self._state))
         self._save_state()
-
-    def _on_file_deleted(self, event: FileDeleted) -> None:
-        vault_prefix = str(self._state.vault_root) + "/"
-        rel = (
-            event.path[len(vault_prefix) :]
-            if event.path.startswith(vault_prefix)
-            else event.path
-        )
-        expanded = [
-            p
-            for p in self._state.tree_expanded
-            if p != rel and not p.startswith(rel + "/")
-        ]
-        state_changed = False
-        if len(expanded) != len(self._state.tree_expanded):
-            self._state = replace(self._state, tree_expanded=expanded)
-            state_changed = True
-
-        if state_changed:
-            self._event_bus.publish(StateUpdated(self._state))
-            self._save_state()
-
-    def _on_file_renamed(self, event: FileRenamed) -> None:
-        self._logger.debug("on_file_renamed: %s -> %s", event.old_path, event.new_path)
-        vault_prefix = str(self._state.vault_root) + "/"
-
-        def to_rel(p: str) -> str:
-            return p[len(vault_prefix) :] if p.startswith(vault_prefix) else p
-
-        old_rel = to_rel(event.old_path)
-        new_rel = to_rel(event.new_path)
-
-        def remap(p: str) -> str:
-            if p == old_rel:
-                return new_rel
-            if p.startswith(old_rel + "/"):
-                return new_rel + p[len(old_rel) :]
-            return p
-
-        state_changed = False
-        expanded = [remap(p) for p in self._state.tree_expanded]
-        if expanded != self._state.tree_expanded:
-            self._state = replace(self._state, tree_expanded=expanded)
-            state_changed = True
-
-        # Update editor for renamed file
-        from oatbrain.core.ports.filestore import VaultPath as VP
-
-        if (
-            self._state.editor.open_file
-            and str(self._state.editor.open_file) == old_rel
-        ):
-            self._state = replace(
-                self._state,
-                editor=replace(self._state.editor, open_file=VP.from_str(new_rel)),
-            )
-            state_changed = True
-
-        if state_changed:
-            self._event_bus.publish(StateUpdated(self._state))
-            self._save_state()
 
     def _handle_toggle_tree(self, _command: ToggleTree) -> None:
         visible = not self.tree_pane.get_visible()
@@ -484,8 +445,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._state_store.save(self._state)
 
     def _on_shutdown(self, *args: Any) -> None:
-        if self._watcher:
-            self._watcher.stop()
         self._save_state()
 
     def on_activate(self, app: Adw.Application) -> None:
@@ -509,6 +468,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             vault_root=self._state.vault_root,
             renderer=self._renderer,
             resolver=self._resolver,
+            watcher=self._watcher,
         )
 
         self.main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -519,6 +479,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._event_bus,
             self._command_router,
             self._state.vault_root,
+            watcher=self._watcher,
         )
         self.terminal_placeholder = Terminal(
             self._state.vault_root, self._event_bus, self._command_router
@@ -566,10 +527,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.main_window.present()
         self._load_and_apply_theme(self._state.theme_id)
         GLib.idle_add(self._connect_late_signals)
-
-        if self._watcher:
-            self._watcher.subscribe(lambda e: self._event_bus.publish(e))
-            self._watcher.start(self._state.vault_root)
 
         self._sync_editor_to_state()
         self._event_bus.publish(StateUpdated(self._state))

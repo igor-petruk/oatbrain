@@ -6,7 +6,6 @@ Bug 1 — auto-expand after collapse:
   because _on_state_updated queues one idle per event without cancelling old ones.
 
 Bug 2 — new directory from git checkout not appearing:
-  WatchdogFileWatcher.on_created drops DirCreatedEvent (is_directory check).
   The directory never fires FileCreated so the tree never adds a row for it.
 """
 from pathlib import Path
@@ -17,15 +16,12 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 
-from oatbrain.adapters.watcher import WatchdogFileWatcher  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
-from oatbrain.core.events.watcher import FileCreated  # noqa: E402
 from oatbrain.core.ports.filestore import FileEntry, VaultPath  # noqa: E402
 from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.ui.tree import COL_IS_DIR, COL_IS_DUMMY, COL_PATH, FileTree  # noqa: E402
-from watchdog.events import DirCreatedEvent  # noqa: E402
 
 VAULT = Path("/vault")
 
@@ -147,31 +143,6 @@ def test_only_latest_state_updated_is_processed() -> None:
 # ---------------------------------------------------------------------------
 # Bug 2: new directory from git checkout not appearing in tree
 # ---------------------------------------------------------------------------
-
-
-@patch("oatbrain.adapters.watcher.GLib")
-def test_dir_created_event_is_forwarded(mock_glib: MagicMock) -> None:
-    """
-    WatchdogFileWatcher.on_created must forward DirCreatedEvent as FileCreated
-    so that newly checked-out directories appear in the tree.
-
-    Before fix: on_created has 'if event.is_directory: return' which silently
-    drops the event. The directory never appears in the tree.
-    """
-    watcher = WatchdogFileWatcher()
-    received: list = []
-    watcher.subscribe(received.append)
-
-    watcher.on_created(DirCreatedEvent("/vault/oatbar"))
-
-    for args in mock_glib.idle_add.call_args_list:
-        args[0][0]()
-
-    assert (
-        len(received) == 1
-    ), "DirCreatedEvent must produce exactly one FileCreated notification"
-    assert isinstance(received[0], FileCreated)
-    assert received[0].path == "/vault/oatbar"
 
 
 def test_tree_adds_directory_row_on_file_created_for_dir() -> None:

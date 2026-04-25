@@ -35,7 +35,6 @@ gi.require_version("Gdk", "4.0")
 from oatbrain.core.bus import CommandRouter, EventBus  # noqa: E402
 from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
-from oatbrain.core.events.watcher import FileCreated, FileDeleted, FileRenamed  # noqa: E402, E501
 from oatbrain.core.ports.filestore import FileEntry, VaultPath  # noqa: E402
 from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.ui.tree import COL_IS_DUMMY, COL_PATH, FileTree  # noqa: E402
@@ -123,41 +122,6 @@ class FakeStateManager:
         self.tree_expanded = expanded
         self._publish()
 
-    def handle_file_deleted(self, event: FileDeleted) -> None:
-        vault_prefix = str(self.vault_root) + "/"
-        rel = (
-            event.path[len(vault_prefix) :]
-            if event.path.startswith(vault_prefix)
-            else event.path
-        )
-        expanded = [
-            p for p in self.tree_expanded if p != rel and not p.startswith(rel + "/")
-        ]
-        if len(expanded) != len(self.tree_expanded):
-            self.tree_expanded = expanded
-            self._publish()
-
-    def handle_file_renamed(self, event: FileRenamed) -> None:
-        vault_prefix = str(self.vault_root) + "/"
-
-        def to_rel(p: str) -> str:
-            return p[len(vault_prefix) :] if p.startswith(vault_prefix) else p
-
-        old_rel = to_rel(event.old_path)
-        new_rel = to_rel(event.new_path)
-
-        def remap(p: str) -> str:
-            if p == old_rel:
-                return new_rel
-            if p.startswith(old_rel + "/"):
-                return new_rel + p[len(old_rel) :]
-            return p
-
-        expanded = [remap(p) for p in self.tree_expanded]
-        if expanded != self.tree_expanded:
-            self.tree_expanded = expanded
-            self._publish()
-
     def _publish(self) -> None:
         state = AppState(vault_root=self.vault_root, tree_expanded=self.tree_expanded)
         self.event_bus.publish(StateUpdated(state))
@@ -222,10 +186,6 @@ class Harness:
             SetTreeExpanded, self.state_manager.handle_set_tree_expanded, visible=False
         )
         self.command_router.register(OpenFile, lambda _: None, visible=False)
-
-        # Also wire watcher-driven state pruning
-        self.event_bus.subscribe(FileDeleted, self.state_manager.handle_file_deleted)
-        self.event_bus.subscribe(FileRenamed, self.state_manager.handle_file_renamed)
 
         with patch("oatbrain.ui.tree.GLib", self.glib):
             self.tree = FileTree(
@@ -708,111 +668,6 @@ def test_C5_rapid_collapse_expand_collapse_final_is_collapsed() -> None:
         assert (
             "a" not in h.expanded_state()
         ), "Final state is collapsed — 'a' must not be in tree._expanded_state"
-
-
-# ---------------------------------------------------------------------------
-# Group D: Watcher events → tree store
-# ---------------------------------------------------------------------------
-
-
-def test_D1_file_created_adds_row_to_root() -> None:
-    """FileCreated for a file at root adds a row to the tree."""
-    with make_harness(dir_map={".": [_entry("existing.md")]}) as h:
-        h.fire_file_event(FileCreated(str(VAULT / "new.md")))
-        assert (
-            "new.md" in h.root_paths()
-        ), "new.md must appear in tree after FileCreated"
-
-
-def test_D2_dir_created_adds_row_with_dummy_child() -> None:
-    """FileCreated for a directory adds a row with a dummy loading child."""
-    with make_harness(dir_map={".": [_entry("existing.md")]}) as h:
-        with patch.object(h.tree, "_path_is_dir", return_value=True):
-            h.fire_file_event(FileCreated(str(VAULT / "newdir")))
-        assert "newdir" in h.root_paths(), "newdir must appear after FileCreated"
-        assert h.is_dummy_child("newdir"), "new directory must have a dummy child"
-
-
-def test_D3_file_deleted_removes_row() -> None:
-    """FileDeleted for an existing file removes its row from the tree."""
-    with make_harness(dir_map={".": [_entry("a.md"), _entry("b.md")]}) as h:
-        assert "a.md" in h.root_paths()
-        h.fire_file_event(FileDeleted(str(VAULT / "a.md")))
-        assert "a.md" not in h.root_paths(), "a.md must be gone after FileDeleted"
-        assert "b.md" in h.root_paths(), "b.md must survive"
-
-
-def test_D4_dir_deleted_removes_from_tree_expanded() -> None:
-    """
-    Deleting an expanded directory must remove it from tree_expanded in the manager.
-    The FileDeleted handler in window.py already does this correctly.
-    """
-    with make_harness(
-        dir_map={".": [_entry("docs", is_dir=True)]},
-        initial_expanded=["docs", "docs/api"],
-    ) as h:
-        h.fire_state(["docs", "docs/api"])
-        h.fire_file_event(FileDeleted(str(VAULT / "docs")))
-
-        assert (
-            "docs" not in h.manager_expanded()
-        ), "Deleted dir must be removed from tree_expanded"
-        assert (
-            "docs/api" not in h.manager_expanded()
-        ), "Deleted dir's child paths must also be pruned from tree_expanded"
-
-
-def test_D5_file_renamed_updates_store_path() -> None:
-    """FileRenamed(a.md → b.md) updates COL_PATH in the tree store."""
-    with make_harness(dir_map={".": [_entry("a.md"), _entry("c.md")]}) as h:
-        assert "a.md" in h.root_paths()
-        h.fire_file_event(FileRenamed(str(VAULT / "a.md"), str(VAULT / "b.md")))
-        assert "a.md" not in h.root_paths(), "old name must be gone"
-        assert "b.md" in h.root_paths(), "new name must appear"
-
-
-def test_D6_dir_renamed_updates_expanded_state() -> None:
-    """
-    FileRenamed(old/ → new/) must remap all tree_expanded paths with old/ prefix.
-    """
-    with make_harness(
-        dir_map={".": [_entry("old", is_dir=True)]},
-        initial_expanded=["old", "old/sub"],
-    ) as h:
-        h.fire_state(["old", "old/sub"])
-        h.fire_file_event(FileRenamed(str(VAULT / "old"), str(VAULT / "new")))
-
-        assert "old" not in h.manager_expanded(), "old path must be gone"
-        assert "old/sub" not in h.manager_expanded(), "old child path must be gone"
-        assert "new" in h.manager_expanded(), "new path must appear"
-        assert "new/sub" in h.manager_expanded(), "new child path must appear"
-
-
-def test_D7_file_created_in_collapsed_dir_is_not_added() -> None:
-    """
-    FileCreated for a file whose parent directory has a dummy child (collapsed/unloaded)
-    must not add a row, since we don't know the full contents yet.
-    """
-    with make_harness(
-        dir_map={
-            ".": [_entry("docs", is_dir=True)],
-            "docs": [_entry("docs/existing.md")],
-        },
-    ) as h:
-        # "docs" is at root with dummy child (never expanded)
-        assert h.is_dummy_child("docs"), "docs must start with dummy child"
-        h.fire_file_event(FileCreated(str(VAULT / "docs" / "new.md")))
-        # new.md must NOT appear because parent is unloaded
-        assert "docs/new.md" not in h.child_paths(
-            "docs"
-        ), "File must not be inserted under a collapsed/dummy parent"
-
-
-def test_D8_file_created_at_root_always_added() -> None:
-    """FileCreated at root level is always added (root is always loaded)."""
-    with make_harness(dir_map={".": [_entry("existing.md")]}) as h:
-        h.fire_file_event(FileCreated(str(VAULT / "fresh.md")))
-        assert "fresh.md" in h.root_paths()
 
 
 # ---------------------------------------------------------------------------

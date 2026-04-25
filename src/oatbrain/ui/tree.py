@@ -11,11 +11,7 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.commands import OpenFile, SetTreeExpanded, Zoom  # noqa: E402
 
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
-from oatbrain.core.events.watcher import (  # noqa: E402
-    FileCreated,
-    FileDeleted,
-    FileRenamed,
-)
+from oatbrain.core.ports.watcher import FileWatcher, Unsubscribe  # noqa: E402
 
 # TreeStore column indices for clarity and maintainability
 COL_ICON: Final[int] = 0  # Icon name
@@ -42,12 +38,15 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         event_bus: EventBus,
         command_router: CommandRouter,
         vault_root: Optional[Path] = None,
+        watcher: Optional[FileWatcher] = None,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.filestore = filestore
         self._event_bus = event_bus
         self._command_router = command_router
         self._vault_root = vault_root
+        self._watcher = watcher
+        self._watch_subscriptions: dict[str, Unsubscribe] = {}
 
         # Scrolled window provides scrollbars
         self.scrolled = Gtk.ScrolledWindow()
@@ -57,6 +56,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
 
         # Model: [Icon, Name, Path, IsDummy, IsDir, IsDirty]
         self.store = Gtk.TreeStore(str, str, str, bool, bool, bool)
+        self._path_registry: dict[str, Gtk.TreeRowReference] = {}
         self.store.set_sort_func(COL_NAME, self._compare_rows)
         self.store.set_sort_column_id(COL_NAME, Gtk.SortType.ASCENDING)
 
@@ -119,10 +119,13 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self._last_synced_path: Optional[VaultPath] = None
         self._sync_idle_id: Optional[int] = None
         self._populate_root()
+        if self._watcher and self._vault_root:
+            unsub = self._watcher.subscribe_dir(
+                self._vault_root, self._on_watched_dir_event
+            )
+            self._watch_subscriptions["."] = unsub
+
         self._event_bus.subscribe(StateUpdated, self._on_state_updated)
-        self._event_bus.subscribe(FileCreated, self._on_file_created)
-        self._event_bus.subscribe(FileDeleted, self._on_file_deleted)
-        self._event_bus.subscribe(FileRenamed, self._on_file_renamed)
 
     def _setup_context_menu(self) -> None:
         """Sets up the right-click context menu."""
@@ -232,15 +235,37 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Apply expansion state on initial sync or if it changes externally
         if self._expanded_state != new_expanded:
             to_collapse = self._expanded_state - new_expanded
+            to_expand = new_expanded - self._expanded_state
             self._expanded_state = new_expanded
 
             # Collapse those that were removed
             for path_str in to_collapse:
                 self._collapse_path(VaultPath.from_str(path_str))
+                unsub = self._watch_subscriptions.pop(path_str, None)
+                if unsub:
+                    unsub()
 
             # Sort by path depth to expand parents before children
             for path_str in sorted(new_expanded, key=lambda p: p.count("/")):
                 self._expand_path(VaultPath.from_str(path_str))
+
+            for path_str in to_expand:
+                vp = VaultPath.from_str(path_str)
+                try:
+                    if self.filestore.exists(vp) and self.filestore.stat(vp).is_dir:
+                        if self._watcher and self._vault_root:
+                            abs_path = self._vault_root / path_str
+                            unsub = self._watcher.subscribe_dir(
+                                abs_path, self._on_watched_dir_event
+                            )
+                            self._watch_subscriptions[path_str] = unsub
+                    else:
+                        # Prune from state if it doesn't exist
+                        self._command_router.dispatch(
+                            SetTreeExpanded(path=path_str, is_expanded=False)
+                        )
+                except Exception as e:
+                    print(f"Error subscribing: {e}")
 
         open_path = event.state.editor.open_file
         if open_path != self._last_synced_path:
@@ -351,26 +376,55 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         return None
 
     def _find_iter_for_path(self, rel_path: str) -> Optional[Gtk.TreeIter]:
-        """Walk the store and return the TreeIter whose COL_PATH matches rel_path."""
-        parts = rel_path.split("/")
-        current_iter = None
-        accumulated = ""
-        for i, part in enumerate(parts):
-            if i > 0:
-                accumulated += "/"
-            accumulated += part
-            child_iter = self.store.iter_children(current_iter)
-            while child_iter:
-                if self.store.get_value(child_iter, COL_PATH) == accumulated:
-                    current_iter = child_iter
-                    break
-                child_iter = self.store.iter_next(child_iter)
-            else:
-                return None
-        return current_iter
+        """O(1) lookup using the path registry."""
+        ref = self._path_registry.get(rel_path)
+        if ref and ref.valid():
+            path = ref.get_path()
+            if path:
+                return self.store.get_iter(path)
+        return None
 
-    def _on_file_created(self, event: FileCreated) -> None:
-        GLib.idle_add(self._handle_file_created, event.path)
+    def _register_node(self, iter_: Gtk.TreeIter, rel_path: str) -> None:
+        path = self.store.get_path(iter_)
+        if rel_path:
+            self._path_registry[rel_path] = Gtk.TreeRowReference.new(self.store, path)
+
+    def _unregister_node(self, rel_path: str) -> None:
+        if rel_path in self._path_registry:
+            del self._path_registry[rel_path]
+
+    def _remove_node(self, rel_path: str) -> bool:
+        """Remove a node and its descendants from the store and registry.
+
+        Returns True if the node was found.
+        """
+        it = self._find_iter_for_path(rel_path)
+        if it is None:
+            return False
+
+        def _unregister_descendants(parent_iter: Gtk.TreeIter) -> None:
+            child = self.store.iter_children(parent_iter)
+            while child:
+                child_path = self.store.get_value(child, COL_PATH)
+                if child_path:
+                    self._unregister_node(child_path)
+                _unregister_descendants(child)
+                child = self.store.iter_next(child)
+
+        _unregister_descendants(it)
+        self._unregister_node(rel_path)
+        self.store.remove(it)
+        return True
+
+    def _on_watched_dir_event(
+        self, action: str, path: Path, new_path: Optional[Path]
+    ) -> None:
+        if action == "CREATED":
+            GLib.idle_add(self._handle_file_created, str(path))
+        elif action == "DELETED":
+            GLib.idle_add(self._handle_file_deleted, str(path))
+        elif action == "RENAMED" and new_path:
+            GLib.idle_add(self._handle_file_renamed, str(path), str(new_path))
 
     def _split_rel_path(self, rel_path: str) -> tuple[str, str]:
         """
@@ -387,9 +441,16 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         name = parts[-1]
         return parent_rel, name
 
+    def _is_hidden(self, rel_path: str) -> bool:
+        """Returns True if the path contains any hidden component."""
+        for part in rel_path.split("/"):
+            if part.startswith(".") and part != ".":
+                return True
+        return False
+
     def _handle_file_created(self, abs_path: str) -> bool:
         rel = self._vault_rel(abs_path)
-        if rel is None:
+        if rel is None or self._is_hidden(rel):
             return False
 
         parent_rel, name = self._split_rel_path(rel)
@@ -416,6 +477,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         new_iter = self.store.append(
             parent_iter, [icon, name, rel, False, is_dir, False]
         )
+        self._register_node(new_iter, rel)
         if is_dir:
             self.store.append(new_iter, ["", "Loading...", "", True, False, False])
 
@@ -445,20 +507,12 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             return 1
         return 0
 
-    def _on_file_deleted(self, event: FileDeleted) -> None:
-        GLib.idle_add(self._handle_file_deleted, event.path)
-
     def _handle_file_deleted(self, abs_path: str) -> bool:
         rel = self._vault_rel(abs_path)
-        if rel is None:
+        if rel is None or self._is_hidden(rel):
             return False
-        it = self._find_iter_for_path(rel)
-        if it is not None:
-            self.store.remove(it)
+        self._remove_node(rel)
         return False
-
-    def _on_file_renamed(self, event: FileRenamed) -> None:
-        GLib.idle_add(self._handle_file_renamed, event.old_path, event.new_path)
 
     def _handle_file_renamed(self, old_abs: str, new_abs: str) -> bool:
         old_rel = self._vault_rel(old_abs)
@@ -466,13 +520,32 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         if old_rel is None or new_rel is None:
             return False
 
+        if self._is_hidden(new_rel):
+            # Target is hidden. If old wasn't, it effectively disappeared.
+            if not self._is_hidden(old_rel):
+                return self._handle_file_deleted(old_abs)
+            return False
+
+        if self._is_hidden(old_rel):
+            # A hidden file was renamed to a visible file. Treat as creation.
+            return self._handle_file_created(new_abs)
+
+        existing_target_iter = self._find_iter_for_path(new_rel)
+        if existing_target_iter is not None:
+            self._remove_node(new_rel)
+
         it = self._find_iter_for_path(old_rel)
         if it is None:
-            return False
+            # If we missed the creation of the old file for some reason,
+            # treat this as a plain creation.
+            return self._handle_file_created(new_abs)
 
         _, new_name = self._split_rel_path(new_rel)
         self.store.set_value(it, COL_NAME, new_name)
         self.store.set_value(it, COL_PATH, new_rel)
+
+        self._unregister_node(old_rel)
+        self._register_node(it, new_rel)
 
         # Update COL_PATH for all descendants (prefix swap)
         self._repath_descendants(it, old_rel, new_rel)
@@ -487,7 +560,10 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         while child:
             p = self.store.get_value(child, COL_PATH)
             if p.startswith(old_prefix + "/"):
-                self.store.set_value(child, COL_PATH, new_prefix + p[len(old_prefix) :])
+                new_p = new_prefix + p[len(old_prefix) :]
+                self.store.set_value(child, COL_PATH, new_p)
+                self._unregister_node(p)
+                self._register_node(child, new_p)
             self._repath_descendants(child, old_prefix, new_prefix)
             child = self.store.iter_next(child)
 
@@ -505,6 +581,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                 iter_ = self.store.append(
                     None, [icon, name, path_str, False, entry.is_dir, False]
                 )
+                self._register_node(iter_, path_str)
                 if entry.is_dir:
                     # Add a dummy child to folders
                     self.store.append(iter_, ["", "Loading...", "", True, False, False])
@@ -559,7 +636,11 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         # Remove all children
         child_iter = self.store.iter_children(iter_)
         while child_iter:
-            self.store.remove(child_iter)
+            child_path_str = self.store.get_value(child_iter, COL_PATH)
+            if child_path_str:
+                self._remove_node(child_path_str)
+            else:
+                self.store.remove(child_iter)
             child_iter = self.store.iter_children(iter_)
 
         # Re-add dummy node
@@ -589,6 +670,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                         new_iter = self.store.append(
                             iter_, [icon, name, path_str, False, entry.is_dir, False]
                         )
+                        self._register_node(new_iter, path_str)
                         if entry.is_dir:
                             self.store.append(
                                 new_iter, ["", "Loading...", "", True, False, False]

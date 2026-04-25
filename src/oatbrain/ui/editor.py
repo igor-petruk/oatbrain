@@ -9,7 +9,6 @@ gi.require_version("GtkSource", "5")
 from gi.repository import Gtk, Gdk, GtkSource, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.events.watcher import FileModified  # noqa: E402
 from oatbrain.core.events.ui import (  # noqa: E402
     WordCountChanged,
     DirtyStateChanged,
@@ -17,11 +16,14 @@ from oatbrain.core.events.ui import (  # noqa: E402
 )
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
+from oatbrain.core.ports.watcher import FileWatcher, Unsubscribe  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
 from oatbrain.core.state import AppState, EditorState  # noqa: E402
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
+    CloseFile,
+    UpdateOpenFilePath,
     Zoom,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
@@ -47,6 +49,7 @@ class Editor:
         renderer: Optional[Renderer] = None,
         resolver: Optional[WikilinkResolver] = None,
         vim_enabled: bool = True,
+        watcher: Optional[FileWatcher] = None,
     ) -> None:
         self._filestore = filestore
         self._event_bus = event_bus
@@ -55,6 +58,8 @@ class Editor:
         self._vault_root = vault_root
         self._renderer = renderer
         self._resolver = resolver
+        self._watcher = watcher
+        self._file_unsubscribe: Optional[Unsubscribe] = None
         self._current_path: Optional[VaultPath] = None
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
         self._logger = logging.getLogger("oatbrain.editor")
@@ -65,7 +70,6 @@ class Editor:
         self._scroll_fraction: float = 0.0
         self._theme_css: str = ""
         self._theme_id: str = "solarized-light"
-        self._render_timeout_id: Optional[int] = None
         self._stats_timeout_id: Optional[int] = None
         self._scrolling_locked = False
         self._is_dirty = False
@@ -238,8 +242,6 @@ class Editor:
         self._source_scroll.get_vadjustment().connect(
             "value-changed", self._on_source_scrolled
         )
-
-        event_bus.subscribe(FileModified, self._on_file_modified)
 
     def _on_source_scrolled(self, adj: Gtk.Adjustment) -> None:
         if self._scrolling_locked:
@@ -423,29 +425,18 @@ class Editor:
             GLib.source_remove(self._stats_timeout_id)
         self._stats_timeout_id = GLib.timeout_add(500, self._update_stats)
 
-        if self._split_mode:
-            self._debounce_render()
-
     def _update_stats(self) -> bool:
         self._stats_timeout_id = None
         start = self.buffer.get_start_iter()
         end = self.buffer.get_end_iter()
-        self._current_content = self.buffer.get_text(start, end, True)
-        self._word_count = (
-            len(self._current_content.split()) if self._current_content.strip() else 0
-        )
+        current_text = self.buffer.get_text(start, end, True)
+        self._word_count = len(current_text.split()) if current_text.strip() else 0
         self._event_bus.publish(
             WordCountChanged(count=self._word_count, sender_id=id(self))
         )
         return False
 
-    def _debounce_render(self) -> None:
-        if self._render_timeout_id:
-            GLib.source_remove(self._render_timeout_id)
-        self._render_timeout_id = GLib.timeout_add(300, self._do_render)
-
     def _do_render(self) -> bool:
-        self._render_timeout_id = None
         if self._preview and self._current_path:
             self._preview.render(
                 self._current_content,
@@ -475,8 +466,11 @@ class Editor:
         content = self.buffer.get_text(start, end, True)
         try:
             self._filestore.write_text(self._current_path, content)
+            self._current_content = content
             self._is_dirty = False
             self._event_bus.publish(DirtyStateChanged(dirty=False, sender_id=id(self)))
+            if self._split_mode or self._read_mode:
+                self._do_render()
         except Exception:
             pass
 
@@ -485,19 +479,80 @@ class Editor:
     # ------------------------------------------------------------------
 
     def destroy(self) -> None:
-        self._event_bus.unsubscribe(FileModified, self._on_file_modified)
+        if self._file_unsubscribe:
+            self._file_unsubscribe()
+            self._file_unsubscribe = None
 
-    def _on_file_modified(self, event: FileModified) -> None:
-        GLib.idle_add(self._reload_if_clean, event.path)
+    def _on_file_watched_event(
+        self, action: str, path: Path, new_path: Optional[Path]
+    ) -> None:
+        if action == "MODIFIED":
+            GLib.idle_add(self._reload_if_clean, str(path))
+        elif action == "RENAMED" and new_path:
+            # Determine which file is "ours" by resolving the current open
+            # path to absolute.
+            open_abs: Optional[Path] = None
+            if self._current_path and self._vault_root:
+                try:
+                    open_abs = (self._vault_root / str(self._current_path)).resolve()
+                except Exception:
+                    pass
+
+            try:
+                dest_rel = (
+                    new_path.relative_to(self._vault_root)
+                    if self._vault_root
+                    else None
+                )
+            except ValueError:
+                dest_rel = None
+
+            src_is_open = open_abs is not None and path.resolve() == open_abs
+            dst_is_open = (
+                open_abs is not None
+                and dest_rel is not None
+                and new_path.resolve() == open_abs
+            )
+
+            if src_is_open and dest_rel is not None:
+                # Case 1: our file was renamed/moved — update the tracked path.
+                GLib.idle_add(
+                    lambda p: self._command_router.dispatch(
+                        UpdateOpenFilePath(VaultPath.from_str(str(p)))
+                    ),
+                    dest_rel,
+                )
+            elif dst_is_open:
+                # Case 2: something else was renamed *onto* our file — the content
+                # at our path has silently changed, so reload.
+                self._logger.debug("moved onto open file → reload  %s", new_path)
+                GLib.idle_add(self._reload_if_clean, str(new_path))
+        elif action == "DELETED":
+
+            def handle_delete() -> None:
+                if not self._is_dirty:
+                    self._command_router.dispatch(CloseFile())
+                else:
+                    from oatbrain.core.events.ui import StatusMessageRequested
+
+                    self._event_bus.publish(
+                        StatusMessageRequested(
+                            "File deleted externally. "
+                            "Buffer is dirty, save to recreate.",
+                            5000,
+                        )
+                    )
+
+            GLib.idle_add(handle_delete)
 
     def refresh(self) -> None:
         """Manually reload current file from disk."""
-        self._logger.debug("refresh requested for: %s", self._current_path)
+        self._logger.debug("refresh  %s", self._current_path)
         if self._current_path is None:
             return
         try:
             content = self._filestore.read_text(self._current_path)
-            self._logger.debug("refresh: read content from disk, len=%d", len(content))
+            self._logger.debug("refresh: read %d chars from disk", len(content))
             self._loading = True
             self.buffer.set_text(content)
             self._current_content = content
@@ -511,23 +566,20 @@ class Editor:
             if self._split_mode or self._read_mode:
                 self._do_render()
         except Exception as e:
-            self._logger.error("Error refreshing file: %s", e)
+            self._logger.error("refresh error  %s", e)
 
     def _reload_if_clean(self, abs_path: str) -> bool:
-        self._logger.debug("_reload_if_clean: %s", abs_path)
+        self._logger.debug("checking reload  %s", abs_path)
         if self._current_path is None or self._vault_root is None:
-            self._logger.debug("_reload_if_clean: current_path or vault_root is None")
+            self._logger.debug("reload skipped: no open file")
             return False
-        
+
         target_abs = str(self._vault_root / str(self._current_path))
-        self._logger.debug(
-            "_reload_if_clean: target_abs=%s, abs_path=%s", target_abs, abs_path
-        )
+        self._logger.debug("reload target=%s  event=%s", target_abs, abs_path)
         if abs_path != target_abs:
             return False
-        # If the buffer has unsaved edits, don't silently overwrite them.
         if self._loading:
-            self._logger.debug("_reload_if_clean: currently loading, skip")
+            self._logger.debug("reload skipped: currently loading")
             return False
         start = self.buffer.get_start_iter()
         end = self.buffer.get_end_iter()
@@ -535,21 +587,19 @@ class Editor:
         try:
             content = self._filestore.read_text(self._current_path)
         except Exception as e:
-            self._logger.error("_reload_if_clean: error reading text: %s", e)
+            self._logger.error("disk read error: %s", e)
             return False
         if content == current_text:
-            self._logger.debug("_reload_if_clean: content matches buffer, skip")
+            self._logger.debug("reload skipped: content unchanged")
             return False
 
         # Only reload if the buffer is clean (matches what was last saved).
         if current_text != self._current_content:
-            self._logger.debug(
-                "_reload_if_clean: buffer is dirty, publishing FileChangedOnDisk"
-            )
+            self._logger.debug("reload skipped: unsaved edits — notifying")
             self._event_bus.publish(FileChangedOnDisk(abs_path))
             return False
 
-        self._logger.info("_reload_if_clean: reloading clean buffer from disk")
+        self._logger.info("reloading clean buffer from disk")
         self._loading = True
         self.buffer.set_text(content)
         self._current_content = content
@@ -558,6 +608,8 @@ class Editor:
         self._event_bus.publish(
             WordCountChanged(count=self._word_count, sender_id=id(self))
         )
+        if self._split_mode or self._read_mode:
+            self._do_render()
         return False
 
     def update_from_state(self, editor_state: EditorState, app_state: AppState) -> None:
@@ -596,7 +648,22 @@ class Editor:
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
         if new_path != self._current_path:
+            old_path = self._current_path
+            if self._file_unsubscribe:
+                self._file_unsubscribe()
+                self._file_unsubscribe = None
+
             self._current_path = new_path
+
+            if new_path and self._watcher:
+                try:
+                    abs_path = Path(self._filestore.get_path(new_path))
+                    self._file_unsubscribe = self._watcher.subscribe_file(
+                        abs_path, self._on_file_watched_event
+                    )
+                except Exception as e:
+                    self._logger.error("Could not watch file: %s", e)
+
             if new_path:
                 if is_image:
                     self._loading = False
@@ -615,18 +682,25 @@ class Editor:
                         self._update_language(new_path)
                         self._loading = True
                         content = self._filestore.read_text(new_path)
-                        self._current_content = content
-                        self.buffer.set_text(content)
-                        self._loading = False
-                        self._word_count = self._count_words()
-                        self._is_dirty = False
-                        self._event_bus.publish(
-                            WordCountChanged(count=self._word_count, sender_id=id(self))
-                        )
-                        self._event_bus.publish(
-                            DirtyStateChanged(dirty=False, sender_id=id(self))
-                        )
+
+                        if content == self._current_content and old_path is not None:
+                            self._loading = False
+                        else:
+                            self._current_content = content
+                            self.buffer.set_text(content)
+                            self._loading = False
+                            self._word_count = self._count_words()
+                            self._is_dirty = False
+                            self._event_bus.publish(
+                                WordCountChanged(
+                                    count=self._word_count, sender_id=id(self)
+                                )
+                            )
+                            self._event_bus.publish(
+                                DirtyStateChanged(dirty=False, sender_id=id(self))
+                            )
                     except Exception as e:
+                        self._logger.error("Error loading %s: %s", new_path, e)
                         self._loading = False
                         self._current_content = ""
                         self.buffer.set_text(f"Error loading file: {e}")
@@ -722,9 +796,9 @@ class Editor:
                 theme_id=app_state.theme_id,
             )
         elif is_image and self._preview and new_path:
-            abs_path = self._filestore.get_path(new_path)
+            abs_path_str = self._filestore.get_path(new_path)
             self._preview.render_image(
-                abs_path,
+                abs_path_str,
                 theme_css=self._theme_css,
                 theme_id=app_state.theme_id,
             )

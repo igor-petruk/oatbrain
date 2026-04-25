@@ -80,7 +80,11 @@ class LocalFileStore(FileStore):
 
     def list_dir(self, p: VaultPath) -> list[FileEntry]:
         local_dir = self._to_local(p)
-        entries = [self._make_entry(child) for child in local_dir.iterdir()]
+        entries = [
+            self._make_entry(child)
+            for child in local_dir.iterdir()
+            if not child.name.startswith(".")
+        ]
         return [e for e in entries if e is not None]
 
     def rename(self, src: VaultPath, dst: VaultPath) -> None:
@@ -97,12 +101,15 @@ class LocalFileStore(FileStore):
         local_root = self._to_local(root)
         for dirpath, dirnames, filenames in os.walk(local_root):
             dp = Path(dirpath)
+            # Filter hidden directories from being traversed
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
             # Filter out entries that disappeared
             for d in dirnames:
                 entry = self._make_entry(dp / d)
                 if entry:
                     yield entry
             for f in filenames:
-                entry = self._make_entry(dp / f)
-                if entry:
-                    yield entry
+                if not f.startswith("."):
+                    entry = self._make_entry(dp / f)
+                    if entry:
+                        yield entry

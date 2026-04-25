@@ -16,8 +16,20 @@ class OpenFile:
     path: VaultPath
 
 
+@dataclass(frozen=True)
+class CloseFile:
+    pass
+
+
+@dataclass(frozen=True)
+class UpdateOpenFilePath:
+    path: VaultPath
+
+
 __all__ = [
     "OpenFile",
+    "CloseFile",
+    "UpdateOpenFilePath",
     "ToggleTree",
     "ToggleTerminal",
     "RestartTerminal",
