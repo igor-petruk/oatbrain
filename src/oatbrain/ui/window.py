@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.state.app_state import AppState  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.events.ui import (  # noqa: E402
     StatusMessageRequested,
@@ -42,10 +42,10 @@ from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.ports.watcher import FileWatcher  # noqa: E402
 from oatbrain.core.events.watcher import FileDeleted, FileRenamed  # noqa: E402
-from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
+from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
 from oatbrain.core.theme.engine import generate_gtk_css  # noqa: E402
 from oatbrain.core.theme.models import ThemeData  # noqa: E402
-from oatbrain.adapters.theme.loader import load_theme  # noqa: E402
+from oatbrain.adapters.theme import load_theme  # noqa: E402
 from oatbrain.core.events.mermaid import MermaidFetchResult  # noqa: E402
 from oatbrain.core.ports.config import AppConfig  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402

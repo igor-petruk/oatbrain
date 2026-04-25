@@ -4,7 +4,7 @@ from typing import Literal, cast
 
 from oatbrain.core.theme.models import ThemeData
 
-_BUNDLED_DIR = Path(__file__).parent.parent.parent / "data" / "themes"
+_BUNDLED_DIR = Path(__file__).parent.parent / "data" / "themes"
 
 # Maps theme id → GtkSourceView style scheme id (§20.9)
 _SOURCE_SCHEMES: dict[str, str] = {

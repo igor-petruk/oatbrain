@@ -1,5 +1,5 @@
 import pytest
-from oatbrain.adapters.theme.loader import load_theme, list_theme_ids
+from oatbrain.adapters.theme import load_theme, list_theme_ids
 from oatbrain.core.theme.models import ThemeData
 
 

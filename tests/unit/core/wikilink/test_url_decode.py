@@ -1,5 +1,5 @@
 from oatbrain.core.ports.filestore import VaultPath
-from oatbrain.core.wikilink.resolver import WikilinkResolver
+from oatbrain.core.wikilink import WikilinkResolver
 from typing import Iterable, Any
 from dataclasses import dataclass
 

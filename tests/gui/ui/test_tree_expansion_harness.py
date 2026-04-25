@@ -37,7 +37,7 @@ from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.events.watcher import FileCreated, FileDeleted, FileRenamed  # noqa: E402, E501
 from oatbrain.core.ports.filestore import FileEntry, VaultPath  # noqa: E402
-from oatbrain.core.state.app_state import AppState  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.ui.tree import COL_IS_DUMMY, COL_PATH, FileTree  # noqa: E402
 
 VAULT = Path("/vault")

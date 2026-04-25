@@ -1,5 +1,5 @@
 from pathlib import Path
-from oatbrain.core.state.app_state import AppState
+from oatbrain.core.state import AppState
 from oatbrain.core.commands.ui import Zoom
 from oatbrain.core.bus import EventBus, CommandRouter
 from oatbrain.ui.window import AdwAppShell

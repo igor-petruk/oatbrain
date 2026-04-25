@@ -22,7 +22,7 @@ from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.commands import OpenFile, SetTreeExpanded  # noqa: E402
 from oatbrain.core.events.watcher import FileCreated  # noqa: E402
 from oatbrain.core.ports.filestore import FileEntry, VaultPath  # noqa: E402
-from oatbrain.core.state.app_state import AppState  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.ui.tree import COL_IS_DIR, COL_IS_DUMMY, COL_PATH, FileTree  # noqa: E402
 from watchdog.events import DirCreatedEvent  # noqa: E402

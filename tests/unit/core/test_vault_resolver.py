@@ -1,5 +1,5 @@
 from pathlib import Path
-from oatbrain.core.vault.resolver import VaultResolver
+from oatbrain.core.vault import VaultResolver
 
 
 def test_resolve_with_marker(tmp_path: Path):

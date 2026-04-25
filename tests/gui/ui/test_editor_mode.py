@@ -11,7 +11,7 @@ gi.require_version("GtkSource", "5")
 from gi.repository import Gtk  # noqa: E402, F401
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.state.app_state import AppState  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402

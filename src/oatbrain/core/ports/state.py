@@ -1,5 +1,5 @@
 from typing import Protocol
-from oatbrain.core.state.app_state import AppState
+from oatbrain.core.state import AppState
 
 
 class StateStore(Protocol):

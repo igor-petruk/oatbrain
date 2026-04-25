@@ -2,7 +2,7 @@ import unittest.mock as mock
 from pathlib import Path
 from gi.repository import GLib
 from oatbrain.core.bus import EventBus, CommandRouter
-from oatbrain.core.state.app_state import AppState
+from oatbrain.core.state import AppState
 from oatbrain.core.ports.filestore import FileStore
 from oatbrain.core.ports.state import StateStore
 from oatbrain.core.ports.env import Env

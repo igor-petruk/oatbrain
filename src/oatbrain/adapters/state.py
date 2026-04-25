@@ -1,7 +1,7 @@
 import tomllib
 import tomli_w
 from pathlib import Path
-from oatbrain.core.state.app_state import AppState, EditorState
+from oatbrain.core.state import AppState, EditorState
 from oatbrain.core.ports.filestore import VaultPath
 
 
