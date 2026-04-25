@@ -7,7 +7,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("GtkSource", "5")
 
-from oatbrain.core.state.app_state import AppState  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
 

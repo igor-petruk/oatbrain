@@ -10,7 +10,7 @@ from oatbrain.core.markdown.wikilink import wikilink_plugin
 from oatbrain.core.markdown.transclude import transclude_plugin
 from oatbrain.core.markdown.mark import mark_plugin
 from oatbrain.core.markdown.callout import callout_plugin
-from oatbrain.core.wikilink.resolver import WikilinkResolver
+from oatbrain.core.wikilink import WikilinkResolver
 
 
 def _highlight_code(code: str, lang: str, _attrs: str) -> str:

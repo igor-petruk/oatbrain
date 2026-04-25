@@ -1,7 +1,7 @@
 from typing import Iterable
 from dataclasses import dataclass
 from oatbrain.core.ports.filestore import VaultPath, FileEntry
-from oatbrain.core.wikilink.resolver import WikilinkResolver
+from oatbrain.core.wikilink import WikilinkResolver
 
 
 @dataclass

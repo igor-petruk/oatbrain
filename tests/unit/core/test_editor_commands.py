@@ -1,7 +1,7 @@
 from pathlib import Path
 from dataclasses import replace
 
-from oatbrain.core.state.app_state import AppState
+from oatbrain.core.state import AppState
 from oatbrain.core.commands.editor import ToggleMode
 
 

@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
-from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer
+from oatbrain.adapters.renderer import MarkdownItRenderer
 from oatbrain.core.ports.renderer import Renderer
 from oatbrain.core.ports.filestore import VaultPath, FileStore
-from oatbrain.core.wikilink.resolver import WikilinkResolver
+from oatbrain.core.wikilink import WikilinkResolver
 
 
 def make_renderer() -> MarkdownItRenderer:

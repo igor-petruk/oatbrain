@@ -1,7 +1,7 @@
 import os
 import pytest
 from pathlib import Path
-from oatbrain.adapters.filestore.local import LocalFileStore, VaultPath
+from oatbrain.adapters.filestore import LocalFileStore, VaultPath
 
 
 def test_local_filestore_lifecycle(tmp_path: Path) -> None:

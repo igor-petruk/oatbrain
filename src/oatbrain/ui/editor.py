@@ -18,8 +18,8 @@ from oatbrain.core.events.ui import (  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
-from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
-from oatbrain.core.state.app_state import AppState, EditorState  # noqa: E402
+from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
+from oatbrain.core.state import AppState, EditorState  # noqa: E402
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
     Zoom,

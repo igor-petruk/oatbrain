@@ -1,6 +1,6 @@
 from typing import Any, List
 from gi.repository import Gtk, Adw, Gdk
-from oatbrain.core.state.app_state import AppState
+from oatbrain.core.state import AppState
 from oatbrain.core.ports.config import AppConfig
 from oatbrain.core.ports.filestore import FileStore, VaultPath
 from oatbrain.core.bus import CommandRouter

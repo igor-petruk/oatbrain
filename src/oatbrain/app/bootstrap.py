@@ -10,13 +10,13 @@ from gi.repository import Adw, Gio  # noqa: E402
 
 from oatbrain.ui.window import AdwAppShell  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.state.app_state import AppState  # noqa: E402
-from oatbrain.adapters.filestore.local import LocalFileStore  # noqa: E402
-from oatbrain.adapters.state.toml_store import TomlStateStore  # noqa: E402
-from oatbrain.adapters.config.toml_store import TomlConfigStore  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
+from oatbrain.adapters.filestore import LocalFileStore  # noqa: E402
+from oatbrain.adapters.state import TomlStateStore  # noqa: E402
+from oatbrain.adapters.config import TomlConfigStore  # noqa: E402
 from oatbrain.adapters.env import StdlibEnv  # noqa: E402
-from oatbrain.adapters.renderer.markdown_it import MarkdownItRenderer  # noqa: E402
-from oatbrain.core.wikilink.resolver import WikilinkResolver  # noqa: E402
+from oatbrain.adapters.renderer import MarkdownItRenderer  # noqa: E402
+from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
 from oatbrain.adapters.watcher import WatchdogFileWatcher  # noqa: E402
 
 

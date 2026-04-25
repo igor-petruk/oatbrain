@@ -1,5 +1,5 @@
 from pathlib import Path
-from oatbrain.core.state.app_state import AppState, EditorState
+from oatbrain.core.state import AppState, EditorState
 from oatbrain.core.bus import EventBus, CommandRouter
 from oatbrain.core.commands import OpenFile
 from oatbrain.core.events.state import StateUpdated

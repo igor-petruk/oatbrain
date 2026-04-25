@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
-from oatbrain.adapters.state.toml_store import TomlStateStore
-from oatbrain.core.state.app_state import AppState, EditorState
+from oatbrain.adapters.state import TomlStateStore
+from oatbrain.core.state import AppState, EditorState
 from oatbrain.core.ports.filestore import VaultPath
 
 

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from oatbrain.core.markdown.wikilink import wikilink_plugin
 from oatbrain.core.markdown.transclude import transclude_plugin
 from oatbrain.core.ports.filestore import VaultPath, FileStore
-from oatbrain.core.wikilink.resolver import WikilinkResolver
+from oatbrain.core.wikilink import WikilinkResolver
 
 
 def test_transclude_parsing_simple() -> None:

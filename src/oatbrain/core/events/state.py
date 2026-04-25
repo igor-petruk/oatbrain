@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from oatbrain.core.state.app_state import AppState
+from oatbrain.core.state import AppState
 
 
 @dataclass(frozen=True)

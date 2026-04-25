@@ -13,7 +13,7 @@ from oatbrain.ui.tree import FileTree  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
 from oatbrain.ui.window import AdwAppShell  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.state.app_state import AppState  # noqa: E402
+from oatbrain.core.state import AppState  # noqa: E402
 from oatbrain.core.ports.filestore import FileStore  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
 
