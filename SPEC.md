@@ -1766,7 +1766,7 @@ No port. No monkey patching.
 - Default level: `INFO` for `oatbrain.*`, `WARNING` for everything else.
 - `--debug` CLI flag sets `oatbrain.*` to `DEBUG`.
 - Output: stderr, with format
-  `%(asctime)s %(levelname)-5s %(name)s | %(message)s`.
+  `%(asctime)s %(levelname)-5s %(name)s:%(lineno)d | %(message)s`.
 - No file logging in MVP. Users can redirect.
 
 ### 28.3 In tests

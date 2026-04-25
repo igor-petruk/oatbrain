@@ -1,3 +1,4 @@
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -20,11 +21,22 @@ from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
 from oatbrain.adapters.watcher import WatchdogFileWatcher  # noqa: E402
 
 
-def build_app(argv: list[str]) -> Adw.Application:
+def build_app(argv: list[str]) -> tuple[Adw.Application, list[str]]:
+    parser = argparse.ArgumentParser(prog="oatbrain")
+    parser.add_argument("vault_path", nargs="?", help="Path to the vault directory")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    args, unknown = parser.parse_known_args(argv[1:] if argv else [])
+
+    filtered_argv = ([argv[0]] if argv else ["oatbrain"]) + unknown
+    debug_mode = args.debug
+
     logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        level=logging.WARNING,
+        format="%(asctime)s %(levelname)-5s %(name)s:%(lineno)d | %(message)s",
         stream=sys.stderr,
+    )
+    logging.getLogger("oatbrain").setLevel(
+        logging.DEBUG if debug_mode else logging.INFO
     )
     logger = logging.getLogger("oatbrain.bootstrap")
     logger.debug("Building application...")
@@ -43,8 +55,8 @@ def build_app(argv: list[str]) -> Adw.Application:
         initial_state = AppState(vault_root=Path.cwd())
 
     # Override vault root if provided via CLI
-    if len(argv) > 1:
-        provided_path = Path(argv[1]).resolve()
+    if args.vault_path:
+        provided_path = Path(args.vault_path).resolve()
         if provided_path.is_dir():
             initial_state = replace(initial_state, vault_root=provided_path)
 
@@ -69,4 +81,4 @@ def build_app(argv: list[str]) -> Adw.Application:
         resolver=resolver,
         env=env,
     )
-    return app
+    return app, filtered_argv

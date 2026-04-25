@@ -3,8 +3,8 @@ from oatbrain.app.bootstrap import build_app
 
 
 def main() -> int:
-    app = build_app(sys.argv)
-    return int(app.run(sys.argv))
+    app, filtered_argv = build_app(sys.argv)
+    return int(app.run(filtered_argv))
 
 
 if __name__ == "__main__":

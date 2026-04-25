@@ -67,25 +67,17 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
 
         GLib.idle_add(publish)
 
-    @staticmethod
-    def _is_tmp(path: str) -> bool:
-        return path.endswith(".oatbrain.tmp")
-
     def on_created(self, event: Union[DirCreatedEvent, FileCreatedEvent]) -> None:
         self._logger.debug("on_created: %s", event.src_path)
-        if self._is_tmp(str(event.src_path)):
-            return
         self._publish_event(FileCreated(str(event.src_path)))
 
     def on_deleted(self, event: Union[DirDeletedEvent, FileDeletedEvent]) -> None:
         self._logger.debug("on_deleted: %s", event.src_path)
-        if self._is_tmp(str(event.src_path)):
-            return
         self._publish_event(FileDeleted(str(event.src_path)))
 
     def on_modified(self, event: Union[DirModifiedEvent, FileModifiedEvent]) -> None:
         self._logger.debug("on_modified: %s", event.src_path)
-        if event.is_directory or self._is_tmp(str(event.src_path)):
+        if event.is_directory:
             return
         self._publish_event(FileModified(str(event.src_path)))
 
@@ -93,11 +85,7 @@ class WatchdogFileWatcher(FileSystemEventHandler, FileWatcher):
         src = str(event.src_path)
         dest = str(event.dest_path)
         self._logger.debug("on_moved: %s -> %s", src, dest)
-        if self._is_tmp(src):
-            # Atomic write (mkstemp → rename): report as FileModified on target.
-            self._publish_event(FileModified(dest))
-        else:
-            self._publish_event(FileRenamed(src, dest))
+        self._publish_event(FileRenamed(src, dest))
 
     def start(self, vault_path: Path) -> None:
         """Start observing the vault directory."""

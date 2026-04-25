@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 def test_app_instantiation() -> None:
     """Verify that the application can be instantiated."""
     logger.info("Starting app instantiation test")
-    app = build_app([])
+    app, _ = build_app([])
     assert app is not None
     logger.info("Application instantiation successful")
 
 
 def test_widget_hierarchy() -> None:
     """Verify that the main window contains the expected three-pane layout."""
-    app = build_app([])
+    app, _ = build_app([])
     app.set_application_id("app.oatbrain.TestHierarchy")
 
     # Correct startup sequence
@@ -64,7 +64,7 @@ def test_widget_hierarchy() -> None:
 
 def test_app_shutdown_saves_state(tmp_path: Path) -> None:
     """Verify that state is saved when the application shuts down."""
-    app = build_app([])
+    app, _ = build_app([])
     app.set_application_id("app.oatbrain.TestShutdown")
     app.register()
     app.emit("startup")
@@ -76,7 +76,7 @@ def test_app_shutdown_saves_state(tmp_path: Path) -> None:
 
 def test_no_gtk_log_output(capfd: Any) -> None:
     """Ensure no Gtk-CRITICAL or Gtk-WARNING output in stderr during startup."""
-    app = build_app([])
+    app, _ = build_app([])
     app.set_application_id("app.oatbrain.CleanOutput")
     app.register()
     app.emit("startup")
