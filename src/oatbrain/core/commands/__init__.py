@@ -9,6 +9,14 @@ from .ui import (
     SetTreeExpanded,
     Zoom,
 )
+from .editor import (
+    ToggleMode,
+    ToggleZen,
+    RefreshFile,
+    NewTab,
+    CloseTab,
+    SplitGroupRight,
+)
 
 
 @dataclass(frozen=True)
@@ -18,12 +26,17 @@ class OpenFile:
 
 @dataclass(frozen=True)
 class CloseFile:
-    pass
+    """Internal: close the file in a specific tab (used by Editor internally)."""
+
+    tab_id: str = ""
 
 
 @dataclass(frozen=True)
 class UpdateOpenFilePath:
+    """Internal: update the path tracked by a specific tab (used by Editor)."""
+
     path: VaultPath
+    tab_id: str = ""
 
 
 __all__ = [
@@ -37,4 +50,10 @@ __all__ = [
     "DismissMermaidWarning",
     "SetTreeExpanded",
     "Zoom",
+    "ToggleMode",
+    "ToggleZen",
+    "RefreshFile",
+    "NewTab",
+    "CloseTab",
+    "SplitGroupRight",
 ]

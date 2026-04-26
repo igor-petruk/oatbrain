@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.state import AppState  # noqa: E402
+from oatbrain.core.state import AppState, EditorAreaState, TabState  # noqa: E402
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.events.ui import (  # noqa: E402
     StatusMessageRequested,
@@ -28,14 +28,14 @@ from oatbrain.core.commands import (  # noqa: E402
     DismissMermaidWarning,
     SetTreeExpanded,
     Zoom,
-    CloseFile,
-    UpdateOpenFilePath,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     ToggleMode,
-    ToggleSplit,
     ToggleZen,
     RefreshFile,
+    NewTab,
+    CloseTab,
+    SplitGroupRight,
 )
 from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
@@ -53,7 +53,7 @@ from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
 from oatbrain.ui.terminal import Terminal  # noqa: E402
-from oatbrain.ui.editor import Editor  # noqa: E402
+from oatbrain.ui.editor_area import EditorArea  # noqa: E402
 
 
 class AdwAppShell(Adw.Application):  # type: ignore[misc]
@@ -92,7 +92,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._theme_css_provider = Gtk.CssProvider()
         self._executor = ThreadPoolExecutor(max_workers=2)
 
-        self.editor: Optional[Editor] = None
+        self.editor_area: Optional[EditorArea] = None
 
         self._setup_commands()
 
@@ -113,15 +113,13 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self._command_router.register(
             OpenFile, self._handle_open_file, "Open File", visible=False
         )
-        self._command_router.register(CloseFile, self._handle_close_file, visible=False)
         self._command_router.register(
-            UpdateOpenFilePath, self._handle_update_open_file_path, visible=False
+            ToggleMode, self._handle_toggle_mode, "Toggle Preview Mode"
         )
+        self._command_router.register(NewTab, self._handle_new_tab, "New Tab")
+        self._command_router.register(CloseTab, self._handle_close_tab, "Close Tab")
         self._command_router.register(
-            ToggleMode, self._handle_toggle_mode, "Toggle Read Mode"
-        )
-        self._command_router.register(
-            ToggleSplit, self._handle_toggle_split, "Toggle Split Mode"
+            SplitGroupRight, self._handle_split_group_right, "Split Group Right"
         )
         self._command_router.register(
             ToggleZen, self._handle_toggle_zen, "Toggle Zen Mode"
@@ -213,49 +211,48 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             )
 
     def _handle_open_file(self, command: OpenFile) -> None:
-        """Updates state when a file is opened."""
-        self._state = replace(
-            self._state,
-            editor=replace(self._state.editor, open_file=command.path),
-        )
-        self._event_bus.publish(StatusMessageRequested(f"Opened {command.path}"))
+        """Updates state when a file is opened in the focused tab."""
+        if self.editor_area:
+            self.editor_area.handle_command(command)
+
+    def _handle_toggle_mode(self, command: ToggleMode) -> None:
+        tab_id = command.tab_id
+        if not tab_id:
+            tab = self._get_focused_tab_state()
+            if tab is None:
+                return
+            tab_id = tab.tab_id
+        else:
+            # Find the tab state for this specific tab_id
+            tab = None
+            for g in self._state.editor_area.groups:
+                for t in g.tabs:
+                    if t.tab_id == tab_id:
+                        tab = t
+                        break
+                if tab:
+                    break
+            if tab is None:
+                return
+
+        new_mode = "preview" if tab.mode == "editor" else "editor"
+        ea = self._state.editor_area
+        new_ea = self._replace_focused_tab(ea, tab_id, mode=new_mode)
+        self._state = replace(self._state, editor_area=new_ea)
         self._event_bus.publish(StateUpdated(self._state))
         self._save_state()
 
-    def _handle_close_file(self, command: CloseFile) -> None:
-        """Updates state when a file is explicitly closed."""
-        self._state = replace(
-            self._state,
-            editor=replace(self._state.editor, open_file=None),
-        )
-        self._event_bus.publish(StatusMessageRequested("File closed"))
-        self._event_bus.publish(StateUpdated(self._state))
-        self._save_state()
+    def _handle_new_tab(self, command: NewTab) -> None:
+        if self.editor_area:
+            self.editor_area.handle_command(command)
 
-    def _handle_update_open_file_path(self, command: UpdateOpenFilePath) -> None:
-        """Updates the open file path without triggering read/load."""
-        self._state = replace(
-            self._state,
-            editor=replace(self._state.editor, open_file=command.path),
-        )
-        self._event_bus.publish(StateUpdated(self._state))
-        self._save_state()
+    def _handle_close_tab(self, command: CloseTab) -> None:
+        if self.editor_area:
+            self.editor_area.handle_command(command)
 
-    def _handle_toggle_mode(self, _command: ToggleMode) -> None:
-        new_read_mode = not self._state.editor.read_mode
-        self._state = replace(
-            self._state,
-            editor=replace(self._state.editor, read_mode=new_read_mode),
-        )
-        self._event_bus.publish(StateUpdated(self._state))
-
-    def _handle_toggle_split(self, _command: ToggleSplit) -> None:
-        new_split_mode = not self._state.editor.split_mode
-        self._state = replace(
-            self._state,
-            editor=replace(self._state.editor, split_mode=new_split_mode),
-        )
-        self._event_bus.publish(StateUpdated(self._state))
+    def _handle_split_group_right(self, command: SplitGroupRight) -> None:
+        if self.editor_area:
+            self.editor_area.handle_command(command)
 
     def _handle_set_tree_expanded(self, command: SetTreeExpanded) -> None:
         expanded = list(self._state.tree_expanded)
@@ -336,8 +333,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         GLib.idle_add(self._apply_zen_toggle)
 
     def _handle_refresh_file(self, _command: RefreshFile) -> None:
-        if self.editor:
-            self.editor.refresh()
+        if self.editor_area and self.editor_area.focused_editor:
+            self.editor_area.focused_editor.refresh()
 
     def _calculate_zoom(self, current: float, command: Zoom) -> float:
         new_zoom = 1.0 if command.reset else current + command.delta
@@ -355,23 +352,23 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 terminal_zoom=self._calculate_zoom(self._state.terminal_zoom, command),
             )
         elif command.component == "editor":
-            self._state = replace(
-                self._state,
-                editor=replace(
-                    self._state.editor,
-                    zoom=self._calculate_zoom(self._state.editor.zoom, command),
-                ),
-            )
+            tab = self._get_focused_tab_state()
+            if tab is not None:
+                new_ea = self._replace_focused_tab(
+                    self._state.editor_area,
+                    tab.tab_id,
+                    zoom=self._calculate_zoom(tab.zoom, command),
+                )
+                self._state = replace(self._state, editor_area=new_ea)
         elif command.component == "preview":
-            self._state = replace(
-                self._state,
-                editor=replace(
-                    self._state.editor,
-                    preview_zoom=self._calculate_zoom(
-                        self._state.editor.preview_zoom, command
-                    ),
-                ),
-            )
+            tab = self._get_focused_tab_state()
+            if tab is not None:
+                new_ea = self._replace_focused_tab(
+                    self._state.editor_area,
+                    tab.tab_id,
+                    preview_zoom=self._calculate_zoom(tab.preview_zoom, command),
+                )
+                self._state = replace(self._state, editor_area=new_ea)
 
         self._event_bus.publish(StateUpdated(self._state))
         self._save_state()
@@ -395,8 +392,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self.status_bar.widget.set_visible(True)
             self.toolbar_view.set_extend_content_to_top_edge(False)
 
-        if self.editor:
-            self.editor.set_zen_mode(self._zen_mode)
+        if self.editor_area:
+            for pane in self.editor_area.groups_panes.values():
+                for ed in pane.editors.values():
+                    ed.set_zen_mode(self._zen_mode)
 
         self.header_bar.zen_toggle.handler_block_by_func(self._on_zen_toggled)
         self.header_bar.zen_toggle.set_active(self._zen_mode)
@@ -446,6 +445,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _on_shutdown(self, *args: Any) -> None:
         self._save_state()
+        if self.editor_area:
+            self.editor_area.destroy()
 
     def on_activate(self, app: Adw.Application) -> None:
         self.main_window = Adw.ApplicationWindow(application=app)
@@ -460,15 +461,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         self.toolbar_view.add_top_bar(self.header_bar.widget)
 
         # Editor area
-        self.editor = Editor(
-            self._filestore,
-            self._event_bus,
-            self._command_router,
-            self._env,
-            vault_root=self._state.vault_root,
-            renderer=self._renderer,
-            resolver=self._resolver,
-            watcher=self._watcher,
+        self.editor_area = EditorArea(
+            filestore=self._filestore,
+            event_bus=self._event_bus,
+            command_router=self._command_router,
+            env=self._env,
+            renderer=self._renderer,  # type: ignore
+            resolver=self._resolver,  # type: ignore
+            watcher=self._watcher,  # type: ignore
+            on_state_change_requested=self._on_editor_area_state_change,
         )
 
         self.main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -485,7 +486,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._state.vault_root, self._event_bus, self._command_router
         )
 
-        self.right_paned.set_start_child(self.editor.widget)
+        self.right_paned.set_start_child(self.editor_area.widget)
         self.right_paned.set_end_child(self.terminal_placeholder.widget)
         self.right_paned.set_resize_start_child(True)
         self.right_paned.set_resize_end_child(False)
@@ -536,11 +537,27 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._sync_editor_to_state)
 
+    def _on_editor_area_state_change(self, ea_state: EditorAreaState) -> None:
+        self._state = replace(self._state, editor_area=ea_state)
+        self._event_bus.publish(StateUpdated(self._state))
+        self._save_state()
+
     def _sync_editor_to_state(self) -> bool:
-        """Syncs the editor widget with AppState."""
-        if self.editor:
-            self.editor.update_from_state(self._state.editor, self._state)
+        """Syncs the editor area widget with AppState."""
+        if self.editor_area:
+            self.editor_area.update_from_state(self._state.editor_area, self._state)
         return False
+
+    def _replace_focused_tab(
+        self, ea: EditorAreaState, tab_id: str, **updates: Any
+    ) -> EditorAreaState:
+        new_groups = []
+        for g in ea.groups:
+            new_tabs = [
+                replace(t, **updates) if t.tab_id == tab_id else t for t in g.tabs
+            ]
+            new_groups.append(replace(g, tabs=tuple(new_tabs)))
+        return replace(ea, groups=tuple(new_groups))
 
     def _fetch_mermaid_library(self) -> None:
         cache_dir = self._env.get_xdg_cache_home() / "oatbrain"
@@ -613,9 +630,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
         css = generate_gtk_css(theme)
         self._theme_css_provider.load_from_string(css)
-        if self.editor:
-            self.editor.apply_source_scheme(theme.source_scheme)
-            self.editor.set_theme_css(css, theme_id=theme_id)
+        if self.editor_area:
+            self.editor_area.apply_source_scheme(theme.source_scheme)
+            self.editor_area.set_theme_css(css, theme_id=theme_id)
         if hasattr(self, "terminal_placeholder"):
             self.terminal_placeholder.apply_theme(theme)
 
@@ -753,6 +770,24 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         controller.add_shortcut(
             Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>t"),
+                action=Gtk.CallbackAction.new(self._shortcut_new_tab),
+            )
+        )
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>w"),
+                action=Gtk.CallbackAction.new(self._shortcut_close_tab),
+            )
+        )
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>backslash"),
+                action=Gtk.CallbackAction.new(self._shortcut_split_group),
+            )
+        )
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
                 trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>z"),
                 action=Gtk.CallbackAction.new(self._shortcut_toggle_zen),
             )
@@ -785,10 +820,22 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
 
     def _shortcut_focus_editor(self, *_: Any) -> bool:
-        if self.editor:
-            self.editor.view.grab_focus()
+        if self.editor_area and self.editor_area.focused_editor:
+            self.editor_area.focused_editor.view.grab_focus()
             return True
         return False
+
+    def _shortcut_new_tab(self, *_: Any) -> bool:
+        self._command_router.dispatch(NewTab())
+        return True
+
+    def _shortcut_close_tab(self, *_: Any) -> bool:
+        self._command_router.dispatch(CloseTab())
+        return True
+
+    def _shortcut_split_group(self, *_: Any) -> bool:
+        self._command_router.dispatch(SplitGroupRight())
+        return True
 
     def _shortcut_zoom(self, delta: float, reset: bool = False) -> bool:
         current = self.main_window.get_focus()
@@ -801,7 +848,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         ):
             self._command_router.dispatch(Zoom("terminal", delta, reset))
         else:
-            if self._state.editor.read_mode:
+            ts = self._get_focused_tab_state()
+            if ts and ts.mode == "preview":
                 self._command_router.dispatch(Zoom("preview", delta, reset))
             else:
                 self._command_router.dispatch(Zoom("editor", delta, reset))
@@ -835,8 +883,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         return True
 
     def _shortcut_save(self, *_: Any) -> bool:
-        if self.editor:
-            self.editor._save()
+        if self.editor_area and self.editor_area.focused_editor:
+            self.editor_area.focused_editor._save()
         return True
 
     def _shortcut_refresh(self, *_: Any) -> bool:
@@ -852,15 +900,15 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         return True
 
     def _shortcut_send_file_to_terminal(self, *_: Any) -> bool:
-        path = self._state.editor.open_file
-        if path:
-            full = str(self._state.vault_root / str(path))
+        ts = self._get_focused_tab_state()
+        if ts and ts.open_file:
+            full = str(self._state.vault_root / str(ts.open_file))
             self.terminal_placeholder.send_text(full)
         return True
 
     def _shortcut_send_selection_to_terminal(self, *_: Any) -> bool:
-        if self.editor:
-            buf = self.editor.buffer
+        if self.editor_area and self.editor_area.focused_editor:
+            buf = self.editor_area.focused_editor.buffer
             if buf.get_has_selection():
                 start, end = buf.get_selection_bounds()
                 text = buf.get_text(start, end, True)
@@ -881,7 +929,8 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         return True
 
     def _shortcut_cycle_focus(self, *_: Any) -> bool:
-        editor_view = self.editor.view if self.editor else None
+        ed = self.editor_area.focused_editor if self.editor_area else None
+        editor_view = ed.view if ed else None
         targets: List[Optional[Gtk.Widget]] = [
             self.tree_pane,
             editor_view,
@@ -903,3 +952,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 target.grab_focus()
                 return True
         return True
+
+    def _get_focused_tab_state(self) -> Optional[TabState]:
+        ea = self._state.editor_area
+        if not ea.groups:
+            return None
+        group = ea.groups[ea.focused_group_index]
+        if not group.tabs:
+            return None
+        return group.tabs[group.active_tab_index]

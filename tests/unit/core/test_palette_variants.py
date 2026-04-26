@@ -23,7 +23,7 @@ def test_command_router_list_commands_includes_palette_variants() -> None:
     assert "Set Theme: High Contrast Dark" in names
 
     # Check for ToggleMode variant
-    assert "Toggle Read Mode" in names
+    assert "Toggle Preview Mode" in names
 
     # Ensure instances are correct
     theme_cmd = next(
