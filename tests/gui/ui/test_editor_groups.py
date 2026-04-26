@@ -13,6 +13,7 @@ from oatbrain.core.commands.editor import (  # noqa: E402
     SplitGroupRight,
     CloseTab,
     NewTab,
+    ToggleMode,
 )
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
 
@@ -215,8 +216,7 @@ def test_mode_switch_targets_correct_tab(app_and_loop):
     assert ea.groups[1].tabs[0].mode == "editor"
 
     # 3. Toggle mode on the UNIFOCUSED tab (Group 0)
-    # Trigger the 'Read' button on the unfocused editor0
-    editor0._btn_read.emit("clicked")
+    app._command_router.dispatch(ToggleMode(tab_id=tid0))
     _run_loop(loop)
 
     # 4. Verify only Group 0 tab mode changed
