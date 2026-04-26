@@ -1,6 +1,6 @@
 import tomllib
 from pathlib import Path
-from oatbrain.core.ports.config import AppConfig, PaletteConfig
+from oatbrain.core.ports.config import AppConfig, PaletteConfig, InboxConfig
 
 
 class TomlConfigStore:
@@ -21,4 +21,10 @@ class TomlConfigStore:
             shell_commands=palette_data.get("shell_commands", []),
         )
 
-        return AppConfig(palette=palette)
+        inbox_data = data.get("inbox", {})
+        inbox = InboxConfig(
+            folder=inbox_data.get("folder", "Inbox"),
+            process_prefix=inbox_data.get("process_prefix", "Process"),
+        )
+
+        return AppConfig(palette=palette, inbox=inbox)

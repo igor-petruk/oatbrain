@@ -33,9 +33,8 @@ def _split(
             new_focus_idx = len(new_groups) - 1
 
     expected = len(new_groups) - 1
-    fractions = list(ea.divider_fractions)[:expected]
-    while len(fractions) < expected:
-        fractions.append(0.5)
+    # Balance widths equally among all groups (§17.2)
+    fractions = [1.0 / (len(new_groups) - i) for i in range(expected)]
 
     return EditorAreaState(
         groups=tuple(new_groups),
@@ -96,7 +95,10 @@ def test_split_from_two_groups_produces_three() -> None:
     )
     result = _split(ea, group_idx=0)
     assert len(result.groups) == 3
+    # 3 groups → 2 dividers: [1/3, 1/2]
     assert len(result.divider_fractions) == 2
+    assert result.divider_fractions[0] == 1.0 / 3.0
+    assert result.divider_fractions[1] == 0.5
 
 
 def test_focused_group_index_always_in_range() -> None:

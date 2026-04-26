@@ -7,8 +7,9 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, GLib  # noqa: E402
 
-from oatbrain.app.bootstrap import build_app  # noqa: E402
+
 from oatbrain.core.commands import OpenFile  # noqa: E402
+
 from oatbrain.core.commands.editor import (  # noqa: E402
     SplitGroupRight,
     CloseTab,
@@ -18,31 +19,10 @@ from oatbrain.core.commands.editor import (  # noqa: E402
 from oatbrain.core.ports.filestore import VaultPath  # noqa: E402
 
 
-def _run_loop(loop, iterations=10):
+def _run_loop_local(loop, iterations=10):
     for _ in range(iterations):
         GLib.idle_add(loop.quit)
         loop.run()
-
-
-@pytest.fixture
-def app_and_loop(tmp_path):
-    # Use a temporary state file to avoid interference from/to local dev state
-    os.environ["XDG_STATE_HOME"] = str(tmp_path)
-
-    app, _ = build_app([])
-    app.set_application_id(f"org.oatbrain.TestComplex{os.getpid()}")
-    app.register()
-    app.emit("startup")
-    app.activate()
-
-    loop = GLib.MainLoop()
-    _run_loop(loop)
-
-    yield app, loop
-
-    for window in app.get_windows():
-        window.close()
-    app.emit("shutdown")
 
 
 def test_complex_split_and_tab_flow(app_and_loop):
@@ -59,7 +39,7 @@ def test_complex_split_and_tab_flow(app_and_loop):
 
     # 1. Add a second tab to Group 0
     app._command_router.dispatch(NewTab())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert len(ea.groups) == 1
@@ -69,7 +49,7 @@ def test_complex_split_and_tab_flow(app_and_loop):
     # 2. Split Group 0 to the right
     # This should create Group 1 with a clone of the active tab from Group 0
     app._command_router.dispatch(SplitGroupRight())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert len(ea.groups) == 2
@@ -78,7 +58,7 @@ def test_complex_split_and_tab_flow(app_and_loop):
 
     # 3. Split Group 1 to the right again
     app._command_router.dispatch(SplitGroupRight())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert len(ea.groups) == 3
@@ -87,9 +67,9 @@ def test_complex_split_and_tab_flow(app_and_loop):
     # 4. Close the middle group (Group 1)
     # Focus group 1 first
     app.editor_area._on_state_change_requested(replace(ea, focused_group_index=1))
-    _run_loop(loop)
+    _run_loop_local(loop)
     app._command_router.dispatch(CloseTab())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     # Since Group 1 had only one tab, closing it removes the group
@@ -109,7 +89,7 @@ def test_focus_switching_between_groups(app_and_loop):
 
     # 1. Create two groups
     app._command_router.dispatch(SplitGroupRight())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert ea.focused_group_index == 1
@@ -123,7 +103,7 @@ def test_focus_switching_between_groups(app_and_loop):
 
     # Simulate focus
     app.editor_area._on_editor_focused(editor0)
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     assert app._state.editor_area.focused_group_index == 0
 
@@ -134,7 +114,7 @@ def test_focus_switching_between_groups(app_and_loop):
     editor1 = pane1.editors[tid1]
 
     app.editor_area._on_editor_focused(editor1)
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     assert app._state.editor_area.focused_group_index == 1
 
@@ -145,9 +125,9 @@ def test_tab_reordering_smoke(app_and_loop):
 
     # 1. Add two tabs
     app._command_router.dispatch(NewTab())
-    _run_loop(loop)
+    _run_loop_local(loop)
     app._command_router.dispatch(NewTab())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert len(ea.groups[0].tabs) == 3
@@ -158,7 +138,7 @@ def test_tab_reordering_smoke(app_and_loop):
     pane.notebook.set_current_page(0)
     # The 'switch-page' signal should trigger
     # _on_tab_switched -> _on_state_change_requested
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     assert app._state.editor_area.groups[0].active_tab_index == 0
 
@@ -177,7 +157,7 @@ def test_new_tab_button_in_group_pane(app_and_loop):
 
     # Trigger the button's clicked signal
     pane._btn_new_tab.emit("clicked")
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     # 3. Verify state updated
     assert len(app._state.editor_area.groups[0].tabs) == 2
@@ -198,11 +178,11 @@ def test_mode_switch_targets_correct_tab(app_and_loop):
     # Ensure file exists in the vault
     (app._filestore._root / "test_mode.md").write_text("# Test Mode\n")
     app._command_router.dispatch(OpenFile(path=test_path))
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     # 2. Split to have two tabs (in different groups for easier tracking)
     app._command_router.dispatch(SplitGroupRight())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert len(ea.groups) == 2
@@ -220,7 +200,7 @@ def test_mode_switch_targets_correct_tab(app_and_loop):
 
     # 3. Toggle mode on the UNIFOCUSED tab (Group 0)
     app._command_router.dispatch(ToggleMode(tab_id=tid0))
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     # 4. Verify only Group 0 tab mode changed
     new_ea = app._state.editor_area
@@ -234,7 +214,7 @@ def test_divider_fractions_are_saved(app_and_loop):
 
     # 1. Split to have two groups
     app._command_router.dispatch(SplitGroupRight())
-    _run_loop(loop)
+    _run_loop_local(loop)
 
     ea = app._state.editor_area
     assert len(ea.groups) == 2
@@ -250,14 +230,14 @@ def test_divider_fractions_are_saved(app_and_loop):
     if width <= 0:
         # Fallback if window not fully realized/sized in test environment
         paned.set_size_request(1000, 800)
-        _run_loop(loop)
+        _run_loop_local(loop)
         width = paned.get_width()
 
     if width > 0:
         # 2. Move divider to 25% (0.25)
         new_pos = int(width * 0.25)
         paned.set_position(new_pos)
-        _run_loop(loop)
+        _run_loop_local(loop)
 
         # 3. Verify state updated
         new_ea = app._state.editor_area

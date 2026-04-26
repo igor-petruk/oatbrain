@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,13 @@ class SetTreeExpanded:
 
     path: str
     is_expanded: bool
+
+
+@dataclass(frozen=True)
+class ProcessFile:
+    """Process a file (e.g. send to AI for categorization)."""
+
+    path: Optional[str] = None
 
 
 @dataclass(frozen=True)

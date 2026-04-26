@@ -2,6 +2,7 @@ from gi.repository import Adw, Gtk, GLib, Gio
 from oatbrain.core.events.state import StateUpdated
 from oatbrain.core.events.ui import DirtyStateChanged
 from oatbrain.core.commands.editor import RefreshFile
+from oatbrain.core.commands.ui import ProcessFile
 from oatbrain.core.bus import EventBus, CommandRouter
 
 
@@ -31,18 +32,24 @@ class HeaderBar:
         self.tree_toggle.set_tooltip_text("Toggle File Tree")
 
         self._new_note_btn = Gtk.Button(icon_name="document-new-symbolic")
-        self._new_note_btn.set_tooltip_text("New Note (Ctrl+N)")
-        self._new_note_btn.connect("clicked", self._on_new_note_clicked)
+        self._new_note_btn.set_tooltip_text("New Note in Inbox (Ctrl+N)")
+        self._new_note_btn.set_action_name("app.new_note_inbox")
 
         self._refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
         self._refresh_btn.set_tooltip_text("Refresh File (F5)")
         self._refresh_btn.connect("clicked", self._on_refresh_clicked)
+
+        self._process_btn = Gtk.Button(icon_name="system-run-symbolic")
+        self._process_btn.set_tooltip_text("Process (Ctrl+Shift+Enter)")
+        self._process_btn.add_css_class("suggested-action")
+        self._process_btn.connect("clicked", self._on_process_clicked)
 
         left_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         left_box.append(self._hamburger_btn)
         left_box.append(self.tree_toggle)
         left_box.append(self._new_note_btn)
         left_box.append(self._refresh_btn)
+        left_box.append(self._process_btn)
         self.widget.pack_start(left_box)
 
         # --- Title ---
@@ -95,10 +102,8 @@ class HeaderBar:
     def _on_refresh_clicked(self, _btn: Gtk.Button) -> None:
         self._command_router.dispatch(RefreshFile())
 
-    def _on_new_note_clicked(self, _btn: Gtk.Button) -> None:
-        from oatbrain.core.commands.editor import NewTab
-
-        self._command_router.dispatch(NewTab())
+    def _on_process_clicked(self, _btn: Gtk.Button) -> None:
+        self._command_router.dispatch(ProcessFile())
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)

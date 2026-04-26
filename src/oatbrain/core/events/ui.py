@@ -37,6 +37,24 @@ class TabPathChanged:
 
 
 @dataclass(frozen=True)
+class TabTitleChanged:
+    """Emitted when a tab's display title changes (e.g. from heading)."""
+
+    tab_id: str
+    title: str
+
+
+@dataclass(frozen=True)
+class SaveAsRequested:
+    """Emitted when a new note needs a filename to be saved."""
+
+    tab_id: str
+    suggested_filename: str
+    target_dir: Optional[str]
+    content: str
+
+
+@dataclass(frozen=True)
 class FocusedTabStats:
     """Emitted when the stats of the focused tab change."""
 
