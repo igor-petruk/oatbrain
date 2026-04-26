@@ -111,6 +111,12 @@ class Editor:
         focus_ctrl.connect("enter", lambda *_: self._on_focus_entered())
         self.view.add_controller(focus_ctrl)
 
+        # Standard shortcuts controller (§10.4)
+        self._key_ctrl = Gtk.EventControllerKey.new()
+        self._key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._key_ctrl.connect("key-pressed", self._on_key_pressed)
+        self.view.add_controller(self._key_ctrl)
+
         if vim_enabled:
             self._vim_context: Optional[
                 GtkSource.VimIMContext
@@ -262,6 +268,24 @@ class Editor:
                 self._scroll_fraction = fraction
                 if self._preview:
                     self._preview._apply_scroll(self._preview._wv, fraction)
+
+    def _on_key_pressed(
+        self,
+        _ctrl: Gtk.EventControllerKey,
+        keyval: int,
+        _keycode: int,
+        state: Gdk.ModifierType,
+    ) -> bool:
+        """Handle Ctrl+Shift+C/V for clipboard operations (§10.4)."""
+        ctrl_shift = Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK
+        if (state & ctrl_shift) == ctrl_shift:
+            if keyval in (Gdk.KEY_c, Gdk.KEY_C):
+                self.view.emit("copy-clipboard")
+                return True
+            if keyval in (Gdk.KEY_v, Gdk.KEY_V):
+                self.view.emit("paste-clipboard")
+                return True
+        return False
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
         """Handle Ctrl+MouseScroll to zoom editor (§19)."""
