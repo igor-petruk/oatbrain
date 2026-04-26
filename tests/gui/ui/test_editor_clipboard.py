@@ -1,10 +1,9 @@
 import gi
 from unittest.mock import MagicMock
-from pathlib import Path
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, GLib  # noqa: E402
+from gi.repository import Gdk  # noqa: E402
 
 from oatbrain.ui.editor import Editor  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402

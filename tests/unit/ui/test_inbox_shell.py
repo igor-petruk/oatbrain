@@ -4,7 +4,7 @@ from pathlib import Path
 from oatbrain.ui.window import AdwAppShell
 from oatbrain.core.bus import EventBus, CommandRouter
 from oatbrain.core.state import AppState
-from oatbrain.core.ports.filestore import FileStore, VaultPath
+from oatbrain.core.ports.filestore import FileStore
 from oatbrain.core.ports.config import AppConfig, InboxConfig
 from oatbrain.core.ports.env import Env
 from oatbrain.core.commands.ui import SendToTerminal, ProcessFile
