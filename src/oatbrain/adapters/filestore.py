@@ -16,11 +16,12 @@ class LocalFileStore(FileStore):
 
     def _to_local(self, p: VaultPath) -> Path:
         """Resolve VaultPath to an absolute local Path."""
-        # Ensure the path doesn't escape the root
-        resolved = (self._root / Path(str(p))).resolve()
-        if not str(resolved).startswith(str(self._root)):
-            raise PermissionError(f"Path '{p}' is outside vault root '{self._root}'")
-        return resolved
+        # Ensure the path doesn't syntactically escape the root.
+        # We do not use .resolve() to allow symlinks inside the vault
+        # to point to external directories (e.g. ~/Vault -> ~/ActualVault).
+        if p.path.parts and p.path.parts[0] == "..":
+            raise PermissionError(f"Path '{p}' escapes vault root '{self._root}'")
+        return self._root / Path(str(p))
 
     def _from_local(self, local_path: Path) -> VaultPath:
         """Convert local Path to VaultPath."""

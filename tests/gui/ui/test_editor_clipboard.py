@@ -17,7 +17,7 @@ def test_editor_copy_keybinding() -> None:
     bus = EventBus()
     router = CommandRouter()
     env = MagicMock(spec=Env)
-    
+
     editor = Editor(
         filestore=MagicMock(),
         event_bus=bus,
@@ -50,7 +50,7 @@ def test_editor_paste_keybinding() -> None:
     bus = EventBus()
     router = CommandRouter()
     env = MagicMock(spec=Env)
-    
+
     editor = Editor(
         filestore=MagicMock(),
         event_bus=bus,
