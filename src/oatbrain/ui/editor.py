@@ -52,6 +52,7 @@ class Editor:
         self._command_router = command_router
         self._env = env
         self._vault_root = vault_root
+        self._resolved_vault_root = vault_root.resolve() if vault_root else None
         self._renderer = renderer
         self._resolver = resolver
         self._watcher = watcher
@@ -551,18 +552,37 @@ class Editor:
                     pass
 
             try:
-                dest_rel = (
-                    new_path.relative_to(self._vault_root) if self._vault_root else None
-                )
+                if self._vault_root:
+                    dest_rel = new_path.relative_to(self._vault_root)
+                else:
+                    dest_rel = None
             except ValueError:
-                dest_rel = None
+                if self._resolved_vault_root:
+                    try:
+                        dest_rel = new_path.relative_to(self._resolved_vault_root)
+                    except ValueError:
+                        try:
+                            dest_rel = new_path.resolve().relative_to(
+                                self._resolved_vault_root
+                            )
+                        except (ValueError, RuntimeError):
+                            dest_rel = None
+                else:
+                    dest_rel = None
 
-            src_is_open = open_abs is not None and path.resolve() == open_abs
-            dst_is_open = (
-                open_abs is not None
-                and dest_rel is not None
-                and new_path.resolve() == open_abs
-            )
+            src_is_open = False
+            dst_is_open = False
+            if open_abs is not None:
+                # Compare resolved paths to handle symlinks correctly
+                try:
+                    resolved_event_path = path.resolve()
+                    src_is_open = resolved_event_path == open_abs
+                    if new_path:
+                        dst_is_open = new_path.resolve() == open_abs
+                except Exception:
+                    src_is_open = path == open_abs
+                    if new_path:
+                        dst_is_open = new_path == open_abs
 
             if src_is_open and dest_rel is not None:
                 # Case 1: our file was renamed/moved — update the tracked path.

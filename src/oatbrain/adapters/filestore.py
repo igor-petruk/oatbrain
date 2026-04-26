@@ -13,6 +13,8 @@ class LocalFileStore(FileStore):
         # We use absolute() instead of resolve() to preserve symlinks in the root path.
         # This allows the vault itself to be a symlink (SPEC §23).
         self._root = root.absolute()
+        # Resolved path for mapping followed symlinks back to vault-relative paths.
+        self._resolved_root = self._root.resolve()
 
     def _to_local(self, p: VaultPath) -> Path:
         """Resolve VaultPath to an absolute local Path."""
@@ -25,8 +27,19 @@ class LocalFileStore(FileStore):
 
     def _from_local(self, local_path: Path) -> VaultPath:
         """Convert local Path to VaultPath."""
-        # Use absolute() here too to match self._root formatting
-        rel = local_path.absolute().relative_to(self._root)
+        abs_p = local_path.absolute()
+        try:
+            rel = abs_p.relative_to(self._root)
+        except ValueError:
+            # If not relative to the symlink root, try the resolved root.
+            # This handles cases where the vault root is a symlink
+            # or contains symlinks.
+            try:
+                rel = abs_p.resolve().relative_to(self._resolved_root)
+            except (ValueError, RuntimeError):
+                # Fallback to absolute if it happens to be the same path
+                # but different representation
+                rel = abs_p.relative_to(self._resolved_root)
         return VaultPath(PurePosixPath(rel))
 
     def _make_entry(self, local_path: Path) -> FileEntry | None:

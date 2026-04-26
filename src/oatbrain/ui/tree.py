@@ -47,6 +47,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self._event_bus = event_bus
         self._command_router = command_router
         self._vault_root = vault_root
+        self._resolved_vault_root = vault_root.resolve() if vault_root else None
         self._watcher = watcher
         self._config = config or AppConfig()
         self._watch_subscriptions: dict[str, Unsubscribe] = {}
@@ -404,9 +405,21 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         """Convert an absolute path to vault-relative, or None if outside vault."""
         if self._vault_root is None:
             return None
-        prefix = str(self._vault_root) + "/"
-        if abs_path.startswith(prefix):
-            return abs_path[len(prefix) :]
+
+        p = Path(abs_path)
+
+        try:
+            return str(p.relative_to(self._vault_root))
+        except ValueError:
+            if self._resolved_vault_root:
+                try:
+                    return str(p.relative_to(self._resolved_vault_root))
+                except ValueError:
+                    # Final try: resolve the incoming path too
+                    try:
+                        return str(p.resolve().relative_to(self._resolved_vault_root))
+                    except (ValueError, RuntimeError):
+                        pass
         return None
 
     def _find_iter_for_path(self, rel_path: str) -> Optional[Gtk.TreeIter]:
