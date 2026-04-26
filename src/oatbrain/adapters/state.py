@@ -15,6 +15,7 @@ class TomlStateStore:
 
     def save(self, state: AppState) -> None:
         try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
             data = self._state_to_dict(state)
             with open(self.path, "wb") as f:
                 tomli_w.dump(data, f)
