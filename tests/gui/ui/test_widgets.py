@@ -129,7 +129,6 @@ def test_app_shell_activation_smoke() -> None:
     assert isinstance(app.tree_pane, FileTree)
 
 
-
 def test_app_shell_shutdown_saves_state() -> None:
     """Verifies that state is saved on shutdown without error."""
     event_bus = EventBus()

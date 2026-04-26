@@ -39,6 +39,11 @@ def generate_gtk_css(theme: ThemeData) -> str:
     background-color: var(--color-bg);
     color: var(--color-fg);
 }
+.oatbrain-group-pane,
+.oatbrain-group-pane notebook,
+.oatbrain-group-pane stack {
+    background-color: var(--color-bg);
+}
 textview.oatbrain-editor border,
 textview.oatbrain-editor gutter {
     background-color: var(--color-gutter-bg, var(--color-bg));

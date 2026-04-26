@@ -1,4 +1,5 @@
 import gi
+import logging
 from typing import Dict, Callable
 
 gi.require_version("Gtk", "4.0")
@@ -7,6 +8,8 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from oatbrain.core.state import GroupState, AppState, TabState  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
+
+log = logging.getLogger(__name__)
 
 
 class GroupPane:
@@ -39,7 +42,9 @@ class GroupPane:
         self._btn_new_tab = Gtk.Button.new_from_icon_name("list-add-symbolic")
         self._btn_new_tab.set_tooltip_text("New Tab")
         self._btn_new_tab.set_has_frame(False)
-        self._btn_new_tab.connect("clicked", lambda *_: self._on_new_tab_requested(self.group_id))
+        self._btn_new_tab.connect(
+            "clicked", lambda *_: self._on_new_tab_requested(self.group_id)
+        )
         self._action_box.append(self._btn_new_tab)
 
         self._btn_split = Gtk.Button.new_from_icon_name("view-dual-symbolic")
@@ -67,10 +72,18 @@ class GroupPane:
             # We need the tab_id for the current page
             # We'll find it by matching the widget
             child = self.notebook.get_nth_page(idx)
+            found_tid = None
             for tid, ed in self.editors.items():
                 if ed.widget == child:
-                    self._on_split_requested(self.group_id, tid)
+                    found_tid = tid
                     break
+
+            if found_tid:
+                self._on_split_requested(self.group_id, found_tid)
+            else:
+                log.warning(
+                    f"Could not find tab_id for index {idx} in group {self.group_id}"
+                )
 
     def update_from_state(
         self,
@@ -102,23 +115,31 @@ class GroupPane:
                 # Store current label state on the editor for caching
                 ed._last_label_title = title
                 ed._last_label_dirty = is_dirty
-                
+
                 self.editors[tid] = ed
 
-                label = self._create_tab_label(tid, title, is_dirty)
+                label = self._create_tab_label(
+                    tid,
+                    title,
+                    is_dirty,
+                    on_close=lambda: self._on_close_requested(self.group_id, tid),
+                )
                 self.notebook.insert_page(ed.widget, label, i)
                 self.notebook.set_tab_reorderable(ed.widget, True)
                 self.notebook.set_tab_detachable(ed.widget, False)
             else:
                 ed = self.editors[tid]
                 ed.update_from_state(tab_state, app_state)
-                
+
                 # Only update label if something changed
-                if (getattr(ed, "_last_label_title", None) != title or 
-                    getattr(ed, "_last_label_dirty", None) != is_dirty):
-                    
+                if ed._last_label_title != title or ed._last_label_dirty != is_dirty:
                     page = ed.widget
-                    new_label = self._create_tab_label(tid, title, is_dirty)
+                    new_label = self._create_tab_label(
+                        tid,
+                        title,
+                        is_dirty,
+                        on_close=lambda: self._on_close_requested(self.group_id, tid),
+                    )
                     self.notebook.set_tab_label(page, new_label)
                     ed._last_label_title = title
                     ed._last_label_dirty = is_dirty
@@ -130,11 +151,16 @@ class GroupPane:
 
         # 3. Ensure correct active tab
         if self.notebook.get_current_page() != group_state.active_tab_index:
+            # Block signal to avoid re-triggering on_tab_switched
+            # when we are syncing from state
             self.notebook.handler_block_by_func(self._on_notebook_switch)
             self.notebook.set_current_page(group_state.active_tab_index)
             self.notebook.handler_unblock_by_func(self._on_notebook_switch)
 
-    def _create_tab_label(self, tab_id: str, title: str, is_dirty: bool) -> Gtk.Widget:
+    @staticmethod
+    def _create_tab_label(
+        tab_id: str, title: str, is_dirty: bool, on_close: Callable[[], None]
+    ) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
 
         label = Gtk.Label()
@@ -164,9 +190,7 @@ class GroupPane:
         close_btn.add_css_class("flat")
         close_btn.add_css_class("tab-close-button")
         close_btn.set_has_frame(False)
-        close_btn.connect(
-            "clicked", lambda *_: self._on_close_requested(self.group_id, tab_id)
-        )
+        close_btn.connect("clicked", lambda *_: on_close())
         box.append(close_btn)
 
         return box

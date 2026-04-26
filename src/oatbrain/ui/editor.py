@@ -68,6 +68,10 @@ class Editor:
         self._is_dirty = False
         self._word_count = 0
 
+        # Tab label cache
+        self._last_label_title: Optional[str] = None
+        self._last_label_dirty: Optional[bool] = None
+
         # Callbacks
         self.on_focused: Optional[Callable[["Editor"], None]] = None
         self.on_path_changed: Optional[Callable[[VaultPath], None]] = None

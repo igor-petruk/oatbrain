@@ -64,14 +64,12 @@ oatbrain is a single-window, local-first desktop app for a personal Markdown
 vault. It presents three panes:
 
 1. A **file tree** rooted at the vault directory.
-2. An **editor / preview** pane that flips between source-markdown editing and a
-   rendered read mode.
-3. A **terminal** emulator — a first-class peer of the editor, intended to keep
-   an AI CLI (e.g. `claude`, `codex`, `aider`) always reachable alongside the
-   note being edited.
+2. An **editor / preview area** that supports multiple tabs organized into
+   horizontal split groups.
+3. A **terminal** emulator — a first-class peer of the editor area.
 
-One vault per window. No tabs. No split editors. No browser. Linux-first; Unix-
-portable by default.
+One vault per window. Multi-tab groups with horizontal splits. No browser. 
+Linux-first; Unix-portable by default.
 
 Primary audience: public release. Primary platform: Debian testing (trixie).
 
@@ -83,6 +81,7 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 
 - Launch: `oatbrain <vault-path>`, or `oatbrain` to reopen the last vault.
 - File tree (collapse/expand, select-to-open, resize, hide/show).
+- Multi-tab editor with horizontal group splits (§10, §11).
 - Editor on `.md` files with GtkSourceView syntax highlighting and vim mode.
 - Read-mode preview in WebKitGTK.
 - Edit↔read flip via two small buttons in the pane's top-right corner, or
@@ -106,9 +105,9 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
   widget in a different prefix mode.
 - Three built-in themes: Solarized Light, Monokai Dark, high-contrast dark.
   System light/dark preference picks between the first two.
-- Zen mode (`Ctrl+Shift+Z`): collapses tree and terminal, widens editor margins
-  for distraction-free writing. Toggle button in the header bar restores previous
-  layout on exit. Zen mode is not persisted across sessions.
+- Zen mode (`Ctrl+Shift+Z`): collapses tree and terminal, widens editor area
+  margins for distraction-free writing. Toggle button in the header bar restores
+  previous layout on exit. Zen mode is not persisted across sessions.
 - Config in `$XDG_CONFIG_HOME/oatbrain/config.toml`. Session state persisted
   separately in `$XDG_STATE_HOME/oatbrain/state.toml`.
 
@@ -139,7 +138,6 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 ### 1.3 Out of scope forever
 
 - Multi-window UI.
-- Tabs within a pane.
 - Detachable panes.
 - Multi-vault UI (one vault per process).
 - Mobile companion.
@@ -149,6 +147,7 @@ Primary audience: public release. Primary platform: Debian testing (trixie).
 - Telemetry.
 - In-app auto-update (apt handles updates).
 - Pixel-exact visual regression tests.
+
 
 ---
 
@@ -356,19 +355,23 @@ oatbrain [<vault-path>]
 ```
 ┌──────────────────── AdwHeaderBar ─────────────────────┐
 ├──────┬──────────────────────────┬─────────────────────┤
-│      │                          │                     │
-│ Tree │   Editor / Preview       │     Terminal        │
-│      │                          │                     │
-├──────┴──────────────────────────┴─────────────────────┤
+│      │   Editor Area (Tabs)     │                     │
+│ Tree ├────────────┬─────────────┤     Terminal        │
+│      │  Group 1   │  Group 2    │                     │
+│      │            │             │                     │
+├──────┴────────────┴─────────────┴─────────────────────┤
 │                    Status Bar                         │
 └───────────────────────────────────────────────────────┘
 ```
 
-- Fixed layout. No drag-to-reorder. No detach. No splits inside panes.
-- Default proportions: Tree 15% · Editor/Preview remainder · Terminal 30%.
-- Tree and Terminal may be resized by dragging the splitter. Editor/Preview
+- Fixed layout. No drag-to-reorder. No detach.
+- Editor Area supports multiple horizontal **Groups** (§10.2).
+- Default proportions: Tree 15% · Editor Area remainder · Terminal 30%.
+- Tree and Terminal may be resized by dragging the splitter. Editor Area
   always takes what remains.
-- Tree and Terminal may be hidden (§7.3). Editor/Preview, header, and status
+- Dividers between editor groups are resizable and persisted as fractions 
+  of total area width.
+- Tree and Terminal may be hidden (§7.3). Editor Area, header, and status
   bar are always visible.
 
 ### 6.3 Status bar
@@ -384,13 +387,9 @@ Persistent single-line footer. Displays, in order:
 ### 6.4 Minimum window size
 
 No hard pixel minimum. When the window becomes narrow enough that Tree +
-Editor + Terminal cannot coexist, the user-controlled visibility governs:
-panes stay at their saved widths; Editor/Preview may scroll horizontally.
+Editor Area + Terminal cannot coexist, the user-controlled visibility governs:
+panes stay at their saved widths; Editor Area may scroll horizontally.
 Auto-collapse on narrow window is **out of scope** for MVP.
-
-### 6.5 Named layouts
-
-Out of scope for MVP. Deferred.
 
 ---
 
@@ -401,9 +400,10 @@ Out of scope for MVP. Deferred.
 | Pane          | First-class? | Focusable? | Hideable? | Multi-instance? |
 |---------------|:---:|:---:|:---:|:---:|
 | File Tree     | yes | yes | yes | no |
-| Editor/Preview| yes | yes | no  | no |
+| Editor Area   | yes | yes | no  | yes (via groups/tabs) |
 | Terminal      | yes | yes | yes | no |
 | Palette overlay | no  | yes (when open) | n/a | no |
+
 
 Outline, Backlinks, Global Search Results, Tag browser, Graph — deferred (§1.2).
 
@@ -535,19 +535,20 @@ functions that take text in and give text out and do not touch a buffer.
 
 ### 10.2 Modes
 
-Two modes, mutually exclusive at any given moment:
+Two modes for each tab, mutually exclusive at any given moment:
 
 | Mode   | Widget | Content             |
 |--------|--------|---------------------|
 | Source | GtkSourceView | raw markdown, syntax highlighted |
 | Read   | WebKitGTK     | rendered HTML (read-only caret) |
 
-There is no split mode. There is no live-preview / typewriter mode.
+Tabs are organized into horizontal **Groups**. Groups are created via "Split Right" 
+which duplicates the current tab into a new group.
 
-- Default mode on open: the mode the pane was last in for the current session;
+- Default mode on open: the mode the tab was last in for the current session;
   at app launch, Source mode.
 - Mode is not persisted per-file.
-- Toggle via the two small buttons in the pane's top-right corner, or
+- Toggle via the two small buttons in the tab's top-right corner, or
   `Ctrl+E`.
 - Flipping MUST attempt a best-effort scroll-to-same-place jump.
 
@@ -556,8 +557,7 @@ There is no split mode. There is no live-preview / typewriter mode.
 - Explicit save: `Ctrl+S` and `:w` (vim command-line) flush immediately.
 - There is **no** autosave on window blur or focus leave.
 - Save is atomic: write to a hidden temp file in the same directory, then
-  `rename` into place (guarantees same-filesystem atomicity; temp name is
-  dot-prefixed so the filesystem watcher can filter it trivially).
+  `rename` into place.
 
 ### 10.4 Vim mode
 
@@ -1013,6 +1013,8 @@ results.
 | Key | Scope | Action |
 |---|---|---|
 | `Ctrl+N` | app | New note — creates `untitled-<n>.md` in vault root |
+| `Ctrl+T` | app | New tab (duplicate of focused) |
+| `Ctrl+W` | app | Close focused tab |
 | `Ctrl+O` | app | Alias for `Ctrl+P` |
 | `Ctrl+P` | app | Palette, files mode |
 | `Ctrl+Shift+P` | app | Palette, commands mode |
@@ -1024,13 +1026,15 @@ results.
 | `` Ctrl+` `` | app | Toggle terminal |
 | `Ctrl+K V` | editor | Open preview of current file (chord) — see §18.3 |
 | `Ctrl+1` | app | Focus tree |
-| `Ctrl+2` | app | Focus editor/preview |
+| `Ctrl+2` | app | Focus editor area |
 | `Ctrl+3` | app | Focus terminal |
+| `Ctrl+\` | app | Split group right |
+| `Ctrl+Tab` | app | Next tab in focused group |
+| `Ctrl+Shift+Tab` | app | Previous tab in focused group |
 | `Alt+Left` | app | History back |
 | `Alt+Right` | app | History forward |
 | `F11` | app | Toggle fullscreen |
 | `F1`, `?` | app | Cheatsheet (palette in help mode) |
-| `Ctrl+Tab` | app | Cycle focus: tree → editor → terminal → tree |
 | `F5` | app | Refresh current file from disk |
 | `Escape` | editor | Leave insert mode (vim) |
 | `Ctrl+Shift+Y` | app | Send current file path to terminal stdin |
@@ -1497,7 +1501,9 @@ state (word counts, dirty flags, cursor position) is NOT in global state.
 
 | Slice | Contents |
 |---|---|
-| `EditorState` | open file path, mode (source/read) |
+| `EditorAreaState` | horizontal groups, divider fractions, focused group index |
+| `GroupState` | group ID, tabs (tuple of TabState), active tab index |
+| `TabState` | tab ID, open file path, mode (source/read), zoom levels |
 | `FileTreeState` | expanded folders, width |
 | `SearchState` | palette open?, mode (files/commands/help), query, result set, selected index |
 | `TerminalState` | visible?, width, spawned process handle |
@@ -1683,13 +1689,31 @@ terminal_width = 480
 terminal_visible = true
 terminal_zoom = 1.0
 
-[editor]
-open_file = "Projects/oatbrain/SPEC.md"
-read_mode = false
-zoom = 1.0
+[editor_area]
+focused_group = 0
+divider_fractions = [0.5]
 
-[preview]
+[[editor_area.groups]]
+group_id = "g1"
+active_tab = 0
+
+[[editor_area.groups.tabs]]
+tab_id  = "t1"
+open_file = "notes/foo.md"
+mode = "editor"
 zoom = 1.0
+preview_zoom = 1.0
+
+[[editor_area.groups]]
+group_id = "g2"
+active_tab = 0
+
+[[editor_area.groups.tabs]]
+tab_id  = "t2"
+open_file = "notes/foo.md"
+mode = "preview"
+zoom = 1.0
+preview_zoom = 1.0
 
 [theme]
 active_is_dark = true

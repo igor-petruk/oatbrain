@@ -1,18 +1,17 @@
 import tomllib
 import tomli_w
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from oatbrain.core.state import AppState, EditorAreaState, GroupState, TabState
 from oatbrain.core.ports.filestore import VaultPath
 
+log = logging.getLogger(__name__)
+
 
 class TomlStateStore:
     def __init__(self, path: Path) -> None:
         self.path = path
-
-    # ------------------------------------------------------------------
-    # Save
-    # ------------------------------------------------------------------
 
     def save(self, state: AppState) -> None:
         try:
@@ -20,7 +19,7 @@ class TomlStateStore:
             with open(self.path, "wb") as f:
                 tomli_w.dump(data, f)
         except Exception as e:
-            print(f"Error saving state to TOML: {e}")
+            log.error(f"Error saving state to TOML: {e}")
 
     def _state_to_dict(self, state: AppState) -> Dict[str, Any]:
         groups = []
@@ -70,10 +69,6 @@ class TomlStateStore:
             },
         }
 
-    # ------------------------------------------------------------------
-    # Load
-    # ------------------------------------------------------------------
-
     def load(self) -> AppState:
         if not self.path.exists():
             raise FileNotFoundError(f"State file not found: {self.path}")
@@ -85,12 +80,12 @@ class TomlStateStore:
         panes = data.get("panes", {})
         theme_data = data.get("theme", {})
         mermaid_data = data.get("mermaid", {})
-        ea_data = data.get("editor_area", {})
+        editor_area_data = data.get("editor_area", {})
 
         vault_root_str = general.get("last_vault", ".")
         vault_root = Path(vault_root_str)
 
-        editor_area = self._load_editor_area(ea_data, vault_root)
+        editor_area = self._load_editor_area(editor_area_data, vault_root)
 
         return AppState(
             vault_root=vault_root,
@@ -106,10 +101,6 @@ class TomlStateStore:
             mermaid_dismissed=mermaid_data.get("dismissed", False),
         )
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _sanitize_path(raw: str, vault_root_str: str) -> Optional[str]:
         """Strip accidental absolute prefixes; return None if path is invalid."""
@@ -117,15 +108,15 @@ class TomlStateStore:
             return None
         if vault_root_str and raw.startswith(vault_root_str):
             raw = raw[len(vault_root_str) :].lstrip("/")
-        elif raw.lstrip("/") != raw:
+        elif Path(raw).is_absolute():
             # Absolute path that doesn't match vault root — discard.
             return None
         return raw or None
 
     def _load_editor_area(
-        self, ea_data: Dict[str, Any], vault_root: Path
+        self, editor_area_data: Dict[str, Any], vault_root: Path
     ) -> EditorAreaState:
-        raw_groups = ea_data.get("groups", [])
+        raw_groups = editor_area_data.get("groups", [])
         vault_root_str = str(vault_root)
 
         loaded_groups: List[GroupState] = []
@@ -138,8 +129,10 @@ class TomlStateStore:
                     # File-backed tab: validate and drop if stale.
                     clean_path = self._sanitize_path(raw_path, vault_root_str)
                     if clean_path is None:
+                        log.info(f"Dropping tab with invalid path: {raw_path}")
                         continue  # invalid path — drop tab
                     if not (vault_root / clean_path).exists():
+                        log.info(f"Dropping stale tab (file missing): {clean_path}")
                         continue  # file gone — drop tab
                     loaded_tabs.append(
                         TabState(
@@ -164,6 +157,7 @@ class TomlStateStore:
 
             if not loaded_tabs:
                 # Group is empty after cleanup — skip it (group auto-deleted).
+                log.info(f"Dropping empty group: {g.get('group_id')}")
                 continue
 
             active = g.get("active_tab", 0)
@@ -177,18 +171,24 @@ class TomlStateStore:
             )
 
         if not loaded_groups:
+            log.info("No groups loaded from state; falling back to default.")
             # Fallback: one group with one blank tab.
             loaded_groups = [GroupState()]
 
-        raw_fractions = ea_data.get("divider_fractions", [])
+        raw_fractions = editor_area_data.get("divider_fractions", [])
         # Clamp fractions list to match the actual number of dividers.
         expected_dividers = len(loaded_groups) - 1
         fractions = list(raw_fractions)[:expected_dividers]
         while len(fractions) < expected_dividers:
             fractions.append(0.5)
 
-        focused = ea_data.get("focused_group", 0)
+        focused = editor_area_data.get("focused_group", 0)
         focused = max(0, min(focused, len(loaded_groups) - 1))
+
+        log.info(
+            f"Loaded editor area with {len(loaded_groups)} groups "
+            f"and {len(fractions)} dividers."
+        )
 
         return EditorAreaState(
             groups=tuple(loaded_groups),

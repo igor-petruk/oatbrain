@@ -97,6 +97,7 @@ class HeaderBar:
 
     def _on_new_note_clicked(self, _btn: Gtk.Button) -> None:
         from oatbrain.core.commands.editor import NewTab
+
         self._command_router.dispatch(NewTab())
 
     def _on_state_updated(self, event: StateUpdated) -> None:

@@ -96,6 +96,7 @@ class EditorArea:
         # Track Paned widgets in order from root-most to leaf-most for fraction mapping
         self._paned_widgets: List[Gtk.Paned] = []
 
+        self._last_active_gids: List[str] = []
         self._dirty_states: Dict[str, bool] = {}  # tab_id -> is_dirty
 
         # Theme caching for new editors
@@ -221,9 +222,10 @@ class EditorArea:
 
     def _sync_paned_structure(self, ea_state: EditorAreaState) -> None:
         active_gids = [g.group_id for g in ea_state.groups]
-        
-        # 0. Check if the structure actually changed (number of groups or their IDs/order)
-        if hasattr(self, "_last_active_gids") and self._last_active_gids == active_gids:
+
+        # 0. Check if the structure actually changed
+        # (number of groups or their IDs/order)
+        if self._last_active_gids == active_gids:
             return
         self._last_active_gids = active_gids
 
@@ -240,7 +242,7 @@ class EditorArea:
             pane.destroy()
 
         # 3. Clear the root widget entirely
-        while (child := self._root_widget.get_first_child()):
+        while child := self._root_widget.get_first_child():
             self._root_widget.remove(child)
 
         # 4. Dismantle the old Paned tree if it exists
@@ -273,7 +275,7 @@ class EditorArea:
             # Build from right to left: RootPaned(Pane0, Paned(Pane1, ...))
             # The indices in ea_state.divider_fractions correspond to i=0, 1, 2...
             # where i=0 is the root-most Paned.
-            
+
             # To apply fractions correctly, we need the Paned widgets in order.
             current = panes[-1]
             temp_paneds = []
@@ -284,7 +286,7 @@ class EditorArea:
                 p.set_end_child(current)
                 temp_paneds.append(p)
                 current = p
-            
+
             # temp_paneds is [Leaf-most-Paned, ..., Root-most-Paned]
             # Reverse it to have [Root, ..., Leaf]
             self._paned_widgets = list(reversed(temp_paneds))
@@ -352,14 +354,22 @@ class EditorArea:
             width = p.get_width()
             if width > 0:
                 pos = p.get_position()
-                frac = round(float(pos) / width, 3) # Round to 3 decimal places
+                frac = round(float(pos) / width, 3)  # Round to 3 decimal places
                 new_fractions.append(frac)
-                
-                old_frac = self._state.divider_fractions[i] if i < len(self._state.divider_fractions) else 0.5
+
+                old_frac = (
+                    self._state.divider_fractions[i]
+                    if i < len(self._state.divider_fractions)
+                    else 0.5
+                )
                 if abs(frac - old_frac) > 0.001:
                     changed = True
             else:
-                old_frac = self._state.divider_fractions[i] if i < len(self._state.divider_fractions) else 0.5
+                old_frac = (
+                    self._state.divider_fractions[i]
+                    if i < len(self._state.divider_fractions)
+                    else 0.5
+                )
                 new_fractions.append(old_frac)
 
         if changed:
@@ -395,17 +405,17 @@ class EditorArea:
     def _on_new_tab_requested(self, group_id: str) -> None:
         if not self._state:
             return
-        
+
         # Find the group index
         idx = -1
         for i, g in enumerate(self._state.groups):
             if g.group_id == group_id:
                 idx = i
                 break
-        
+
         if idx == -1:
             return
-            
+
         # Update focus to this group and then add tab
         # Actually we can just do it in one go
         g = self._state.groups[idx]
