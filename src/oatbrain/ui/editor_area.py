@@ -347,7 +347,7 @@ class EditorArea:
                 )
 
     def _build_paned_tree(
-        self, active_gids: List[str], divider_fractions: tuple
+        self, active_gids: List[str], divider_fractions: tuple[float, ...]
     ) -> None:
         """Build the nested Gtk.Paned structure for the given groups."""
         panes = [self.groups_panes[gid].widget for gid in active_gids]
