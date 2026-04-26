@@ -106,3 +106,26 @@ Details: See [PLAN_HIGHLIGHT.md](PLAN_HIGHLIGHT.md)
 - [x] Inject CSS styles into `Preview`.
 - [x] Add unit tests for highlighting.
 
+---
+
+## Phase 17: Multi-Tab & Split Groups [DONE]
+Goal: Replace single-editor view with a robust multi-tab and split-group system.
+
+### Step 17.1: Multi-Tab Implementation [DONE]
+- **Task**: Organise editors into tabs within groups.
+- **Action**:
+    - Introduced `EditorAreaState`, `GroupState`, and `TabState`.
+    - Implemented `GroupPane` (wraps `Gtk.Notebook`).
+    - Added `NewTab`, `CloseTab`, and `SplitGroupRight` commands.
+    - Updated `TomlStateStore` to persist the full layout.
+- **Verification**: `tests/unit/ui/test_editor_area_state.py` and `tests/gui/ui/test_editor_groups.py` passed.
+
+### Step 17.2: Stability & Polish [DONE]
+- **Task**: Ensure persistence and UI responsiveness.
+- **Action**:
+    - Added divider fraction persistence for group splits.
+    - Implemented state sanitization (dropping stale files/empty groups).
+    - Added themed backgrounds for `GroupPane` to avoid white flashes.
+    - Implemented global XDG isolation for all tests.
+- **Verification**: 101 GUI tests passing; zero interference with local user state.
+
