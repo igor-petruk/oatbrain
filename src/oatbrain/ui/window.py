@@ -689,8 +689,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
         if path:
             prefix = self._config.inbox.process_prefix
-            # Use ./ prefix as requested in QUESTIONAIRE
-            cmd_str = f"{prefix} ./{path}"
+            # Use ./ prefix as requested in QUESTIONAIRE and surround path
+            # with quotes (§17.1)
+            cmd_str = f"{prefix} './{path}'"
             self._command_router.dispatch(SendToTerminal(text=cmd_str, execute=False))
 
     def _on_save_as_requested(self, event: SaveAsRequested) -> None:
@@ -714,13 +715,18 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             path = VaultPath.from_str(f"{target_dir}/{slug}")
             counter += 1
 
-        # Show a simple dialog to get the filename
+        self._show_save_as_dialog(event, target_dir, slug)
+
+    def _show_save_as_dialog(
+        self, event: SaveAsRequested, target_dir: str, default_filename: str
+    ) -> None:
+        """Show a dialog to get the filename for a new note."""
         dialog = Adw.MessageDialog(
             transient_for=self.main_window,
             heading="Save New Note",
             body=f"Target directory: {target_dir}",
         )
-        entry = Gtk.Entry(text=slug)
+        entry = Gtk.Entry(text=default_filename)
         entry.set_margin_top(12)
         entry.set_hexpand(True)
         entry.set_activates_default(True)
@@ -743,7 +749,6 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
                 if not filename.endswith(".md"):
                     filename += ".md"
 
-                target_dir = event.target_dir or self._config.inbox.folder
                 path = VaultPath.from_str(f"{target_dir}/{filename}")
 
                 try:
