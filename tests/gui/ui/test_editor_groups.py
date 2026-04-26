@@ -183,6 +183,9 @@ def test_new_tab_button_in_group_pane(app_and_loop):
     assert len(app._state.editor_area.groups[0].tabs) == 2
 
 
+@pytest.mark.skipif(
+    os.environ.get("GITHUB_ACTIONS") == "true", reason="WebKit crashes in CI"
+)
 def test_mode_switch_targets_correct_tab(app_and_loop):
     """
     Verify that clicking the mode toggle in an unfocused tab
@@ -209,7 +212,7 @@ def test_mode_switch_targets_correct_tab(app_and_loop):
     gid0 = ea.groups[0].group_id
     pane0 = app.editor_area.groups_panes[gid0]
     tid0 = ea.groups[0].tabs[0].tab_id
-    editor0 = pane0.editors[tid0]
+    pane0.editors[tid0]
 
     # Verify initial mode is 'editor'
     assert ea.groups[0].tabs[0].mode == "editor"
