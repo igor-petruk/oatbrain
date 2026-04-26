@@ -33,7 +33,8 @@ Every task MUST follow this lifecycle:
   - `make tach` — Architecture boundary check.
   - `make test` — Run all unit tests.
   - `make test-gui` — Run GUI/smoke tests.
-- **Pre-Push Gate**: NEVER push changes to the repository unless the entire validation pipeline (`make lint && make tach && make test-gui && make test`) passes.
+- **Mandatory Local Validation**: You MUST run the entire set of validation commands locally (`make lint && make tach && make test && make test-gui`) before offering any changes for review or considering a task complete.
+- **Pre-Push Gate**: NEVER push changes to the repository unless the entire validation pipeline passes.
 - **No Manual Formatting**: Do NOT manually format code or use AI-generated formatting. Always invoke `make format` to ensure consistency with project standards.
 - **Mandatory Coverage**: Any code change or new feature MUST be accompanied by a unit test. A change is incomplete without verification logic that prevents future regressions.
 - **Exception Reproduction**: If a user reports an application runtime exception (e.g., Python tracebacks, AttributeError, TypeError), you MUST first reproduce the failure with a new unit test before applying any fix. This ensures the bug is caught and prevented from recurring.

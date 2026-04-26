@@ -10,6 +10,7 @@ from oatbrain.core.bus import EventBus, CommandRouter
 from oatbrain.core.commands import (
     OpenFile,
     NewTab,
+    NewNote,
     CloseTab,
     SplitGroupRight,
 )
@@ -20,6 +21,7 @@ from oatbrain.core.ports.renderer import Renderer
 from oatbrain.core.wikilink import WikilinkResolver
 from oatbrain.core.events.ui import (
     TabPathChanged,
+    TabTitleChanged,
     FocusedTabStats,
     WordCountChanged,
     DirtyStateChanged,
@@ -44,6 +46,17 @@ def compute_tab_titles(ea_state: EditorAreaState) -> Dict[str, str]:
 
     titles: Dict[str, str] = {}
     for tid, path in id_to_path.items():
+        # Priority 1: Title override from TabState (e.g. extracted heading)
+        for g in ea_state.groups:
+            for t in g.tabs:
+                if t.tab_id == tid and t.title:
+                    titles[tid] = t.title
+                    break
+            if tid in titles:
+                break
+        if tid in titles:
+            continue
+
         if not path:
             titles[tid] = "Untitled"
             continue
@@ -95,9 +108,11 @@ class EditorArea:
 
         # Track Paned widgets in order from root-most to leaf-most for fraction mapping
         self._paned_widgets: List[Gtk.Paned] = []
+        self._paned_handler_ids: Dict[Gtk.Paned, int] = {}
 
         self._last_active_gids: List[str] = []
         self._dirty_states: Dict[str, bool] = {}  # tab_id -> is_dirty
+        self._is_syncing = False
 
         # Theme caching for new editors
         self._current_theme_css: Optional[str] = None
@@ -109,8 +124,54 @@ class EditorArea:
         self._dirty_states_by_id: Dict[int, bool] = {}  # ed_id -> dirty
 
         self._event_bus.subscribe(TabPathChanged, self._on_tab_path_changed)
+        self._event_bus.subscribe(TabTitleChanged, self._on_tab_title_changed)
         self._event_bus.subscribe(WordCountChanged, self._on_word_count_changed)
         self._event_bus.subscribe(DirtyStateChanged, self._on_dirty_state_changed)
+
+    def _on_tab_title_changed(self, event: TabTitleChanged) -> None:
+        """
+        Update the title of a specific tab in the state when it changes in the editor.
+        """
+        if not self._state:
+            return
+
+        # We need to reconstruct the EditorAreaState with the updated tab title.
+        new_groups = []
+        for group in self._state.groups:
+            new_tabs = []
+            for tab in group.tabs:
+                if tab.tab_id == event.tab_id:
+                    # Update matching tab title
+                    new_tabs.append(
+                        TabState(
+                            tab_id=tab.tab_id,
+                            open_file=tab.open_file,
+                            is_new=tab.is_new,
+                            title=event.title,
+                            target_dir=tab.target_dir,
+                            mode=tab.mode,
+                            zoom=tab.zoom,
+                            preview_zoom=tab.preview_zoom,
+                        )
+                    )
+                else:
+                    new_tabs.append(tab)
+
+            new_groups.append(
+                GroupState(
+                    group_id=group.group_id,
+                    tabs=tuple(new_tabs),
+                    active_tab_index=group.active_tab_index,
+                )
+            )
+
+        self._on_state_change_requested(
+            EditorAreaState(
+                groups=tuple(new_groups),
+                divider_fractions=self._state.divider_fractions,
+                focused_group_index=self._state.focused_group_index,
+            )
+        )
 
     def _on_tab_path_changed(self, event: TabPathChanged) -> None:
         # Update the state with the new path for this tab
@@ -221,38 +282,59 @@ class EditorArea:
         )
 
     def _sync_paned_structure(self, ea_state: EditorAreaState) -> None:
-        active_gids = [g.group_id for g in ea_state.groups]
+        """
+        Synchronize the GTK widget structure (Paned widgets and GroupPanes)
+        to match the EditorAreaState.
+        """
+        self._is_syncing = True
+        try:
+            active_gids = [g.group_id for g in ea_state.groups]
 
-        # 0. Check if the structure actually changed
-        # (number of groups or their IDs/order)
-        # We also ensure that all panes actually exist in our cache.
-        if self._last_active_gids == active_gids and all(
-            gid in self.groups_panes for gid in active_gids
-        ):
-            return
+            # 0. Check if the structure actually changed
+            if self._last_active_gids == active_gids and all(
+                gid in self.groups_panes for gid in active_gids
+            ):
+                return
 
-        # 1. Collect all current group widgets and ensure they are unparented
-        # from any previous Paned or Box structure.
-        for gid, pane in self.groups_panes.items():
+            self._unparent_all_group_widgets()
+            self._cleanup_removed_groups(active_gids)
+            self._clear_root_widget()
+            self._ensure_active_groups_exist(active_gids)
+
+            if not active_gids:
+                return
+
+            self._build_paned_tree(active_gids, ea_state.divider_fractions)
+
+            self._root_widget.append(self._paned_root)
+            self._last_active_gids = active_gids
+        finally:
+            self._is_syncing = False
+
+    def _unparent_all_group_widgets(self) -> None:
+        """Unparent all current group widgets to prepare for restructuring."""
+        for pane in self.groups_panes.values():
             if pane.widget.get_parent():
                 pane.widget.unparent()
 
-        # 2. Remove old panes that are no longer active
+    def _cleanup_removed_groups(self, active_gids: List[str]) -> None:
+        """Destroy GroupPanes that are no longer in the state."""
         to_remove = [gid for gid in self.groups_panes if gid not in active_gids]
         for gid in to_remove:
             pane = self.groups_panes.pop(gid)
             pane.destroy()
 
-        # 3. Clear the root widget entirely
+    def _clear_root_widget(self) -> None:
+        """Clear the root widget and dismantle the old Paned tree."""
         while child := self._root_widget.get_first_child():
             self._root_widget.remove(child)
 
-        # 4. Dismantle the old Paned tree if it exists
         if self._paned_root:
             self._unparent_paned_recursive(self._paned_root)
             self._paned_root = None
 
-        # 5. Ensure all active panes exist
+    def _ensure_active_groups_exist(self, active_gids: List[str]) -> None:
+        """Ensure that a GroupPane exists for every active group ID."""
         for gid in active_gids:
             if gid not in self.groups_panes:
                 self.groups_panes[gid] = GroupPane(
@@ -264,21 +346,18 @@ class EditorArea:
                     on_editor_focused=self._on_editor_focused,
                 )
 
-        if not active_gids:
-            return
-
-        # 6. Build a new sequence of Paned widgets or just use the single pane
+    def _build_paned_tree(
+        self, active_gids: List[str], divider_fractions: tuple[float, ...]
+    ) -> None:
+        """Build the nested Gtk.Paned structure for the given groups."""
         panes = [self.groups_panes[gid].widget for gid in active_gids]
         self._paned_widgets.clear()
+        self._paned_handler_ids.clear()
 
         if len(panes) == 1:
             self._paned_root = panes[0]
         else:
             # Build from right to left: RootPaned(Pane0, Paned(Pane1, ...))
-            # The indices in ea_state.divider_fractions correspond to i=0, 1, 2...
-            # where i=0 is the root-most Paned.
-
-            # To apply fractions correctly, we need the Paned widgets in order.
             current = panes[-1]
             temp_paneds = []
             for i in range(len(panes) - 2, -1, -1):
@@ -286,6 +365,11 @@ class EditorArea:
                 p.set_wide_handle(True)
                 p.set_start_child(panes[i])
                 p.set_end_child(current)
+
+                # Prevent zero-size tabs by disabling shrink (§17.2)
+                p.set_shrink_start_child(False)
+                p.set_shrink_end_child(False)
+
                 temp_paneds.append(p)
                 current = p
 
@@ -296,14 +380,12 @@ class EditorArea:
 
             # Connect signals and apply fractions
             for i, p in enumerate(self._paned_widgets):
-                if i < len(ea_state.divider_fractions):
-                    frac = ea_state.divider_fractions[i]
+                if i < len(divider_fractions):
+                    frac = divider_fractions[i]
                     GLib.idle_add(lambda p=p, f=frac: self._set_paned_fraction(p, f))
 
-                p.connect("notify::position", self._on_divider_moved)
-
-        self._root_widget.append(self._paned_root)
-        self._last_active_gids = active_gids
+                handler_id = p.connect("notify::position", self._on_divider_moved)
+                self._paned_handler_ids[p] = handler_id
 
     def _unparent_paned_recursive(self, widget: Gtk.Widget) -> None:
         if isinstance(widget, Gtk.Paned):
@@ -342,12 +424,20 @@ class EditorArea:
     def _set_paned_fraction(self, paned: Gtk.Paned, fraction: float) -> bool:
         width = paned.get_width()
         if width > 0:
-            paned.set_position(int(width * fraction))
+            handler_id = self._paned_handler_ids.get(paned)
+            if handler_id is not None:
+                paned.handler_block(handler_id)
+                try:
+                    paned.set_position(int(width * fraction))
+                finally:
+                    paned.handler_unblock(handler_id)
+            else:
+                paned.set_position(int(width * fraction))
             return False
         return True
 
     def _on_divider_moved(self, paned: Gtk.Paned, _pspec: Any) -> None:
-        if not self._state or not self._paned_widgets:
+        if self._is_syncing or not self._state or not self._paned_widgets:
             return
 
         # Calculate all current fractions
@@ -474,10 +564,14 @@ class EditorArea:
         if not new_groups:
             new_groups = [GroupState()]  # Fallback to blank
 
+        expected = len(new_groups) - 1
+        # Balance widths equally among all groups (§17.2)
+        fractions = [1.0 / (len(new_groups) - i) for i in range(expected)]
+
         self._on_state_change_requested(
             EditorAreaState(
                 groups=tuple(new_groups),
-                divider_fractions=self._state.divider_fractions,
+                divider_fractions=tuple(fractions),
                 focused_group_index=0,  # Resets focus if root changed
             )
         )
@@ -512,9 +606,8 @@ class EditorArea:
                 new_focus_idx = len(new_groups) - 1
 
         expected = len(new_groups) - 1
-        fractions = list(self._state.divider_fractions)[:expected]
-        while len(fractions) < expected:
-            fractions.append(0.5)
+        # Balance widths equally among all groups (§17.2)
+        fractions = [1.0 / (len(new_groups) - i) for i in range(expected)]
 
         self._on_state_change_requested(
             EditorAreaState(
@@ -550,6 +643,9 @@ class EditorArea:
         if isinstance(cmd, NewTab):
             self._handle_new_tab()
             return True
+        if isinstance(cmd, NewNote):
+            self._handle_new_note(cmd.target_dir)
+            return True
         if isinstance(cmd, CloseTab):
             if self._state:
                 fg = self._state.groups[self._state.focused_group_index]
@@ -583,6 +679,43 @@ class EditorArea:
             mode=current_tab.mode,
             zoom=current_tab.zoom,
             preview_zoom=current_tab.preview_zoom,
+        )
+
+        new_tabs = list(g.tabs)
+        new_tabs.insert(g.active_tab_index + 1, new_tab)
+
+        new_groups = list(self._state.groups)
+        new_groups[idx] = GroupState(
+            group_id=g.group_id,
+            tabs=tuple(new_tabs),
+            active_tab_index=g.active_tab_index + 1,
+        )
+
+        self._on_state_change_requested(
+            EditorAreaState(
+                groups=tuple(new_groups),
+                divider_fractions=self._state.divider_fractions,
+                focused_group_index=idx,
+            )
+        )
+
+    def _handle_new_note(self, target_dir: Optional[str] = None) -> None:
+        """
+        Handle NewNote command by creating a new in-memory TabState and adding
+        it to the focused group. The tab is marked as is_new=True to trigger
+        the Save As workflow upon first save.
+        """
+        if not self._state:
+            return
+
+        idx = self._state.focused_group_index
+        g = self._state.groups[idx]
+
+        new_tab = TabState(
+            open_file=None,
+            is_new=True,
+            title="Untitled",
+            target_dir=target_dir,
         )
 
         new_tabs = list(g.tabs)

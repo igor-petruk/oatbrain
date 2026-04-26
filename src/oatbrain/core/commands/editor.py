@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,17 @@ class NewTab:
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "NewTab"]]:
         return [("New Tab", cls())]
+
+
+@dataclass(frozen=True)
+class NewNote:
+    """Create a new unsaved note in the focused group."""
+
+    target_dir: Optional[str] = None
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "NewNote"]]:
+        return [("New Note", cls())]
 
 
 @dataclass(frozen=True)

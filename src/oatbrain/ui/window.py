@@ -11,13 +11,20 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Gdk, Gio, GLib  # noqa: E402
 
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
-from oatbrain.core.state import AppState, EditorAreaState, TabState  # noqa: E402
+from oatbrain.core.state import (  # noqa: E402
+    AppState,
+    EditorAreaState,
+    TabState,
+    GroupState,
+)
 from oatbrain.core.events.state import StateUpdated  # noqa: E402
 from oatbrain.core.events.ui import (  # noqa: E402
     StatusMessageRequested,
     WordCountChanged,
     DirtyStateChanged,
     FileChangedOnDisk,
+    SaveAsRequested,
+    TabPathChanged,
 )
 from oatbrain.core.commands import (  # noqa: E402
     OpenFile,
@@ -28,18 +35,20 @@ from oatbrain.core.commands import (  # noqa: E402
     DismissMermaidWarning,
     SetTreeExpanded,
     Zoom,
+    ProcessFile,
 )
 from oatbrain.core.commands.editor import (  # noqa: E402
     ToggleMode,
     ToggleZen,
     RefreshFile,
     NewTab,
+    NewNote,
     CloseTab,
     SplitGroupRight,
 )
 from oatbrain.core.commands.theme import SetTheme  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
-from oatbrain.core.ports.filestore import FileStore  # noqa: E402
+from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.state import StateStore  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.ports.watcher import FileWatcher  # noqa: E402
@@ -51,7 +60,7 @@ from oatbrain.core.events.mermaid import MermaidFetchResult  # noqa: E402
 from oatbrain.core.ports.config import AppConfig  # noqa: E402
 from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
-from oatbrain.ui.tree import FileTree  # noqa: E402
+from oatbrain.ui.tree import FileTree, COL_PATH, COL_IS_DIR  # noqa: E402
 from oatbrain.ui.terminal import Terminal  # noqa: E402
 from oatbrain.ui.editor_area import EditorArea  # noqa: E402
 
@@ -102,6 +111,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             StatusMessageRequested, self._on_status_message_requested
         )
         self._event_bus.subscribe(FileChangedOnDisk, self._on_file_changed_on_disk)
+        self._event_bus.subscribe(SaveAsRequested, self._on_save_as_requested)
 
         self._setup_initialization()
 
@@ -117,6 +127,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             ToggleMode, self._handle_toggle_mode, "Toggle Preview Mode"
         )
         self._command_router.register(NewTab, self._handle_new_tab, "New Tab")
+        self._command_router.register(NewNote, self._handle_new_note_cmd, "New Note")
         self._command_router.register(CloseTab, self._handle_close_tab, "Close Tab")
         self._command_router.register(
             SplitGroupRight, self._handle_split_group_right, "Split Group Right"
@@ -139,6 +150,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         )
         self._command_router.register(
             SendToTerminal, self._handle_send_to_terminal, visible=False
+        )
+        self._command_router.register(
+            ProcessFile, self._handle_process_file, "Process File", visible=False
         )
         self._command_router.register(
             DismissMermaidWarning, self._handle_dismiss_mermaid, visible=False
@@ -481,6 +495,7 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             self._command_router,
             self._state.vault_root,
             watcher=self._watcher,
+            config=self._config,
         )
         self.terminal_placeholder = Terminal(
             self._state.vault_root, self._event_bus, self._command_router
@@ -607,7 +622,9 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             ("set_theme_dark", lambda *_: self._on_set_theme("Dark")),
             ("set_theme_high_contrast", lambda *_: self._on_set_theme("HighContrast")),
             ("new_note", self._on_new_note),
+            ("new_note_inbox", self._on_new_note_inbox),
             ("new_folder", self._on_new_folder),
+            ("process_file", self._on_process_file),
             ("rename_file", self._on_rename_file),
             ("delete_file", self._on_delete_file),
             ("refresh_file", self._on_refresh_file),
@@ -658,8 +675,173 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
         else:
             self._command_router.dispatch(SetTheme(theme_id="monokai-dark"))
 
+    def _handle_new_note_cmd(self, command: NewNote) -> None:
+        if self.editor_area:
+            self.editor_area.handle_command(command)
+
+    def _handle_process_file(self, command: ProcessFile) -> None:
+        path = command.path
+        if path is None:
+            # Find focused tab path
+            tab = self._get_focused_tab_state()
+            if tab and tab.open_file:
+                path = str(tab.open_file)
+
+        if path:
+            prefix = self._config.inbox.process_prefix
+            # Use ./ prefix as requested in QUESTIONAIRE and surround path
+            # with quotes (§17.1)
+            cmd_str = f"{prefix} './{path}'"
+            self._command_router.dispatch(SendToTerminal(text=cmd_str, execute=False))
+
+    def _on_save_as_requested(self, event: SaveAsRequested) -> None:
+        import datetime
+
+        # Slugify heading for default filename
+        base_slug = self._slugify(event.suggested_filename)
+        if not base_slug or base_slug == "untitled":
+            # Add timestamp for untitled to avoid collisions (§10.3)
+            now = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+            base_slug = f"untitled-{now}"
+
+        target_dir = event.target_dir or self._config.inbox.folder
+
+        # Ensure unique filename (§10.3)
+        slug = f"{base_slug}.md"
+        path = VaultPath.from_str(f"{target_dir}/{slug}")
+        counter = 1
+        while self._filestore.exists(path):
+            slug = f"{base_slug}-{counter}.md"
+            path = VaultPath.from_str(f"{target_dir}/{slug}")
+            counter += 1
+
+        self._show_save_as_dialog(event, target_dir, slug)
+
+    def _show_save_as_dialog(
+        self, event: SaveAsRequested, target_dir: str, default_filename: str
+    ) -> None:
+        """Show a dialog to get the filename for a new note."""
+        dialog = Adw.MessageDialog(
+            transient_for=self.main_window,
+            heading="Save New Note",
+            body=f"Target directory: {target_dir}",
+        )
+        entry = Gtk.Entry(text=default_filename)
+        entry.set_margin_top(12)
+        entry.set_hexpand(True)
+        entry.set_activates_default(True)
+
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        content_box.append(Gtk.Label(label="Filename:", xalign=0))
+        content_box.append(entry)
+        dialog.set_extra_child(content_box)
+
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("save", "Save")
+        dialog.set_default_response("save")
+        dialog.set_close_response("cancel")
+
+        def on_response(d: Adw.MessageDialog, response: str) -> None:
+            if response == "save":
+                filename = entry.get_text()
+                if not filename:
+                    return
+                if not filename.endswith(".md"):
+                    filename += ".md"
+
+                path = VaultPath.from_str(f"{target_dir}/{filename}")
+
+                try:
+                    # Create directory if it doesn't exist
+                    target_abs = self._state.vault_root / target_dir
+                    target_abs.mkdir(parents=True, exist_ok=True)
+
+                    self._filestore.write_text(path, event.content)
+                    # Update tab path and mark as not new
+                    self._event_bus.publish(
+                        TabPathChanged(tab_id=event.tab_id, new_path=path)
+                    )
+                    self._update_tab_new_state(event.tab_id, False)
+                except Exception as e:
+                    self._event_bus.publish(
+                        StatusMessageRequested(f"Error saving: {e}", 5000)
+                    )
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def _update_tab_new_state(self, tab_id: str, is_new: bool) -> None:
+        if not self._state:
+            return
+        new_groups = []
+        for g in self._state.editor_area.groups:
+            new_tabs = []
+            for t in g.tabs:
+                if t.tab_id == tab_id:
+                    new_tabs.append(
+                        TabState(
+                            tab_id=t.tab_id,
+                            open_file=t.open_file,
+                            is_new=is_new,
+                            title=t.title,
+                            target_dir=t.target_dir,
+                            mode=t.mode,
+                            zoom=t.zoom,
+                            preview_zoom=t.preview_zoom,
+                        )
+                    )
+                else:
+                    new_tabs.append(t)
+            new_groups.append(
+                GroupState(
+                    group_id=g.group_id,
+                    tabs=tuple(new_tabs),
+                    active_tab_index=g.active_tab_index,
+                )
+            )
+        ea_state = EditorAreaState(
+            groups=tuple(new_groups),
+            divider_fractions=self._state.editor_area.divider_fractions,
+            focused_group_index=self._state.editor_area.focused_group_index,
+        )
+        self._on_editor_area_state_change(ea_state)
+
+    def _slugify(self, text: str) -> str:
+        import re
+
+        text = text.lower()
+        text = re.sub(r"[^a-z0-9]+", "-", text)
+        return text.strip("-")
+
+    def _on_process_file(self, *args: Any) -> None:
+        selection = self.tree_pane.tree_view.get_selection()
+        model, tree_iter = selection.get_selected()
+        if tree_iter:
+            path_str = model.get_value(tree_iter, COL_PATH)
+            if path_str:
+                self._command_router.dispatch(ProcessFile(path=path_str))
+
+    def _on_new_note_inbox(self, *args: Any) -> None:
+        target_dir = self._config.inbox.folder
+        self._command_router.dispatch(NewNote(target_dir=target_dir))
+
     def _on_new_note(self, *args: Any) -> None:
-        print("Action: New Note")
+        selection = self.tree_pane.tree_view.get_selection()
+        model, tree_iter = selection.get_selected()
+        target_dir = None
+        if tree_iter:
+            path_str = model.get_value(tree_iter, COL_PATH)
+            is_dir = model.get_value(tree_iter, COL_IS_DIR)
+            if is_dir:
+                target_dir = path_str
+            else:
+                # Use parent
+                target_dir = str(VaultPath.from_str(path_str).parent)
+
+        if target_dir is None or target_dir == ".":
+            target_dir = self._config.inbox.folder
+
+        self._command_router.dispatch(NewNote(target_dir=target_dir))
 
     def _on_new_folder(self, *args: Any) -> None:
         print("Action: New Folder")
@@ -697,6 +879,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
     def _setup_shortcuts(self) -> None:
         controller = Gtk.ShortcutController.new()
         controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>Return"),
+                action=Gtk.CallbackAction.new(self._shortcut_process_file),
+            )
+        )
         self.main_window.add_controller(controller)
         controller.add_shortcut(
             Gtk.Shortcut.new(
@@ -766,6 +954,12 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
             Gtk.Shortcut.new(
                 trigger=Gtk.ShortcutTrigger.parse_string("<Control>e"),
                 action=Gtk.CallbackAction.new(self._shortcut_toggle_mode),
+            )
+        )
+        controller.add_shortcut(
+            Gtk.Shortcut.new(
+                trigger=Gtk.ShortcutTrigger.parse_string("<Control>n"),
+                action=Gtk.NamedAction.new("app.new_note_inbox"),
             )
         )
         controller.add_shortcut(
@@ -897,6 +1091,10 @@ class AdwAppShell(Adw.Application):  # type: ignore[misc]
 
     def _shortcut_toggle_zen(self, *_: Any) -> bool:
         self._command_router.dispatch(ToggleZen())
+        return True
+
+    def _shortcut_process_file(self, *_: Any) -> bool:
+        self._command_router.dispatch(ProcessFile())
         return True
 
     def _shortcut_send_file_to_terminal(self, *_: Any) -> bool:

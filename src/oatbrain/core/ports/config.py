@@ -10,8 +10,15 @@ class PaletteConfig:
 
 
 @dataclass(frozen=True)
+class InboxConfig:
+    folder: str = "Inbox"
+    process_prefix: str = "Process"
+
+
+@dataclass(frozen=True)
 class AppConfig:
     palette: PaletteConfig = field(default_factory=PaletteConfig)
+    inbox: InboxConfig = field(default_factory=InboxConfig)
 
 
 class ConfigStore(Protocol):

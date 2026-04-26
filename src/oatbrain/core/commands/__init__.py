@@ -8,12 +8,14 @@ from .ui import (
     DismissMermaidWarning,
     SetTreeExpanded,
     Zoom,
+    ProcessFile,
 )
 from .editor import (
     ToggleMode,
     ToggleZen,
     RefreshFile,
     NewTab,
+    NewNote,
     CloseTab,
     SplitGroupRight,
 )
@@ -54,6 +56,8 @@ __all__ = [
     "ToggleZen",
     "RefreshFile",
     "NewTab",
+    "NewNote",
     "CloseTab",
     "SplitGroupRight",
+    "ProcessFile",
 ]

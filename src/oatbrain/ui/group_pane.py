@@ -32,6 +32,7 @@ class GroupPane:
         self._on_editor_focused = on_editor_focused
 
         self.notebook = Gtk.Notebook()
+        self.notebook.set_size_request(100, -1)
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
         self.notebook.add_css_class("oatbrain-group-pane")

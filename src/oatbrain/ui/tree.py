@@ -7,6 +7,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gtk, GLib, Gio, Gdk  # noqa: E402
 
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
+from oatbrain.core.ports.config import AppConfig  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.commands import OpenFile, SetTreeExpanded, Zoom  # noqa: E402
 
@@ -39,6 +40,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         command_router: CommandRouter,
         vault_root: Optional[Path] = None,
         watcher: Optional[FileWatcher] = None,
+        config: Optional[AppConfig] = None,
     ) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.filestore = filestore
@@ -46,6 +48,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self._command_router = command_router
         self._vault_root = vault_root
         self._watcher = watcher
+        self._config = config or AppConfig()
         self._watch_subscriptions: dict[str, Unsubscribe] = {}
 
         # Scrolled window provides scrollbars
@@ -132,6 +135,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         self.menu = Gio.Menu()
         self.menu.append("New Note", "app.new_note")
         self.menu.append("New Folder", "app.new_folder")
+        self.menu.append("Process", "app.process_file")
         self.menu.append("Rename", "app.rename_file")
         self.menu.append("Delete", "app.delete_file")
 
@@ -205,7 +209,17 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         data: Any,
     ) -> None:
         is_dirty = model.get_value(iter_, COL_IS_DIRTY)
-        cell.set_property("text", "●" if is_dirty else "")
+        path = model.get_value(iter_, COL_PATH)
+
+        if is_dirty:
+            cell.set_property("text", "●")
+        elif path == self._config.inbox.folder:
+            if self._is_inbox_not_empty():
+                cell.set_property("text", "●")
+            else:
+                cell.set_property("text", "")
+        else:
+            cell.set_property("text", "")
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         if self._sync_idle_id is not None:
@@ -367,8 +381,20 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             # Scroll to make it visible
             self.tree_view.scroll_to_cell(tree_path, None, True, 0.5, 0.0)
 
-    def _get_icon(self, is_dir: bool) -> str:
+    def _get_icon(self, is_dir: bool, rel_path: Optional[str] = None) -> str:
+        if rel_path == self._config.inbox.folder:
+            return "mail-unread-symbolic"
         return "folder-symbolic" if is_dir else "text-x-generic-symbolic"
+
+    def _is_inbox_not_empty(self) -> bool:
+        try:
+            inbox_path = VaultPath.from_str(self._config.inbox.folder)
+            if self.filestore.exists(inbox_path):
+                entries = self.filestore.list_dir(inbox_path)
+                return len(entries) > 0
+        except Exception:
+            pass
+        return False
 
     # ------------------------------------------------------------------
     # File watcher event handlers
@@ -481,7 +507,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
         if self._find_iter_for_path(rel) is not None:
             return False
 
-        icon = self._get_icon(is_dir)
+        icon = self._get_icon(is_dir, rel)
         new_iter = self.store.append(
             parent_iter, [icon, name, rel, False, is_dir, False]
         )
@@ -499,7 +525,17 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
     def _compare_rows(
         self, model: Gtk.TreeModel, iter1: Gtk.TreeIter, iter2: Gtk.TreeIter, data: Any
     ) -> int:
-        """Custom sort: directories first, then alphabetical name."""
+        """Custom sort: pinned Inbox, then directories first, then alphabetical name."""
+        path1 = model.get_value(iter1, COL_PATH)
+        path2 = model.get_value(iter2, COL_PATH)
+        inbox_folder = self._config.inbox.folder
+
+        # Pinned Inbox at root level
+        if path1 == inbox_folder:
+            return -1
+        if path2 == inbox_folder:
+            return 1
+
         is_dir1 = model.get_value(iter1, COL_IS_DIR)
         is_dir2 = model.get_value(iter2, COL_IS_DIR)
 
@@ -585,7 +621,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
             for entry in entries:
                 name = entry.path.path.name
                 path_str = str(entry.path)
-                icon = self._get_icon(entry.is_dir)
+                icon = self._get_icon(entry.is_dir, path_str)
                 iter_ = self.store.append(
                     None, [icon, name, path_str, False, entry.is_dir, False]
                 )
@@ -674,7 +710,7 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                     for entry in entries:
                         name = entry.path.path.name
                         path_str = str(entry.path)
-                        icon = self._get_icon(entry.is_dir)
+                        icon = self._get_icon(entry.is_dir, path_str)
                         new_iter = self.store.append(
                             iter_, [icon, name, path_str, False, entry.is_dir, False]
                         )

@@ -13,6 +13,8 @@ from oatbrain.core.events.ui import (  # noqa: E402
     WordCountChanged,
     DirtyStateChanged,
     FileChangedOnDisk,
+    TabTitleChanged,
+    SaveAsRequested,
 )
 from oatbrain.core.ports.filestore import FileStore, VaultPath  # noqa: E402
 from oatbrain.core.ports.renderer import Renderer  # noqa: E402
@@ -20,7 +22,8 @@ from oatbrain.core.ports.watcher import FileWatcher, Unsubscribe  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
 from oatbrain.core.state import AppState, TabState  # noqa: E402
-from oatbrain.core.commands import OpenFile, Zoom  # noqa: E402
+from oatbrain.core.commands import OpenFile, NewNote, Zoom  # noqa: E402
+
 from oatbrain.core.commands.editor import ToggleMode  # noqa: E402
 from oatbrain.ui.preview import Preview  # noqa: E402
 
@@ -66,6 +69,8 @@ class Editor:
         self._stats_timeout_id: Optional[int] = None
         self._scrolling_locked = False
         self._is_dirty = False
+        self._is_new = False
+        self._target_dir: Optional[str] = None
         self._word_count = 0
 
         # Tab label cache
@@ -105,6 +110,12 @@ class Editor:
         focus_ctrl = Gtk.EventControllerFocus.new()
         focus_ctrl.connect("enter", lambda *_: self._on_focus_entered())
         self.view.add_controller(focus_ctrl)
+
+        # Standard shortcuts controller (§10.4)
+        self._key_ctrl = Gtk.EventControllerKey.new()
+        self._key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._key_ctrl.connect("key-pressed", self._on_key_pressed)
+        self.view.add_controller(self._key_ctrl)
 
         if vim_enabled:
             self._vim_context: Optional[
@@ -171,6 +182,14 @@ class Editor:
         )
         hint_label.set_justify(Gtk.Justification.CENTER)
         self.placeholder.append(hint_label)
+
+        new_note_btn = Gtk.Button(label="Create New Note")
+        new_note_btn.add_css_class("suggested-action")
+        new_note_btn.set_halign(Gtk.Align.CENTER)
+        new_note_btn.connect(
+            "clicked", lambda *_: self._command_router.dispatch(NewNote())
+        )
+        self.placeholder.append(new_note_btn)
 
         # --- Content stack: placeholder / source / preview ---
         self._stack = Gtk.Stack()
@@ -249,6 +268,24 @@ class Editor:
                 self._scroll_fraction = fraction
                 if self._preview:
                     self._preview._apply_scroll(self._preview._wv, fraction)
+
+    def _on_key_pressed(
+        self,
+        _ctrl: Gtk.EventControllerKey,
+        keyval: int,
+        _keycode: int,
+        state: Gdk.ModifierType,
+    ) -> bool:
+        """Handle Ctrl+Shift+C/V for clipboard operations (§10.4)."""
+        ctrl_shift = Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK
+        if (state & ctrl_shift) == ctrl_shift:
+            if keyval in (Gdk.KEY_c, Gdk.KEY_C):
+                self.view.emit("copy-clipboard")
+                return True
+            if keyval in (Gdk.KEY_v, Gdk.KEY_V):
+                self.view.emit("paste-clipboard")
+                return True
+        return False
 
     def _on_scroll(self, ctrl: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
         """Handle Ctrl+MouseScroll to zoom editor (§19)."""
@@ -415,7 +452,23 @@ class Editor:
         self._event_bus.publish(
             WordCountChanged(count=self._word_count, sender_id=id(self))
         )
+
+        # Extract heading for title update (§10.3)
+        heading = self._extract_heading(current_text)
+        if heading != self._last_label_title:
+            self._last_label_title = heading
+            self._event_bus.publish(
+                TabTitleChanged(tab_id=self.tab_id, title=heading or "")
+            )
+
         return False
+
+    def _extract_heading(self, text: str) -> Optional[str]:
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("# "):
+                return line[2:].strip()
+        return None
 
     def _do_render(self) -> bool:
         if self._preview and self._current_path:
@@ -437,6 +490,20 @@ class Editor:
     # ------------------------------------------------------------------
 
     def _save(self) -> None:
+        if self._is_new:
+            start = self.buffer.get_start_iter()
+            end = self.buffer.get_end_iter()
+            content = self.buffer.get_text(start, end, True)
+            self._event_bus.publish(
+                SaveAsRequested(
+                    tab_id=self.tab_id,
+                    suggested_filename=self._last_label_title or "Untitled",
+                    target_dir=self._target_dir,
+                    content=content,
+                )
+            )
+            return
+
         if self._current_path is None:
             return
         # Never save binary files as text (§10)
@@ -605,6 +672,8 @@ class Editor:
 
     def _update_ui_impl(self, tab_state: TabState, app_state: AppState) -> None:
         new_path = tab_state.open_file
+        self._is_new = tab_state.is_new
+        self._target_dir = tab_state.target_dir
 
         # Apply zoom (§19)
         base_size = 13.0
@@ -615,10 +684,10 @@ class Editor:
         if self._preview:
             self._preview.set_zoom(tab_state.preview_zoom)
 
-        self.placeholder.set_visible(new_path is None)
-        is_markdown = new_path is not None and str(new_path).endswith(
-            (".md", ".markdown")
-        )
+        self.placeholder.set_visible(new_path is None and not tab_state.is_new)
+        is_markdown = (
+            new_path is not None and str(new_path).endswith((".md", ".markdown"))
+        ) or tab_state.is_new
         is_image = new_path is not None and any(
             str(new_path).lower().endswith(ext) for ext in IMAGE_EXTS
         )
@@ -629,7 +698,9 @@ class Editor:
 
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
-        if new_path != self._current_path:
+        if new_path != self._current_path or (
+            self._is_new and self._current_path is None
+        ):
             old_path = self._current_path
             if self._file_unsubscribe:
                 self._file_unsubscribe()
@@ -686,6 +757,27 @@ class Editor:
                         self._loading = False
                         self._current_content = ""
                         self.buffer.set_text(f"Error loading file: {e}")
+            elif self._is_new:
+                # Assumed markdown highlighting for new notes (§10.3)
+                lang = self._language_manager.get_language("markdown")
+                self.buffer.set_language(lang)
+
+                # Initialize empty new note with heading prompt (§10.3)
+                if self.buffer.get_char_count() == 0:
+                    self.buffer.set_text("# ")
+
+                    def _init_new_note_focus() -> bool:
+                        self.view.grab_focus()
+                        # Move cursor to end of "# "
+                        end_iter = self.buffer.get_end_iter()
+                        self.buffer.place_cursor(end_iter)
+
+                        if self._vim_context:
+                            # Enter insert mode immediately (§10.3)
+                            self._vim_context.execute_command(":startinsert")
+                        return False
+
+                    GLib.idle_add(_init_new_note_focus)
             else:
                 self._current_content = ""
                 self.buffer.set_text("")

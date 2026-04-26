@@ -15,6 +15,9 @@ class TabState:
 
     tab_id: str = field(default_factory=_new_id)
     open_file: Optional[VaultPath] = None
+    is_new: bool = False
+    title: Optional[str] = None
+    target_dir: Optional[str] = None
     mode: str = "editor"  # "editor" | "preview"
     zoom: float = 1.0
     preview_zoom: float = 1.0
