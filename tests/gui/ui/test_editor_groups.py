@@ -191,6 +191,8 @@ def test_mode_switch_targets_correct_tab(app_and_loop):
 
     # 1. Open a markdown file so toggle is visible
     test_path = VaultPath.from_str("test_mode.md")
+    # Ensure file exists in the vault
+    (app._filestore._root / "test_mode.md").write_text("# Test Mode\n")
     app._command_router.dispatch(OpenFile(path=test_path))
     _run_loop(loop)
 

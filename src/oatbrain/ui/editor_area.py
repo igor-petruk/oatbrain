@@ -225,9 +225,11 @@ class EditorArea:
 
         # 0. Check if the structure actually changed
         # (number of groups or their IDs/order)
-        if self._last_active_gids == active_gids:
+        # We also ensure that all panes actually exist in our cache.
+        if self._last_active_gids == active_gids and all(
+            gid in self.groups_panes for gid in active_gids
+        ):
             return
-        self._last_active_gids = active_gids
 
         # 1. Collect all current group widgets and ensure they are unparented
         # from any previous Paned or Box structure.
@@ -301,6 +303,7 @@ class EditorArea:
                 p.connect("notify::position", self._on_divider_moved)
 
         self._root_widget.append(self._paned_root)
+        self._last_active_gids = active_gids
 
     def _unparent_paned_recursive(self, widget: Gtk.Widget) -> None:
         if isinstance(widget, Gtk.Paned):
