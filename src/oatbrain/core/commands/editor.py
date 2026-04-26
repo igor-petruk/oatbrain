@@ -3,20 +3,13 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ToggleMode:
-    """Flip between source and read (preview) mode (SPEC §10.2)."""
+    """Flip between editor and preview mode for the focused tab."""
+
+    tab_id: str = ""
 
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "ToggleMode"]]:
-        return [("Toggle Read Mode", cls())]
-
-
-@dataclass(frozen=True)
-class ToggleSplit:
-    """Toggle side-by-side edit/preview split mode."""
-
-    @classmethod
-    def get_palette_commands(cls) -> list[tuple[str, "ToggleSplit"]]:
-        return [("Toggle Split Mode", cls())]
+        return [("Toggle Preview Mode", cls())]
 
 
 @dataclass(frozen=True)
@@ -35,3 +28,30 @@ class RefreshFile:
     @classmethod
     def get_palette_commands(cls) -> list[tuple[str, "RefreshFile"]]:
         return [("Refresh Current File", cls())]
+
+
+@dataclass(frozen=True)
+class NewTab:
+    """Open a new tab (duplicate of focused) in the focused group."""
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "NewTab"]]:
+        return [("New Tab", cls())]
+
+
+@dataclass(frozen=True)
+class CloseTab:
+    """Close the focused tab."""
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "CloseTab"]]:
+        return [("Close Tab", cls())]
+
+
+@dataclass(frozen=True)
+class SplitGroupRight:
+    """Move the focused tab into a new group to the right."""
+
+    @classmethod
+    def get_palette_commands(cls) -> list[tuple[str, "SplitGroupRight"]]:
+        return [("Split Group Right", cls())]

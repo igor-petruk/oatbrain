@@ -267,7 +267,15 @@ class FileTree(Gtk.Box):  # type: ignore[misc]
                 except Exception as e:
                     print(f"Error subscribing: {e}")
 
-        open_path = event.state.editor.open_file
+        ea = event.state.editor_area
+        open_path = None
+        if ea.groups:
+            idx = min(ea.focused_group_index, len(ea.groups) - 1)
+            focused_group = ea.groups[idx]
+            active = min(focused_group.active_tab_index, len(focused_group.tabs) - 1)
+            if focused_group.tabs:
+                open_path = focused_group.tabs[active].open_file
+
         if open_path != self._last_synced_path:
             self._last_synced_path = open_path
             if open_path:

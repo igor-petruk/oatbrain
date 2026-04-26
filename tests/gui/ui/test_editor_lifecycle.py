@@ -62,11 +62,12 @@ def _call_idle_synchronously(editor_module, event_method, *args):
 
 
 def test_editor_external_clean_deletion_closes_file() -> None:
-    """External deletion of a clean file dispatches CloseFile."""
-    editor, _, dispatched = _make_editor()
+    """External deletion of a clean file clears current path and shows placeholder."""
+    editor, _, _ = _make_editor()
 
     editor._current_path = VaultPath.from_str("active.md")
     editor._is_dirty = False
+    editor._stack.set_visible_child_name("source")
 
     _call_idle_synchronously(
         None,
@@ -76,7 +77,8 @@ def test_editor_external_clean_deletion_closes_file() -> None:
         None,
     )
 
-    assert any(isinstance(c, CloseFile) for c in dispatched)
+    assert editor._current_path is None
+    assert editor._stack.get_visible_child_name() == "placeholder"
 
 
 def test_editor_external_dirty_deletion_shows_toast() -> None:
@@ -102,9 +104,12 @@ def test_editor_external_dirty_deletion_shows_toast() -> None:
 
 
 def test_editor_external_rename_updates_path() -> None:
-    """Our file renamed/moved away dispatches UpdateOpenFilePath with correct path."""
-    editor, _, dispatched = _make_editor()
+    """Our file renamed/moved away calls on_path_changed callback."""
+    editor, _, _ = _make_editor()
     editor._current_path = VaultPath.from_str("active.md")
+
+    changed_paths = []
+    editor.on_path_changed = changed_paths.append
 
     _call_idle_synchronously(
         None,
@@ -114,9 +119,8 @@ def test_editor_external_rename_updates_path() -> None:
         VAULT / "new_name.md",
     )
 
-    rename_cmds = [c for c in dispatched if isinstance(c, UpdateOpenFilePath)]
-    assert len(rename_cmds) == 1
-    assert str(rename_cmds[0].path) == "new_name.md"
+    assert len(changed_paths) == 1
+    assert str(changed_paths[0]) == "new_name.md"
 
 
 def test_editor_rename_onto_open_file_reloads_content() -> None:

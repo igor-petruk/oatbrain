@@ -11,6 +11,7 @@ from oatbrain.ui.headerbar import HeaderBar  # noqa: E402
 from oatbrain.ui.statusbar import StatusBar  # noqa: E402
 from oatbrain.ui.tree import FileTree  # noqa: E402
 from oatbrain.ui.editor import Editor  # noqa: E402
+from oatbrain.ui.editor_area import EditorArea  # noqa: E402
 from oatbrain.ui.window import AdwAppShell  # noqa: E402
 from oatbrain.core.bus import EventBus, CommandRouter  # noqa: E402
 from oatbrain.core.state import AppState  # noqa: E402
@@ -124,7 +125,7 @@ def test_app_shell_activation_smoke() -> None:
     app.on_activate(app)
 
     assert isinstance(app.main_window, Adw.ApplicationWindow)
-    assert isinstance(app.editor, Editor)
+    assert isinstance(app.editor_area, EditorArea)
     assert isinstance(app.tree_pane, FileTree)
 
 

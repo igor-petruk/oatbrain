@@ -32,6 +32,7 @@ class HeaderBar:
 
         self._new_note_btn = Gtk.Button(icon_name="document-new-symbolic")
         self._new_note_btn.set_tooltip_text("New Note (Ctrl+N)")
+        self._new_note_btn.connect("clicked", self._on_new_note_clicked)
 
         self._refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
         self._refresh_btn.set_tooltip_text("Refresh File (F5)")
@@ -93,6 +94,11 @@ class HeaderBar:
 
     def _on_refresh_clicked(self, _btn: Gtk.Button) -> None:
         self._command_router.dispatch(RefreshFile())
+
+    def _on_new_note_clicked(self, _btn: Gtk.Button) -> None:
+        from oatbrain.core.commands.editor import NewTab
+
+        self._command_router.dispatch(NewTab())
 
     def _on_state_updated(self, event: StateUpdated) -> None:
         GLib.idle_add(self._update_ui, event)

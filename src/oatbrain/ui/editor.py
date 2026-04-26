@@ -1,6 +1,6 @@
 import gi
 import logging
-from typing import Optional
+from typing import Optional, Callable
 from pathlib import Path
 
 gi.require_version("Gtk", "4.0")
@@ -19,17 +19,9 @@ from oatbrain.core.ports.renderer import Renderer  # noqa: E402
 from oatbrain.core.ports.watcher import FileWatcher, Unsubscribe  # noqa: E402
 from oatbrain.core.ports.env import Env  # noqa: E402
 from oatbrain.core.wikilink import WikilinkResolver  # noqa: E402
-from oatbrain.core.state import AppState, EditorState  # noqa: E402
-from oatbrain.core.commands import (  # noqa: E402
-    OpenFile,
-    CloseFile,
-    UpdateOpenFilePath,
-    Zoom,
-)
-from oatbrain.core.commands.editor import (  # noqa: E402
-    ToggleMode,
-    ToggleSplit,
-)
+from oatbrain.core.state import AppState, TabState  # noqa: E402
+from oatbrain.core.commands import OpenFile, Zoom  # noqa: E402
+from oatbrain.core.commands.editor import ToggleMode  # noqa: E402
 from oatbrain.ui.preview import Preview  # noqa: E402
 
 
@@ -50,6 +42,7 @@ class Editor:
         resolver: Optional[WikilinkResolver] = None,
         vim_enabled: bool = True,
         watcher: Optional[FileWatcher] = None,
+        tab_id: str = "",
     ) -> None:
         self._filestore = filestore
         self._event_bus = event_bus
@@ -63,9 +56,9 @@ class Editor:
         self._current_path: Optional[VaultPath] = None
         self._vim_key_ctrl: Optional[Gtk.EventControllerKey] = None
         self._logger = logging.getLogger("oatbrain.editor")
+        self.tab_id = tab_id
         self._loading = False
         self._read_mode = False
-        self._split_mode = False
         self._current_content: str = ""
         self._scroll_fraction: float = 0.0
         self._theme_css: str = ""
@@ -74,6 +67,14 @@ class Editor:
         self._scrolling_locked = False
         self._is_dirty = False
         self._word_count = 0
+
+        # Tab label cache
+        self._last_label_title: Optional[str] = None
+        self._last_label_dirty: Optional[bool] = None
+
+        # Callbacks
+        self.on_focused: Optional[Callable[["Editor"], None]] = None
+        self.on_path_changed: Optional[Callable[[VaultPath], None]] = None
 
         # --- Source view ---
         self.buffer = GtkSource.Buffer()
@@ -100,6 +101,10 @@ class Editor:
         )
         scroll_ctrl.connect("scroll", self._on_scroll)
         self.view.add_controller(scroll_ctrl)
+
+        focus_ctrl = Gtk.EventControllerFocus.new()
+        focus_ctrl.connect("enter", lambda *_: self._on_focus_entered())
+        self.view.add_controller(focus_ctrl)
 
         if vim_enabled:
             self._vim_context: Optional[
@@ -136,6 +141,11 @@ class Editor:
             self._preview.on_zoom = lambda delta: self._command_router.dispatch(
                 Zoom("preview", delta)
             )
+
+            # Focus tracking for preview
+            preview_focus_ctrl = Gtk.EventControllerFocus.new()
+            preview_focus_ctrl.connect("enter", lambda *_: self._on_focus_entered())
+            self._preview.widget.add_controller(preview_focus_ctrl)
         else:
             self._preview = None
 
@@ -162,13 +172,7 @@ class Editor:
         hint_label.set_justify(Gtk.Justification.CENTER)
         self.placeholder.append(hint_label)
 
-        # --- Split view ---
-        self._split_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-        self._split_paned.set_wide_handle(True)
-        self._split_paned.set_hexpand(True)
-        self._split_paned.set_vexpand(True)
-
-        # --- Content stack: placeholder / source / preview / split ---
+        # --- Content stack: placeholder / source / preview ---
         self._stack = Gtk.Stack()
         self._stack.set_hexpand(True)
         self._stack.set_vexpand(True)
@@ -178,7 +182,6 @@ class Editor:
         self._stack.add_named(self._source_container, "source")
         if self._preview is not None:
             self._stack.add_named(self._preview_container, "preview")
-            self._stack.add_named(self._split_paned, "split")
 
         # --- Mode toggle buttons (SPEC §8.1: float in pane top-right) ---
         self._btn_source = Gtk.ToggleButton()
@@ -191,15 +194,9 @@ class Editor:
         self._btn_read.set_tooltip_text("Read (preview)")
         self._btn_read.set_group(self._btn_source)
 
-        self._btn_split = Gtk.ToggleButton()
-        self._btn_split.set_icon_name("view-dual-symbolic")
-        self._btn_split.set_tooltip_text("Split view")
-        self._btn_split.set_group(self._btn_source)
-
         self._toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self._toggle_box.append(self._btn_source)
         self._toggle_box.append(self._btn_read)
-        self._toggle_box.append(self._btn_split)
         self._toggle_box.set_halign(Gtk.Align.END)
         self._toggle_box.set_valign(Gtk.Align.START)
         self._toggle_box.set_margin_top(8)
@@ -236,7 +233,6 @@ class Editor:
 
         self._btn_source.connect("toggled", self._on_source_toggled)
         self._btn_read.connect("toggled", self._on_read_toggled)
-        self._btn_split.connect("toggled", self._on_split_toggled)
 
         # Synchronized scrolling
         self._source_scroll.get_vadjustment().connect(
@@ -246,7 +242,7 @@ class Editor:
     def _on_source_scrolled(self, adj: Gtk.Adjustment) -> None:
         if self._scrolling_locked:
             return
-        if self._read_mode or self._split_mode:
+        if self._read_mode:
             upper = adj.get_upper() - adj.get_page_size()
             if upper > 0:
                 fraction = adj.get_value() / upper
@@ -315,7 +311,7 @@ class Editor:
         self._theme_css = css
         self._theme_id = theme_id
         if (
-            (self._read_mode or self._split_mode)
+            self._read_mode
             and self._preview is not None
             and self._current_path is not None
         ):
@@ -344,11 +340,7 @@ class Editor:
 
     def toggle_mode(self) -> None:
         """Flip between source and read mode (Ctrl+E / SPEC §10.2)."""
-        self._command_router.dispatch(ToggleMode())
-
-    def toggle_split(self) -> None:
-        """Toggle side-by-side edit/preview split mode."""
-        self._command_router.dispatch(ToggleSplit())
+        self._command_router.dispatch(ToggleMode(tab_id=self.tab_id))
 
     def _apply_fraction_to_source(self, fraction: float) -> None:
         """Apply scroll fraction to the source view (called async from preview)."""
@@ -363,23 +355,12 @@ class Editor:
     def _on_source_toggled(self, btn: Gtk.ToggleButton) -> None:
         if btn.get_active():
             if self._read_mode:
-                self._command_router.dispatch(ToggleMode())
-            elif self._split_mode:
-                self._command_router.dispatch(ToggleSplit())
+                self._command_router.dispatch(ToggleMode(tab_id=self.tab_id))
 
     def _on_read_toggled(self, btn: Gtk.ToggleButton) -> None:
         if btn.get_active():
             if not self._read_mode:
-                if self._split_mode:
-                    self._command_router.dispatch(ToggleSplit())
-                self._command_router.dispatch(ToggleMode())
-
-    def _on_split_toggled(self, btn: Gtk.ToggleButton) -> None:
-        if btn.get_active():
-            if not self._split_mode:
-                if self._read_mode:
-                    self._command_router.dispatch(ToggleMode())
-                self._command_router.dispatch(ToggleSplit())
+                self._command_router.dispatch(ToggleMode(tab_id=self.tab_id))
 
     # ------------------------------------------------------------------
     # Vim IM context callbacks
@@ -447,6 +428,10 @@ class Editor:
             )
         return False
 
+    def _on_focus_entered(self) -> None:
+        if self.on_focused:
+            self.on_focused(self)
+
     # ------------------------------------------------------------------
     # Save logic
     # ------------------------------------------------------------------
@@ -469,7 +454,7 @@ class Editor:
             self._current_content = content
             self._is_dirty = False
             self._event_bus.publish(DirtyStateChanged(dirty=False, sender_id=id(self)))
-            if self._split_mode or self._read_mode:
+            if self._read_mode:
                 self._do_render()
         except Exception:
             pass
@@ -500,9 +485,7 @@ class Editor:
 
             try:
                 dest_rel = (
-                    new_path.relative_to(self._vault_root)
-                    if self._vault_root
-                    else None
+                    new_path.relative_to(self._vault_root) if self._vault_root else None
                 )
             except ValueError:
                 dest_rel = None
@@ -516,12 +499,8 @@ class Editor:
 
             if src_is_open and dest_rel is not None:
                 # Case 1: our file was renamed/moved — update the tracked path.
-                GLib.idle_add(
-                    lambda p: self._command_router.dispatch(
-                        UpdateOpenFilePath(VaultPath.from_str(str(p)))
-                    ),
-                    dest_rel,
-                )
+                if self.on_path_changed:
+                    GLib.idle_add(self.on_path_changed, dest_rel)
             elif dst_is_open:
                 # Case 2: something else was renamed *onto* our file — the content
                 # at our path has silently changed, so reload.
@@ -531,7 +510,11 @@ class Editor:
 
             def handle_delete() -> None:
                 if not self._is_dirty:
-                    self._command_router.dispatch(CloseFile())
+                    # In multi-tab, EditorArea handles closing the tab.
+                    # We just inform being empty if needed?
+                    # For now, we clear the path.
+                    self._current_path = None
+                    self._stack.set_visible_child_name("placeholder")
                 else:
                     from oatbrain.core.events.ui import StatusMessageRequested
 
@@ -563,7 +546,7 @@ class Editor:
                 WordCountChanged(count=self._word_count, sender_id=id(self))
             )
             self._event_bus.publish(DirtyStateChanged(dirty=False, sender_id=id(self)))
-            if self._split_mode or self._read_mode:
+            if self._read_mode:
                 self._do_render()
         except Exception as e:
             self._logger.error("refresh error  %s", e)
@@ -608,29 +591,29 @@ class Editor:
         self._event_bus.publish(
             WordCountChanged(count=self._word_count, sender_id=id(self))
         )
-        if self._split_mode or self._read_mode:
+        if self._read_mode:
             self._do_render()
         return False
 
-    def update_from_state(self, editor_state: EditorState, app_state: AppState) -> None:
-        """Update UI from specific editor state and global app state."""
-        self._update_ui_impl(editor_state, app_state)
+    def update_from_state(self, tab_state: TabState, app_state: AppState) -> None:
+        """Update UI from specific tab state and global app state."""
+        self._update_ui_impl(tab_state, app_state)
 
     def _update_language(self, path: VaultPath) -> None:
         lang = self._language_manager.guess_language(str(path), None)
         self.buffer.set_language(lang)
 
-    def _update_ui_impl(self, editor_state: EditorState, app_state: AppState) -> None:
-        new_path = editor_state.open_file
+    def _update_ui_impl(self, tab_state: TabState, app_state: AppState) -> None:
+        new_path = tab_state.open_file
 
         # Apply zoom (§19)
         base_size = 13.0
-        new_size = base_size * editor_state.zoom
+        new_size = base_size * tab_state.zoom
         css = f".oatbrain-editor {{ font-size: {new_size:.1f}pt; }}"
         self._zoom_provider.load_from_string(css)
 
         if self._preview:
-            self._preview.set_zoom(editor_state.preview_zoom)
+            self._preview.set_zoom(tab_state.preview_zoom)
 
         self.placeholder.set_visible(new_path is None)
         is_markdown = new_path is not None and str(new_path).endswith(
@@ -641,9 +624,8 @@ class Editor:
         )
 
         effective_read_mode = (
-            editor_state.read_mode if (is_markdown or is_image) else False
+            (tab_state.mode == "preview") if (is_markdown or is_image) else False
         )
-        effective_split_mode = editor_state.split_mode if is_markdown else False
 
         self._toggle_box.set_visible(is_markdown and self._preview is not None)
 
@@ -713,81 +695,43 @@ class Editor:
 
         # Mode logic
         self._read_mode = effective_read_mode
-        self._split_mode = effective_split_mode
 
         # Sync buttons
         self._btn_read.handler_block_by_func(self._on_read_toggled)
         self._btn_source.handler_block_by_func(self._on_source_toggled)
-        self._btn_split.handler_block_by_func(self._on_split_toggled)
 
         self._btn_read.set_active(effective_read_mode)
-        self._btn_source.set_active(
-            not effective_read_mode and not effective_split_mode
-        )
-        self._btn_split.set_active(effective_split_mode)
+        self._btn_source.set_active(not effective_read_mode)
 
         self._btn_read.handler_unblock_by_func(self._on_read_toggled)
         self._btn_source.handler_unblock_by_func(self._on_source_toggled)
-        self._btn_split.handler_unblock_by_func(self._on_split_toggled)
 
         # Reparenting logic: ensure children are in the right places
-        if effective_split_mode:
-            if self._source_scroll.get_parent() != self._split_paned:
-                if self._source_scroll.get_parent():
-                    self._source_scroll.unparent()
-                if self._preview and self._preview.widget.get_parent():
-                    self._preview.widget.unparent()
-                self._split_paned.set_start_child(self._source_scroll)
-                if self._preview:
-                    self._split_paned.set_end_child(self._preview.widget)
-
-                def set_split_pos() -> bool:
-                    width = self._split_paned.get_width()
-                    if width > 0:
-                        self._split_paned.set_position(width // 2)
-                        return False
-                    return True
-
-                GLib.timeout_add(50, set_split_pos)
-            self._stack.set_visible_child_name("split")
-        elif is_image or effective_read_mode:
+        if is_image or effective_read_mode:
             if self._preview:
                 if self._preview.widget.get_parent() != self._preview_container:
-                    if self._preview.widget.get_parent() == self._split_paned:
-                        self._split_paned.set_end_child(None)
                     if self._preview.widget.get_parent():
                         self._preview.widget.unparent()
                     self._preview_container.append(self._preview.widget)
             if self._source_scroll.get_parent() != self._source_container:
-                if self._source_scroll.get_parent() == self._split_paned:
-                    self._split_paned.set_start_child(None)
                 if self._source_scroll.get_parent():
                     self._source_scroll.unparent()
                 self._source_container.append(self._source_scroll)
             self._stack.set_visible_child_name("preview")
         else:
             if self._source_scroll.get_parent() != self._source_container:
-                if self._source_scroll.get_parent() == self._split_paned:
-                    self._split_paned.set_start_child(None)
                 if self._source_scroll.get_parent():
                     self._source_scroll.unparent()
                 self._source_container.append(self._source_scroll)
             if self._preview and self._preview.widget.get_parent():
                 if self._preview.widget.get_parent() != self._preview_container:
-                    if self._preview.widget.get_parent() == self._split_paned:
-                        self._split_paned.set_end_child(None)
                     if self._preview.widget.get_parent():
                         self._preview.widget.unparent()
                     self._preview_container.append(self._preview.widget)
             self._stack.set_visible_child_name("source")
 
         # Perform render if needed
-        if (
-            (effective_read_mode or effective_split_mode)
-            and self._preview
-            and new_path
-            and not is_image
-        ):
+        if effective_read_mode and self._preview and new_path and not is_image:
             self._preview.render(
                 self._current_content,
                 new_path,

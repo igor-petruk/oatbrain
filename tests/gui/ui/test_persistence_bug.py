@@ -23,26 +23,27 @@ def test_editor_mode_recovers_to_preview_when_returning_to_markdown() -> None:
     editor = Editor(filestore, event_bus, command_router, env, renderer=renderer)
     state = AppState(vault_root=Path("/tmp"))
 
+    def set_state_tab(st, **updates):
+        tab = st.editor_area.groups[0].tabs[0]
+        new_tab = replace(tab, **updates)
+        new_group = replace(st.editor_area.groups[0], tabs=(new_tab,))
+        new_ea = replace(st.editor_area, groups=(new_group,))
+        return replace(st, editor_area=new_ea)
+
     # 1. Open MD file in Preview mode
     md_path = VaultPath("test.md")
-    state = replace(
-        state, editor=replace(state.editor, open_file=md_path, read_mode=True)
-    )
+    state = set_state_tab(state, open_file=md_path, mode="preview")
 
-    editor.update_from_state(state.editor, state)
+    editor.update_from_state(state.editor_area.groups[0].tabs[0], state)
     assert editor._stack.get_visible_child_name() == "preview"
 
     # 2. Open non-MD file (forces 'source')
     txt_path = VaultPath("test.txt")
-    state = replace(
-        state, editor=replace(state.editor, open_file=txt_path, read_mode=True)
-    )
-    editor.update_from_state(state.editor, state)
+    state = set_state_tab(state, open_file=txt_path, mode="preview")
+    editor.update_from_state(state.editor_area.groups[0].tabs[0], state)
     assert editor._stack.get_visible_child_name() == "source"
 
     # 3. Back to MD (should restore Preview mode based on state)
-    state = replace(
-        state, editor=replace(state.editor, open_file=md_path, read_mode=True)
-    )
-    editor.update_from_state(state.editor, state)
+    state = set_state_tab(state, open_file=md_path, mode="preview")
+    editor.update_from_state(state.editor_area.groups[0].tabs[0], state)
     assert editor._stack.get_visible_child_name() == "preview"
