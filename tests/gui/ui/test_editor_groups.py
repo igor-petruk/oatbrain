@@ -25,10 +25,7 @@ def _run_loop(loop, iterations=10):
 
 
 @pytest.fixture
-def app_and_loop(tmp_path):
-    # Use a temporary state file to avoid interference from/to local dev state
-    os.environ["XDG_STATE_HOME"] = str(tmp_path)
-
+def app_and_loop():
     app, _ = build_app([])
     app.set_application_id(f"org.oatbrain.TestComplex{os.getpid()}")
     app.register()
