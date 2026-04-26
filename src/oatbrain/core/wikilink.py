@@ -16,12 +16,17 @@ class WikilinkResolver:
         """
         # 1. Path-bearing check (contains / or starts with ../)
         if "/" in target or target.startswith(".."):
-            # Try vault-relative
-            vault_rel = VaultPath.from_str(target)
-            if self._filestore.exists(vault_rel):
-                return vault_rel
+            # Try vault-relative (only if not starting with ..)
+            if not target.startswith(".."):
+                vault_rel = VaultPath.from_str(target)
+                try:
+                    if self._filestore.exists(vault_rel):
+                        return vault_rel
+                except PermissionError:
+                    pass
 
             # Try file-relative
+            # We use parent of source_path and join with target
             source_parts = str(source_path).split("/")
             if len(source_parts) > 1:
                 parent_dir = "/".join(source_parts[:-1])
@@ -30,23 +35,38 @@ class WikilinkResolver:
                 file_rel_str = target
 
             file_rel = VaultPath.from_str(file_rel_str)
-            if self._filestore.exists(file_rel):
-                return file_rel
+            try:
+                # from_str normalizes, so ../foo from subdir becomes foo.
+                # If it still starts with .., it will be caught by filestore.
+                if self._filestore.exists(file_rel):
+                    return file_rel
+            except PermissionError:
+                pass
 
             # Implied .md for path-bearing
             if not target.endswith(".md"):
                 md_target = target + ".md"
-                vault_rel_md = VaultPath.from_str(md_target)
-                if self._filestore.exists(vault_rel_md):
-                    return vault_rel_md
 
+                # Vault-relative MD (only if not starting with ..)
+                if not target.startswith(".."):
+                    vault_rel_md = VaultPath.from_str(md_target)
+                    try:
+                        if self._filestore.exists(vault_rel_md):
+                            return vault_rel_md
+                    except PermissionError:
+                        pass
+
+                # File-relative MD
                 if len(source_parts) > 1:
                     file_rel_md_str = f"{parent_dir}/{md_target}"
                 else:
                     file_rel_md_str = md_target
                 file_rel_md = VaultPath.from_str(file_rel_md_str)
-                if self._filestore.exists(file_rel_md):
-                    return file_rel_md
+                try:
+                    if self._filestore.exists(file_rel_md):
+                        return file_rel_md
+                except PermissionError:
+                    pass
 
             return None
 
