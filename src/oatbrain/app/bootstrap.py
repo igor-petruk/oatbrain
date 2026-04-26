@@ -56,7 +56,7 @@ def build_app(argv: list[str]) -> tuple[Adw.Application, list[str]]:
 
     # Override vault root if provided via CLI
     if args.vault_path:
-        provided_path = Path(args.vault_path).resolve()
+        provided_path = Path(args.vault_path).absolute()
         if provided_path.is_dir():
             initial_state = replace(initial_state, vault_root=provided_path)
 

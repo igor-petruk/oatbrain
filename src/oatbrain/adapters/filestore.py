@@ -10,9 +10,9 @@ class LocalFileStore(FileStore):
     """FileStore adapter for local filesystem access."""
 
     def __init__(self, root: Path):
-        # Resolve to absolute path to prevent symlink bypass and ensure
-        # consistent comparisons in _to_local sandboxing.
-        self._root = root.resolve()
+        # We use absolute() instead of resolve() to preserve symlinks in the root path.
+        # This allows the vault itself to be a symlink (SPEC §23).
+        self._root = root.absolute()
 
     def _to_local(self, p: VaultPath) -> Path:
         """Resolve VaultPath to an absolute local Path."""
@@ -25,7 +25,8 @@ class LocalFileStore(FileStore):
 
     def _from_local(self, local_path: Path) -> VaultPath:
         """Convert local Path to VaultPath."""
-        rel = local_path.relative_to(self._root)
+        # Use absolute() here too to match self._root formatting
+        rel = local_path.absolute().relative_to(self._root)
         return VaultPath(PurePosixPath(rel))
 
     def _make_entry(self, local_path: Path) -> FileEntry | None:
@@ -38,7 +39,7 @@ class LocalFileStore(FileStore):
                 size=stat.st_size,
                 mtime=stat.st_mtime,
             )
-        except (FileNotFoundError, PermissionError):
+        except (FileNotFoundError, PermissionError, ValueError):
             return None
 
     def get_path(self, p: VaultPath) -> str:
@@ -100,7 +101,7 @@ class LocalFileStore(FileStore):
 
     def walk(self, root: VaultPath) -> Iterable[FileEntry]:
         local_root = self._to_local(root)
-        for dirpath, dirnames, filenames in os.walk(local_root):
+        for dirpath, dirnames, filenames in os.walk(local_root, followlinks=True):
             dp = Path(dirpath)
             # Filter hidden directories from being traversed
             dirnames[:] = [d for d in dirnames if not d.startswith(".")]
