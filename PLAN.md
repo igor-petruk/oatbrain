@@ -129,3 +129,17 @@ Goal: Replace single-editor view with a robust multi-tab and split-group system.
     - Implemented global XDG isolation for all tests.
 - **Verification**: 101 GUI tests passing; zero interference with local user state.
 
+---
+
+## Phase 18: Inbox & AI Categorization [DONE]
+Goal: Implement a dedicated Inbox folder and AI Processing workflow.
+- **Task**: Pinned tree entry, auto-titles from headings, collision-free saves, and terminal integration.
+- **Action**:
+    - Created `Inbox` config settings and tree sorting/styling.
+    - Updated `Ctrl+N` to target `Inbox` and initiate Vim insert mode.
+    - Implemented heading extraction for unsaved notes.
+    - Added `Ctrl+Shift+Enter` action to dispatch the `Process` command to the terminal.
+    - Included robust test coverage.
+- **Verification**: All unit and GUI tests pass; functionality merged to `main`.
+
+
