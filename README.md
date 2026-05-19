@@ -36,6 +36,13 @@ sudo apt-get install -y \
     xvfb
 ```
 
+### Run
+
+```
+$ mkdir ~/Vault
+$ ./run.sh
+```
+
 ## Development
 
 ### Setup
