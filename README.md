@@ -1,5 +1,7 @@
 # oatbrain
 
+NOTE: This is not "released", I don't claim it works
+
 A single-window, local-first desktop app for a personal Markdown vault. It allows you to build an AI-assisted "second brain" to organize large amounts of information efficiently.
 
 ## Vision
